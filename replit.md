@@ -1,6 +1,6 @@
-# [Project name]
+# Post Round Coach — Marketing Website
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+A marketing website for Post Round Coach, an AI golf coaching app that builds your "Player DNA" by analyzing your game after every round.
 
 ## Run & Operate
 
