@@ -1,0 +1,149 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+@plugin "@tailwindcss/typography";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+
+  /* Named brand tokens for direct use */
+  --color-golf-green: #1B5E35;
+  --color-golf-green-light: #52B788;
+  --color-golf-gold: #D4AF37;
+  --color-golf-bg-light: #F4FAF6;
+  --color-golf-bg-dark: #0D1B12;
+
+  --font-sans: var(--app-font-sans);
+  --font-serif: var(--app-font-serif);
+  --font-mono: var(--app-font-mono);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+/* ─── LIGHT MODE ─── */
+:root {
+  /* Background: #F4FAF6 */
+  --background: 141 37% 97%;
+  /* Foreground / Text: #0D1B12 */
+  --foreground: 150 40% 8%;
+
+  /* Card / Surface: #FFFFFF */
+  --card: 0 0% 100%;
+  --card-foreground: 150 40% 8%;
+
+  --popover: 0 0% 100%;
+  --popover-foreground: 150 40% 8%;
+
+  /* Primary (green): #1B5E35 */
+  --primary: 145 56% 23%;
+  /* Primary Text: #FFFFFF */
+  --primary-foreground: 0 0% 100%;
+
+  /* Secondary / Muted: #E8F5EE */
+  --secondary: 142 44% 93%;
+  --secondary-foreground: 150 40% 8%;
+
+  --muted: 142 44% 93%;
+  /* Muted Text: #4B7A5A */
+  --muted-foreground: 142 25% 39%;
+
+  /* Accent (gold): #D4AF37 */
+  --accent: 45 65% 52%;
+  --accent-foreground: 150 40% 8%;
+
+  /* Error / Danger: #EF4444 */
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 0 0% 100%;
+
+  /* Border: #C8E6D4 */
+  --border: 145 38% 84%;
+  --input: 145 38% 84%;
+  /* Ring uses primary green */
+  --ring: 145 56% 23%;
+
+  /* Border radius: 12px */
+  --radius: 0.75rem;
+
+  --app-font-sans: 'Inter', sans-serif;
+  --app-font-serif: Georgia, serif;
+  --app-font-mono: Menlo, monospace;
+}
+
+/* ─── DARK MODE ─── */
+.dark {
+  /* Background: #0D1B12 */
+  --background: 150 40% 8%;
+  /* Foreground / Text: #E8F5E0 */
+  --foreground: 102 63% 92%;
+
+  /* Card / Surface: #162A1C */
+  --card: 140 29% 13%;
+  --card-foreground: 102 63% 92%;
+
+  --popover: 140 29% 13%;
+  --popover-foreground: 102 63% 92%;
+
+  /* Primary (green): #52B788 */
+  --primary: 151 37% 52%;
+  /* Primary Text: #0D1B12 */
+  --primary-foreground: 150 40% 8%;
+
+  /* Secondary / Muted: #1B4332 */
+  --secondary: 152 42% 18%;
+  --secondary-foreground: 102 63% 92%;
+
+  --muted: 152 42% 18%;
+  /* Muted Text: #8BA888 */
+  --muted-foreground: 120 12% 61%;
+
+  /* Accent (gold): #D4AF37 — same in both modes */
+  --accent: 45 65% 52%;
+  --accent-foreground: 150 40% 8%;
+
+  /* Error / Danger: #EF4444 */
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 0 0% 100%;
+
+  /* Border: #264D32 */
+  --border: 144 32% 23%;
+  --input: 144 32% 23%;
+  --ring: 151 37% 52%;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+  }
+}

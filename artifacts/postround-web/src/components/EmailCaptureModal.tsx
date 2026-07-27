@@ -1,82 +1,80 @@
-import React, { useState } from 'react';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+"use client"
+
+import { useState } from 'react'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Button } from '@/components/ui/button'
 
 interface EmailCaptureModalProps {
-  isOpen: boolean;
-  onOpenChange: (open: boolean) => void;
+  open: boolean
+  onOpenChange: (open: boolean) => void
 }
 
-export function EmailCaptureModal({ isOpen, onOpenChange }: EmailCaptureModalProps) {
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [submitted, setSubmitted] = useState(false);
+export function EmailCaptureModal({ open, onOpenChange }: EmailCaptureModalProps) {
+  const [name, setName] = useState('')
+  const [email, setEmail] = useState('')
+  const [submitted, setSubmitted] = useState(false)
 
   const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    console.log('Capture Email:', { name, email });
-    setSubmitted(true);
+    e.preventDefault()
+    console.log('Email capture:', { name, email })
+    setSubmitted(true)
     setTimeout(() => {
-      onOpenChange(false);
-      setSubmitted(false);
-      setName('');
-      setEmail('');
-    }, 2000);
-  };
+      setSubmitted(false)
+      setName('')
+      setEmail('')
+      onOpenChange(false)
+    }, 2000)
+  }
 
   return (
-    <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md bg-zinc-950 border-zinc-800 text-zinc-100">
-        <DialogHeader>
-          <DialogTitle className="font-serif text-2xl font-normal text-zinc-100">
-            {submitted ? 'Welcome to the Club' : 'Start Your Free Round Review'}
-          </DialogTitle>
-          <DialogDescription className="text-zinc-400">
-            {submitted
-              ? 'We will be in touch shortly.'
-              : 'Enter your details to get early access to Post Round Coach.'}
-          </DialogDescription>
-        </DialogHeader>
-
-        {!submitted && (
-          <form onSubmit={handleSubmit} className="space-y-4 mt-4">
-            <div className="space-y-2">
-              <Label htmlFor="name" className="text-zinc-300">First Name</Label>
-              <Input
-                id="name"
-                placeholder="Ben"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                required
-                className="bg-zinc-900 border-zinc-800 text-zinc-100 placeholder:text-zinc-600 focus-visible:ring-primary"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="email" className="text-zinc-300">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="ben@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                className="bg-zinc-900 border-zinc-800 text-zinc-100 placeholder:text-zinc-600 focus-visible:ring-primary"
-              />
-            </div>
-            <Button type="submit" className="w-full bg-primary hover:bg-primary/90 text-primary-foreground">
-              Request Access
-            </Button>
-          </form>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        {!submitted ? (
+          <>
+            <DialogHeader>
+              <DialogTitle className="text-2xl font-serif">Start Your Free Round Review</DialogTitle>
+              <DialogDescription>
+                Get early access to Post Round Coach and transform your drive home into the most productive part of your golf game.
+              </DialogDescription>
+            </DialogHeader>
+            <form onSubmit={handleSubmit} className="space-y-4 pt-4">
+              <div className="space-y-2">
+                <Label htmlFor="name">Full Name</Label>
+                <Input 
+                  id="name" 
+                  placeholder="John Smith"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="email">Email Address</Label>
+                <Input 
+                  id="email" 
+                  type="email" 
+                  placeholder="john@example.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                />
+              </div>
+              <Button type="submit" variant="gold" size="lg" className="w-full">
+                Get Early Access
+              </Button>
+            </form>
+          </>
+        ) : (
+          <div className="py-8 text-center">
+            <DialogTitle className="text-2xl font-serif mb-2">Welcome to the club</DialogTitle>
+            <DialogDescription>
+              Check your email — we'll be in touch soon with your early access invite.
+            </DialogDescription>
+          </div>
         )}
       </DialogContent>
     </Dialog>
-  );
+  )
 }
