@@ -1,0 +1,100 @@
+create table if not exists public.holes (
+    id                      uuid primary key default gen_random_uuid(),
+
+    round_id                uuid references public.rounds(id) on delete cascade,
+
+    hole_number             integer not null check (hole_number between 1 and 18),
+
+    par                     integer check (par between 3 and 5),
+    score                   integer,
+
+    fairway_result          text check (
+        fairway_result in ('hit', 'left', 'right', 'short', 'none')
+    ),
+
+    gir_result              text check (
+        gir_result in ('hit', 'short', 'long', 'left', 'right', 'none')
+    ),
+
+    distance_to_pin_yards   integer,
+
+    putts                   integer,
+
+    chip_count              integer default 0,
+
+    bunker_shot             boolean default false,
+    sand_save               boolean,
+
+    scramble_opportunity    boolean default false,
+    scramble_success        boolean,
+
+    penalty_strokes         integer default 0,
+
+    player_notes            text,
+    ai_feedback             text,
+
+    created_at              timestamptz default now(),
+    updated_at              timestamptz default now(),
+
+    unique(round_id, hole_number)
+);
+
+
+-- Enable Row Level Security
+alter table public.holes enable row level security;
+
+
+-- Users can read holes belonging to their own rounds
+create policy "Users can read own holes"
+    on public.holes
+    for select
+    using (
+        exists (
+            select 1
+            from public.rounds r
+            where r.id = holes.round_id
+            and r.user_id = auth.uid()
+        )
+    );
+
+
+-- Users can insert holes into their own rounds
+create policy "Users can insert own holes"
+    on public.holes
+    for insert
+    with check (
+        exists (
+            select 1
+            from public.rounds r
+            where r.id = holes.round_id
+            and r.user_id = auth.uid()
+        )
+    );
+
+
+-- Users can update holes belonging to their own rounds
+create policy "Users can update own holes"
+    on public.holes
+    for update
+    using (
+        exists (
+            select 1
+            from public.rounds r
+            where r.id = holes.round_id
+            and r.user_id = auth.uid()
+        )
+    );
+
+
+-- Users can delete holes belonging to their own rounds
+create policy "Users can delete own holes"
+    on public.holes
+    for delete
+    using (
+        exists (
+            select 1
+            from public.rounds r
+            where r.id = holes.round_id
+            and r.user_id = auth.uid()
+        )
+    );

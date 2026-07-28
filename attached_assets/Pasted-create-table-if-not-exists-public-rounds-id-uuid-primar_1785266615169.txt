@@ -1,0 +1,59 @@
+create table if not exists public.rounds (
+    id uuid primary key default gen_random_uuid(),
+    user_id uuid references auth.users(id) on delete cascade,
+    course_id uuid references public.courses(id),
+    course_name text,
+    tees text,
+    played_at date default current_date,
+    course_rating numeric(4,1),
+    slope_rating integer,
+    course_par integer,
+    course_yardage integer,
+    total_score integer,
+    front_9                     integer,
+    back_9                      integer,
+    total_putts                 integer,
+    total_penalties             integer default 0,
+    total_fairways              integer,
+    fairways_hit                integer,
+    fairways_left               integer,
+    fairways_right              integer,
+    total_gir                   integer,
+    gir_hit                     integer,
+    gir_short                   integer,
+    gir_long                    integer,
+    gir_left                    integer,
+    gir_right                   integer,
+    scrambling_opportunities    integer,
+    successful_scrambles        integer,
+    sand_save_opportunities     integer,
+    successful_sand_saves       integer,
+    three_putts integer default 0,
+    birdies integer default 0,  
+    pars integer default 0,
+    bogeys integer default 0,
+    double_bogeys integer default 0,
+    input_method                text check (input_method in ('scorecard', 'voice_recap', 'guided_ai')),
+    ai_summary                  text,
+    player_notes                text,
+    created_at timestamptz default now(),
+    updated_at timestamptz default now()
+);
+
+alter table public.rounds enable row level security;
+
+create policy "Users can read own rounds"
+    on public.rounds for select
+    using (auth.uid() = user_id);
+
+create policy "Users can insert own rounds"
+    on public.rounds for insert
+    with check (auth.uid() = user_id);
+
+create policy "Users can update own rounds"
+    on public.rounds for update
+    using (auth.uid() = user_id);
+
+create policy "Users can delete own rounds"
+    on public.rounds for delete
+    using (auth.uid() = user_id);
