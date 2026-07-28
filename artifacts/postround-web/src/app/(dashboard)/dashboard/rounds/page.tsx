@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Flag, TrendingUp, TrendingDown, Minus } from 'lucide-react'
+import { Flag, TrendingUp, TrendingDown, Minus, ChevronRight } from 'lucide-react'
+import Link from 'next/link'
 
 interface Round {
   id: string
@@ -90,86 +91,87 @@ export default async function RoundsPage() {
             const diff = scoreDiff(round.total_score, round.course_par)
             const DiffIcon = diff.icon
             return (
-              <Card key={round.id} className="overflow-hidden">
-                <CardHeader className="pb-3">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="min-w-0">
-                      <CardTitle className="font-serif text-lg leading-tight truncate">
-                        {round.course_name ?? 'Unknown course'}
-                      </CardTitle>
-                      <div className="flex items-center gap-2 mt-1 flex-wrap">
-                        <span className="text-sm text-muted-foreground">
-                          {new Date(round.played_at).toLocaleDateString('en-US', {
-                            weekday: 'short', month: 'short', day: 'numeric', year: 'numeric',
-                          })}
-                        </span>
-                        {round.tees && (
-                          <span className="text-xs px-2 py-0.5 rounded-full bg-muted/50 border border-border text-muted-foreground">
-                            {round.tees}
+              <Link key={round.id} href={`/dashboard/rounds/${round.id}`} className="block group">
+                <Card className="overflow-hidden transition-colors hover:border-[#1B5E35]/50">
+                  <CardHeader className="pb-3">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <CardTitle className="font-serif text-lg leading-tight truncate group-hover:text-[#52B788] transition-colors">
+                            {round.course_name ?? 'Unknown course'}
+                          </CardTitle>
+                          <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0 group-hover:text-[#52B788] transition-colors" />
+                        </div>
+                        <div className="flex items-center gap-2 mt-1 flex-wrap">
+                          <span className="text-sm text-muted-foreground">
+                            {new Date(round.played_at).toLocaleDateString('en-US', {
+                              weekday: 'short', month: 'short', day: 'numeric', year: 'numeric',
+                            })}
                           </span>
+                          {round.tees && (
+                            <span className="text-xs px-2 py-0.5 rounded-full bg-muted/50 border border-border text-muted-foreground">
+                              {round.tees}
+                            </span>
+                          )}
+                          {round.input_method && (
+                            <span className="text-xs px-2 py-0.5 rounded-full bg-muted/50 border border-border text-muted-foreground capitalize">
+                              {round.input_method.replace('_', ' ')}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="text-right shrink-0">
+                        {round.total_score != null && (
+                          <p className="text-3xl font-bold leading-none">{round.total_score}</p>
                         )}
-                        {round.input_method && (
-                          <span className="text-xs px-2 py-0.5 rounded-full bg-muted/50 border border-border text-muted-foreground capitalize">
-                            {round.input_method.replace('_', ' ')}
-                          </span>
+                        <div className={`flex items-center justify-end gap-1 mt-1 ${diff.color}`}>
+                          {DiffIcon && <DiffIcon className="h-3 w-3" />}
+                          <span className="text-sm font-semibold">{diff.label}</span>
+                        </div>
+                        {(round.front_9 != null || round.back_9 != null) && (
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {round.front_9 ?? '—'} / {round.back_9 ?? '—'}
+                          </p>
                         )}
                       </div>
                     </div>
+                  </CardHeader>
 
-                    {/* Score block */}
-                    <div className="text-right shrink-0">
-                      {round.total_score != null && (
-                        <p className="text-3xl font-bold leading-none">{round.total_score}</p>
-                      )}
-                      <div className={`flex items-center justify-end gap-1 mt-1 ${diff.color}`}>
-                        {DiffIcon && <DiffIcon className="h-3 w-3" />}
-                        <span className="text-sm font-semibold">{diff.label}</span>
+                  <CardContent className="pt-0">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+                      <StatBox label="Putts" value={round.total_putts?.toString() ?? '—'} />
+                      <StatBox label="Fairways" value={pct(round.fairways_hit, round.total_fairways)} />
+                      <StatBox label="GIR" value={pct(round.gir_hit, round.total_gir)} />
+                      <StatBox label="Scrambling" value={pct(round.successful_scrambles, round.scrambling_opportunities)} />
+                    </div>
+
+                    {(round.birdies != null || round.pars != null || round.bogeys != null) && (
+                      <div className="flex gap-3 mb-4 flex-wrap">
+                        {round.birdies != null && round.birdies > 0 && (
+                          <ScorePill label="Birdies" value={round.birdies} color="text-[#52B788]" bg="bg-[#52B788]/10 border-[#52B788]/20" />
+                        )}
+                        {round.pars != null && round.pars > 0 && (
+                          <ScorePill label="Pars" value={round.pars} color="text-[#D4AF37]" bg="bg-[#D4AF37]/10 border-[#D4AF37]/20" />
+                        )}
+                        {round.bogeys != null && round.bogeys > 0 && (
+                          <ScorePill label="Bogeys" value={round.bogeys} color="text-muted-foreground" bg="bg-muted/30 border-border" />
+                        )}
+                        {round.double_bogeys != null && round.double_bogeys > 0 && (
+                          <ScorePill label="Doubles+" value={round.double_bogeys} color="text-red-400" bg="bg-red-950/20 border-red-900/30" />
+                        )}
                       </div>
-                      {(round.front_9 != null || round.back_9 != null) && (
-                        <p className="text-xs text-muted-foreground mt-1">
-                          {round.front_9 ?? '—'} / {round.back_9 ?? '—'}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                </CardHeader>
+                    )}
 
-                <CardContent className="pt-0">
-                  {/* Stats grid */}
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
-                    <StatBox label="Putts" value={round.total_putts?.toString() ?? '—'} />
-                    <StatBox label="Fairways" value={pct(round.fairways_hit, round.total_fairways)} />
-                    <StatBox label="GIR" value={pct(round.gir_hit, round.total_gir)} />
-                    <StatBox label="Scrambling" value={pct(round.successful_scrambles, round.scrambling_opportunities)} />
-                  </div>
-
-                  {/* Score breakdown */}
-                  {(round.birdies != null || round.pars != null || round.bogeys != null) && (
-                    <div className="flex gap-3 mb-4 flex-wrap">
-                      {round.birdies != null && round.birdies > 0 && (
-                        <ScorePill label="Birdies" value={round.birdies} color="text-[#52B788]" bg="bg-[#52B788]/10 border-[#52B788]/20" />
-                      )}
-                      {round.pars != null && round.pars > 0 && (
-                        <ScorePill label="Pars" value={round.pars} color="text-[#D4AF37]" bg="bg-[#D4AF37]/10 border-[#D4AF37]/20" />
-                      )}
-                      {round.bogeys != null && round.bogeys > 0 && (
-                        <ScorePill label="Bogeys" value={round.bogeys} color="text-muted-foreground" bg="bg-muted/30 border-border" />
-                      )}
-                      {round.double_bogeys != null && round.double_bogeys > 0 && (
-                        <ScorePill label="Doubles+" value={round.double_bogeys} color="text-red-400" bg="bg-red-950/20 border-red-900/30" />
-                      )}
-                    </div>
-                  )}
-
-                  {/* AI Summary */}
-                  {round.ai_summary && (
-                    <div className="p-3 rounded-lg bg-[#1B5E35]/10 border border-[#1B5E35]/20">
-                      <p className="text-xs font-semibold text-[#52B788] mb-1">AI Coaching Summary</p>
-                      <p className="text-sm text-muted-foreground leading-relaxed">{round.ai_summary}</p>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
+                    {round.ai_summary && (
+                      <div className="p-3 rounded-lg bg-[#1B5E35]/10 border border-[#1B5E35]/20">
+                        <p className="text-xs font-semibold text-[#52B788] mb-1">AI Coaching Summary</p>
+                        <p className="text-sm text-muted-foreground leading-relaxed line-clamp-2">{round.ai_summary}</p>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </Link>
             )
           })}
         </div>
@@ -187,9 +189,7 @@ function StatBox({ label, value }: { label: string; value: string }) {
   )
 }
 
-function ScorePill({
-  label, value, color, bg,
-}: { label: string; value: number; color: string; bg: string }) {
+function ScorePill({ label, value, color, bg }: { label: string; value: number; color: string; bg: string }) {
   return (
     <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs font-medium ${bg}`}>
       <span className={`text-sm font-bold ${color}`}>{value}</span>
