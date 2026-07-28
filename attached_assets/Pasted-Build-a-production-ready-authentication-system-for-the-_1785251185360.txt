@@ -1,0 +1,204 @@
+Build a production-ready authentication system for the Post Round Coach Next.js website using the existing Supabase project. This website must use the exact same Supabase Auth instance and database as the existing Expo mobile app so users have one account across both platforms.
+
+Existing Stack
+Next.js 15 (App Router)
+TypeScript
+Supabase
+@supabase/ssr
+@supabase/supabase-js
+Tailwind CSS (if already installed)
+Deployed on Vercel
+
+Use the existing environment variables:
+
+NEXT_PUBLIC_SUPABASE_URL
+NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+Do not create a new authentication system or database.
+
+Authentication Features
+
+Implement the following:
+
+1. Sign In
+
+Create:
+
+/login
+
+Features:
+
+Email
+Password
+Show/Hide password
+Remember session
+Loading state
+Error handling
+Responsive layout
+
+If login succeeds:
+
+Redirect to /dashboard
+
+If already logged in:
+
+Automatically redirect to /dashboard.
+2. Create Account
+
+Create:
+
+/signup
+
+Collect:
+
+Display Name
+Email
+Password
+Confirm Password
+
+Requirements:
+
+Validate passwords match
+Strong password validation
+Display Supabase errors
+Create the user using Supabase Auth
+Use the existing profile creation workflow (do not create duplicate profile logic if database triggers already exist)
+Redirect to email verification (if enabled) or directly to dashboard.
+3. Forgot Password
+
+Create:
+
+/forgot-password
+
+Allow users to:
+
+Enter email
+Receive password reset email
+Display success message
+
+Create:
+
+/reset-password
+
+Allow:
+
+Enter new password
+Confirm password
+Update password using Supabase
+
+Handle expired or invalid reset links gracefully.
+
+4. Dashboard Shell
+
+Create:
+
+/dashboard
+
+This page should require authentication.
+
+If the user is not authenticated:
+
+Redirect to /login
+
+Dashboard should include:
+
+Header
+
+Welcome, {Display Name}
+Sign Out button
+
+Cards (placeholder data for now):
+
+Player Profile
+Recent Rounds
+Player DNA
+AI Coaching Reports
+Subscription Status
+
+Navigation Sidebar:
+
+Dashboard
+My Rounds
+Coaching Reports
+Player DNA
+Profile
+Billing (placeholder)
+Settings
+
+The layout should be clean, modern, mobile responsive, and designed so future features can easily be added.
+
+5. Sign Out
+
+Implement Sign Out using Supabase Auth.
+
+After sign out:
+
+Clear session
+Redirect to homepage
+Session Management
+
+Use @supabase/ssr correctly.
+
+Persist authentication across refreshes.
+
+Use secure cookies.
+
+Protect authenticated routes using middleware.
+
+Users should remain logged in across browser sessions unless they explicitly sign out.
+
+Routing
+
+Public:
+
+/
+/login
+/signup
+/forgot-password
+/privacy
+/terms
+
+Protected:
+
+/dashboard
+
+Future protected routes should be easy to add.
+
+UI Requirements
+
+Use the existing Post Round Coach branding.
+
+Maintain the current design language.
+
+Professional SaaS appearance.
+
+Large touch-friendly controls.
+
+Excellent mobile responsiveness.
+
+Include loading states and friendly error messages.
+
+Code Quality
+TypeScript throughout
+No use of "any"
+Modular components
+Reusable authentication helpers
+Reusable form components where appropriate
+Clean folder structure
+Follow Next.js App Router best practices
+Follow Supabase SSR best practices
+Important
+
+Do not replace or duplicate the existing Supabase configuration.
+
+Reuse the existing Supabase client/server utilities wherever possible.
+
+Before creating new auth helper files, inspect the existing project and extend the current implementation instead of creating parallel authentication code.
+
+At the end of the implementation, provide a summary of:
+
+Files created
+Files modified
+Authentication flow
+Route protection flow
+Any manual configuration still required in Supabase or Vercel.
