@@ -298,7 +298,7 @@ function ScorecardTable({ holes, label, subtotal }: { holes: Hole[]; label: stri
               </td>
             )
           })}
-          <td className="text-center px-2 py-2 font-bold text-base">{subtotal ?? scoreTotal || '—'}</td>
+          <td className="text-center px-2 py-2 font-bold text-base">{subtotal != null ? subtotal : (scoreTotal || '—')}</td>
         </tr>
         {/* Putts row */}
         <tr className="border-b border-border/50">
