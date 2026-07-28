@@ -1,19 +1,36 @@
 import { createClient } from '@/lib/supabase/server'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { SignOutButton } from '@/components/auth/SignOutButton'
 import { CalendarDays, TrendingUp, Dna, FileText, Crown } from 'lucide-react'
+
+interface Profile {
+  display_name: string | null
+  avatar_url: string | null
+  created_at: string
+}
 
 export default async function DashboardPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  if (!user) {
-    return null
-  }
+  if (!user) return null
 
-  const displayName = user.user_metadata?.display_name || user.email?.split('@')[0] || 'User'
+  // Fetch profile from the profiles table
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('display_name, avatar_url, created_at')
+    .eq('id', user.id)
+    .single<Profile>()
+
+  // Fallback chain: profiles table → auth metadata → email prefix
+  const displayName =
+    profile?.display_name ||
+    user.user_metadata?.display_name ||
+    user.email?.split('@')[0] ||
+    'Golfer'
+
   const initials = displayName
     .split(' ')
     .map((n: string) => n[0])
@@ -21,10 +38,9 @@ export default async function DashboardPage() {
     .toUpperCase()
     .slice(0, 2)
 
-  const memberSince = new Date(user.created_at).toLocaleDateString('en-US', {
-    month: 'long',
-    year: 'numeric'
-  })
+  const memberSince = new Date(
+    profile?.created_at ?? user.created_at
+  ).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
 
   return (
     <div className="p-6 lg:p-8 max-w-7xl mx-auto">
@@ -35,7 +51,7 @@ export default async function DashboardPage() {
             Welcome back, {displayName}
           </h1>
           <p className="text-muted-foreground">
-            Here's what's happening with your golf game
+            Here&apos;s what&apos;s happening with your golf game
           </p>
         </div>
         <div className="hidden sm:block">
@@ -45,6 +61,7 @@ export default async function DashboardPage() {
 
       {/* Dashboard Grid */}
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+
         {/* Player Profile Card */}
         <Card className="md:col-span-2 lg:col-span-1">
           <CardHeader>
@@ -54,6 +71,12 @@ export default async function DashboardPage() {
           <CardContent>
             <div className="flex flex-col items-center text-center space-y-4">
               <Avatar className="h-20 w-20">
+                {profile?.avatar_url && (
+                  <AvatarImage
+                    src={profile.avatar_url}
+                    alt={displayName}
+                  />
+                )}
                 <AvatarFallback className="bg-[#D4AF37] text-[#0D1B12] text-2xl font-bold">
                   {initials}
                 </AvatarFallback>
@@ -182,7 +205,6 @@ export default async function DashboardPage() {
                 </p>
               </div>
             </div>
-
             <div className="flex items-start gap-3 p-4 rounded-lg bg-muted/30 border border-border">
               <div className="h-8 w-8 rounded-full bg-[#D4AF37]/10 border border-[#D4AF37]/20 flex items-center justify-center shrink-0">
                 <span className="text-sm font-bold text-[#D4AF37]">2</span>
@@ -194,7 +216,6 @@ export default async function DashboardPage() {
                 </p>
               </div>
             </div>
-
             <div className="flex items-start gap-3 p-4 rounded-lg bg-muted/30 border border-border">
               <div className="h-8 w-8 rounded-full bg-[#52B788]/10 border border-[#52B788]/20 flex items-center justify-center shrink-0">
                 <span className="text-sm font-bold text-[#52B788]">3</span>
