@@ -1,0 +1,114 @@
+We need to find what is referencing avatar_url
+
+There are two likely places:
+
+1. A database trigger (most likely)
+
+Go to:
+
+Supabase → Database → Functions
+
+or
+
+Database → Triggers
+
+Look for something like:
+
+handle_new_user
+create_profile
+on_auth_user_created
+
+One of them probably contains SQL similar to:
+
+INSERT INTO public.profiles (
+    id,
+    email,
+    avatar_url
+)
+2. Your website signup code
+
+Less likely, but possible.
+
+It might be doing:
+
+await supabase
+  .from("profiles")
+  .insert({
+      avatar_url: ...
+  })
+I suspect the trigger
+
+Because the error is:
+
+POST /auth/v1/otp
+
+The OTP endpoint shouldn't know anything about your profile table unless a database trigger fires automatically after creating a user.
+
+Next step
+
+In Supabase SQL Editor, run:
+
+SELECT
+    trigger_name,
+    event_object_table
+FROM information_schema.triggers
+WHERE event_object_table = 'users';
+
+Then also run:
+
+SELECT
+    routine_name
+FROM information_schema.routines
+WHERE routine_schema = 'public';
+
+If you see something like:
+
+handle_new_user
+
+or
+
+create_profile_for_new_user
+
+that's what we need.
+
+I can almost guarantee this is the issue
+
+This is exactly the kind of thing that happens after evolving a schema: the trigger still reflects the old table definition.
+
+Can you paste the SQL for your handle_new_user function (or whatever function is attached to auth.users)? I expect we'll find a reference to avatar_url, and fixing that should get sign-up and emails working.
+
+i ran those two sql files in supabase, should i try again, the second querry did return a list including the handle_new_user
+
+Yes — finding handle_new_user confirms we are looking in the right place.
+
+But don't just try signup again yet. The same error will happen until we fix the function, because every new signup will trigger the same failing database code:
+
+column "avatar_url" of relation "profiles" does not exist
+
+Your two SQL queries only identified the trigger/function. They did not modify anything.
+
+Next step: inspect handle_new_user
+
+Run this in the Supabase SQL Editor:
+
+SELECT
+  pg_get_functiondef(oid)
+FROM pg_proc
+WHERE proname = 'handle_new_user';
+
+This will output the actual function code.
+
+Look for something like:
+
+INSERT INTO public.profiles (
+  id,
+  email,
+  avatar_url
+)
+VALUES (
+  new.id,
+  new.email,
+  new.raw_user_meta_data->>'avatar_url'
+);
+
+That avatar_url reference is the problem.
