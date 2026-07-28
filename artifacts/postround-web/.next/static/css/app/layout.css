@@ -81,9 +81,6 @@
     --color-red-600: oklch(57.7% 0.245 27.325);
     --color-red-900: oklch(39.6% 0.141 25.723);
     --color-red-950: oklch(25.8% 0.092 26.042);
-    --color-green-400: oklch(79.2% 0.209 151.711);
-    --color-green-900: oklch(39.3% 0.095 152.535);
-    --color-green-950: oklch(26.6% 0.065 152.934);
     --color-gray-300: oklch(87.2% 0.01 258.338);
     --color-black: #000;
     --color-white: #fff;
@@ -1666,12 +1663,6 @@
       border-color: color-mix(in oklab, hsl(var(--destructive)) 50%, transparent);
     }
   }
-  .border-green-900\/50 {
-    border-color: color-mix(in srgb, oklch(39.3% 0.095 152.535) 50%, transparent);
-    @supports (color: color-mix(in lab, red, red)) {
-      border-color: color-mix(in oklab, var(--color-green-900) 50%, transparent);
-    }
-  }
   .border-input {
     border-color: hsl(var(--input));
   }
@@ -1779,12 +1770,6 @@
   }
   .bg-foreground {
     background-color: hsl(var(--foreground));
-  }
-  .bg-green-950\/30 {
-    background-color: color-mix(in srgb, oklch(26.6% 0.065 152.934) 30%, transparent);
-    @supports (color: color-mix(in lab, red, red)) {
-      background-color: color-mix(in oklab, var(--color-green-950) 30%, transparent);
-    }
   }
   .bg-input {
     background-color: hsl(var(--input));
@@ -2233,9 +2218,6 @@
   }
   .text-gray-300 {
     color: var(--color-gray-300);
-  }
-  .text-green-400 {
-    color: var(--color-green-400);
   }
   .text-muted-foreground {
     color: hsl(var(--muted-foreground));
