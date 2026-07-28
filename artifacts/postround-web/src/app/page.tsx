@@ -25,11 +25,6 @@ export default function Home() {
               Log In
             </Button>
           </Link>
-          <Link href="/signup">
-            <Button variant="gold" size="sm">
-              Sign Up
-            </Button>
-          </Link>
         </div>
       </nav>
 
@@ -69,7 +64,7 @@ export default function Home() {
                 onClick={() => setModalOpen(true)}
                 className="shadow-lg shadow-[#D4AF37]/20 hover:shadow-xl hover:shadow-[#D4AF37]/30 transition-all"
               >
-                Add me to Launch List
+                Add me to Launch Waiting List
                 <ArrowRight className="ml-2 h-5 w-5" />
               </Button>
             </FadeIn>
@@ -408,7 +403,7 @@ export default function Home() {
                 onClick={() => setModalOpen(true)}
                 className="shadow-2xl shadow-[#D4AF37]/30 hover:shadow-[#D4AF37]/50 transition-all"
               >
-                Add me to Launch List
+                Add me to Launch Waiting List
                 <ArrowRight className="ml-2 h-5 w-5" />
               </Button>
             </FadeIn>
