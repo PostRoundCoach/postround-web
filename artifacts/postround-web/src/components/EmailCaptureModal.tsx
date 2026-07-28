@@ -70,7 +70,7 @@ export function EmailCaptureModal({ open, onOpenChange }: EmailCaptureModalProps
         {!submitted ? (
           <>
             <DialogHeader>
-              <DialogTitle className="text-2xl font-serif">Start Your Free Round Review</DialogTitle>
+              <DialogTitle className="text-2xl font-serif">Add me to Launch List</DialogTitle>
               <DialogDescription>
                 Get early access to Post Round Coach and transform your drive home into the most productive part of your golf game.
               </DialogDescription>

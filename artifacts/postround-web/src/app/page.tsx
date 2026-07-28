@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { EmailCaptureModal } from '@/components/EmailCaptureModal'
 import { Footer } from '@/components/Footer'
 import { FadeIn, StaggerContainer, StaggerItem } from '@/components/motion/FadeIn'
+import Link from 'next/link'
 import { MessageCircle, TrendingUp, Target, Brain, CheckCircle, ArrowRight } from 'lucide-react'
 
 export default function Home() {
@@ -13,6 +14,25 @@ export default function Home() {
 
   return (
     <>
+      {/* Fixed Navigation */}
+      <nav className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-6 py-4 backdrop-blur-md bg-[#0D1B12]/60 border-b border-white/5">
+        <span className="font-serif text-sm font-bold tracking-widest text-foreground uppercase">
+          Post Round Coach
+        </span>
+        <div className="flex items-center gap-3">
+          <Link href="/login">
+            <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground">
+              Log In
+            </Button>
+          </Link>
+          <Link href="/signup">
+            <Button variant="gold" size="sm">
+              Sign Up
+            </Button>
+          </Link>
+        </div>
+      </nav>
+
       <main className="min-h-screen">
         {/* Hero Section */}
         <section className="relative min-h-[100dvh] flex items-center justify-center overflow-hidden bg-gradient-to-b from-[#0D1B12] via-[#1B5E35]/20 to-background">
@@ -49,7 +69,7 @@ export default function Home() {
                 onClick={() => setModalOpen(true)}
                 className="shadow-lg shadow-[#D4AF37]/20 hover:shadow-xl hover:shadow-[#D4AF37]/30 transition-all"
               >
-                Start Your Free Round Review
+                Add me to Launch List
                 <ArrowRight className="ml-2 h-5 w-5" />
               </Button>
             </FadeIn>
@@ -388,7 +408,7 @@ export default function Home() {
                 onClick={() => setModalOpen(true)}
                 className="shadow-2xl shadow-[#D4AF37]/30 hover:shadow-[#D4AF37]/50 transition-all"
               >
-                Start Your Free Round Review
+                Add me to Launch List
                 <ArrowRight className="ml-2 h-5 w-5" />
               </Button>
             </FadeIn>
