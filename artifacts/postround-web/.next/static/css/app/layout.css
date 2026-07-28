@@ -136,6 +136,7 @@
     --animate-spin: spin 1s linear infinite;
     --animate-pulse: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
     --blur-sm: 8px;
+    --blur-md: 12px;
     --aspect-video: 16 / 9;
     --default-transition-duration: 150ms;
     --default-transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
@@ -1620,6 +1621,9 @@
   .\[border-color\:var\(--badge-outline\)\] {
     border-color: var(--badge-outline);
   }
+  .border-\[\#1B5E35\]\/50 {
+    border-color: color-mix(in oklab, #1B5E35 50%, transparent);
+  }
   .border-\[\#52B788\]\/20 {
     border-color: color-mix(in oklab, #52B788 20%, transparent);
   }
@@ -1695,6 +1699,12 @@
   .border-transparent {
     border-color: transparent;
   }
+  .border-white\/5 {
+    border-color: color-mix(in srgb, #fff 5%, transparent);
+    @supports (color: color-mix(in lab, red, red)) {
+      border-color: color-mix(in oklab, var(--color-white) 5%, transparent);
+    }
+  }
   .border-t-transparent {
     border-top-color: transparent;
   }
@@ -1703,6 +1713,12 @@
   }
   .bg-\[\#0D1B12\] {
     background-color: #0D1B12;
+  }
+  .bg-\[\#0D1B12\]\/60 {
+    background-color: color-mix(in oklab, #0D1B12 60%, transparent);
+  }
+  .bg-\[\#1B5E35\]\/30 {
+    background-color: color-mix(in oklab, #1B5E35 30%, transparent);
   }
   .bg-\[\#52B788\]\/10 {
     background-color: color-mix(in oklab, #52B788 10%, transparent);
@@ -2154,6 +2170,10 @@
     --tw-font-weight: var(--font-weight-semibold);
     font-weight: var(--font-weight-semibold);
   }
+  .tracking-\[0\.5em\] {
+    --tw-tracking: 0.5em;
+    letter-spacing: 0.5em;
+  }
   .tracking-tight {
     --tw-tracking: var(--tracking-tight);
     letter-spacing: var(--tracking-tight);
@@ -2249,6 +2269,9 @@
   }
   .text-white {
     color: var(--color-white);
+  }
+  .uppercase {
+    text-transform: uppercase;
   }
   .tabular-nums {
     --tw-numeric-spacing: tabular-nums;
@@ -2361,6 +2384,11 @@
   }
   .outline-transparent {
     outline-color: transparent;
+  }
+  .backdrop-blur-md {
+    --tw-backdrop-blur: blur(var(--blur-md));
+    -webkit-backdrop-filter: var(--tw-backdrop-blur,) var(--tw-backdrop-brightness,) var(--tw-backdrop-contrast,) var(--tw-backdrop-grayscale,) var(--tw-backdrop-hue-rotate,) var(--tw-backdrop-invert,) var(--tw-backdrop-opacity,) var(--tw-backdrop-saturate,) var(--tw-backdrop-sepia,);
+    backdrop-filter: var(--tw-backdrop-blur,) var(--tw-backdrop-brightness,) var(--tw-backdrop-contrast,) var(--tw-backdrop-grayscale,) var(--tw-backdrop-hue-rotate,) var(--tw-backdrop-invert,) var(--tw-backdrop-opacity,) var(--tw-backdrop-saturate,) var(--tw-backdrop-sepia,);
   }
   .backdrop-blur-sm {
     --tw-backdrop-blur: blur(var(--blur-sm));
