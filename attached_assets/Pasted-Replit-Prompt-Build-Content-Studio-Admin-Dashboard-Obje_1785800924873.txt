@@ -1,0 +1,333 @@
+Replit Prompt: Build Content Studio Admin Dashboard
+Objective
+
+Create a secure internal Admin Portal within the PostRound Coach website (Next.js) that displays AI-generated content ideas stored in the Supabase content_ideas table.
+
+This is an internal tool only. It is not part of the public website and should not be indexed by search engines.
+
+The first module of the Admin Portal is Content Studio.
+
+Future modules (Users, Analytics, AI Usage, Subscriptions, etc.) will be added later, so design the structure to be easily expandable.
+
+Overall Structure
+
+Create a new protected route:
+
+/admin
+
+Create a simple admin layout with a left sidebar.
+
+Sidebar items:
+
+Dashboard (placeholder)
+Content Studio
+Users (placeholder)
+Analytics (placeholder)
+Settings (placeholder)
+
+Only Content Studio needs to function for now.
+
+Dashboard, Users, Analytics and Settings can simply display:
+
+Coming Soon
+
+Authentication
+
+Reuse the existing Supabase authentication.
+
+Only authenticated users should be able to access /admin.
+
+If the user is not authenticated:
+
+Redirect to the existing login page.
+Do not expose any admin data.
+
+Keep the authorization logic modular so role-based access can be added later.
+
+Content Studio Page
+
+Create:
+
+/admin/content
+
+Display a responsive list of content ideas from the content_ideas table.
+
+Load:
+
+newest first
+pagination (25 per page)
+loading state
+empty state
+error state
+Card Layout
+
+Each content idea should display as a clean card.
+
+Each card should include:
+
+Header
+
+Category badge
+
+Status badge
+
+Created Date
+
+Round ID
+
+Title
+
+Large bold heading
+
+Hook
+
+Display the hook prominently.
+
+Script
+
+Display the generated script.
+
+Support line breaks.
+
+Stats Used
+
+Display the JSON as readable chips.
+
+Example:
+
+Penalty Strokes: 4
+
+Putts: 35
+
+GIR: 7
+
+Fairways: 6
+
+Only show values that exist.
+
+Card Actions
+
+Each card should include:
+
+Copy Script
+
+Copies the full script to clipboard.
+
+Copy Hook
+
+Copies only the hook.
+
+Mark Published
+
+Updates:
+
+status = published
+
+Archive
+
+Updates:
+
+status = archived
+
+Delete
+
+Ask for confirmation.
+
+Then permanently delete the record.
+
+Regenerate
+
+This button is important.
+
+When clicked:
+
+Call the existing Supabase Edge Function used by the app.
+
+Pass:
+
+round_id
+
+category
+
+The Edge Function should generate a replacement idea.
+
+Update the existing record instead of creating a duplicate.
+
+Display a loading spinner while regenerating.
+
+If regeneration fails, leave the original content unchanged.
+
+Filtering
+
+At the top of the page add filters.
+
+Status
+
+Dropdown:
+
+All
+
+Draft
+
+Published
+
+Archived
+
+Category
+
+Dropdown populated dynamically from existing categories.
+
+Date
+
+Newest
+
+Oldest
+
+Search
+
+Search:
+
+Title
+
+Hook
+
+Script
+
+Category
+
+Round ID
+
+Allow filtering by Round ID.
+
+UI
+
+Use the existing website design system.
+
+Keep it simple.
+
+Modern cards.
+
+Lots of whitespace.
+
+Readable typography.
+
+Responsive.
+
+Desktop-first.
+
+Dashboard Placeholder
+
+Create:
+
+/admin
+
+Display:
+
+Welcome back.
+
+Below that show four placeholder cards.
+
+Users
+
+Content
+
+Analytics
+
+AI Usage
+
+Each card displays:
+
+Coming Soon
+
+Navigation
+
+Sidebar remains visible on desktop.
+
+Collapsible on mobile.
+
+Highlight active page.
+
+Database
+
+Read from:
+
+content_ideas
+
+Fields:
+
+id
+
+round_id
+
+category
+
+title
+
+hook
+
+script
+
+stats_used
+
+status
+
+created_at
+
+No schema changes should be required.
+
+Performance
+
+Use server-side data fetching where appropriate.
+
+Implement pagination.
+
+Avoid loading thousands of records at once.
+
+Show skeleton loaders while fetching.
+
+Error Handling
+
+Gracefully handle:
+
+Supabase connection failures
+
+Missing data
+
+Failed updates
+
+Clipboard failures
+
+Edge Function failures
+
+Display user-friendly toast notifications.
+
+Future-Proofing
+
+Structure the admin portal so additional modules can be added later without refactoring.
+
+Future modules may include:
+
+User Management
+AI Usage Dashboard
+Revenue Dashboard
+Subscription Management
+Course Database
+Feature Flags
+Email Campaigns
+Marketing Analytics
+
+Design the routing and layout with these future expansions in mind.
+
+Success Criteria
+
+The completed feature should allow an authenticated administrator to:
+
+View all generated content ideas from Supabase.
+Filter, search, and paginate through ideas.
+Copy hooks and scripts to the clipboard.
+Update the status of ideas (Draft, Published, Archived).
+Delete ideas with confirmation.
+Regenerate an individual idea using the existing Edge Function.
+Navigate within a reusable admin layout that can support future business tools.
+
+Important: This should remain an internal admin tool. It must not affect any public-facing pages or the golfer experience in the mobile app. The implementation should prioritize clean architecture, maintainability, and extensibility so the Admin Portal can become the central operational dashboard for PostRound Coach as the business grows.
