@@ -1,0 +1,244 @@
+Replit Prompt: Add Admin User Management (Promote/Demote Administrators)
+Objective
+
+Extend the existing admin dashboard so administrators can promote and demote other users directly from the website without leaving the admin interface.
+
+This feature is web-only and should not be added to the mobile app.
+
+The goal is to allow administrators to manage user roles with a single click.
+
+Requirements
+1. Add User Role Management
+
+On the Admin → Users page, display every registered user.
+
+Include at minimum:
+
+Display Name
+Email
+Current Role
+Date Joined
+Last Sign In (if available)
+
+Add a final Actions column.
+
+2. Promote to Administrator
+
+For users whose role is currently:
+
+user
+
+display a button:
+
+Promote to Admin
+
+When clicked:
+
+Show confirmation dialog
+Promote John Smith to Administrator?
+
+Administrators can access all admin features.
+
+[Cancel]
+[Promote]
+
+If confirmed:
+
+Update
+profiles.role
+
+to
+
+admin
+
+Immediately update the UI without requiring a page refresh.
+
+Show success toast:
+
+Administrator permissions granted.
+3. Demote Administrator
+
+For users whose role is:
+
+admin
+
+display:
+
+Remove Admin
+
+Confirmation dialog:
+
+Remove administrator access from John Smith?
+
+They will immediately lose access to the admin dashboard.
+
+[Cancel]
+[Remove]
+
+After confirmation:
+
+Update
+
+profiles.role = 'user'
+
+Refresh the row immediately.
+
+Show toast:
+
+Administrator access removed.
+4. Prevent Self-Demotion
+
+The currently logged-in administrator should never be able to remove their own admin role.
+
+Instead:
+
+Disable the button
+
+or
+
+Display:
+
+Current User
+
+This prevents administrators from accidentally locking themselves out.
+
+5. Security
+
+Do NOT rely on hiding buttons.
+
+The backend/API must verify:
+
+Current user.role == 'admin'
+
+before allowing any role changes.
+
+If a non-admin somehow calls the endpoint:
+
+Return:
+
+403 Forbidden
+
+No database changes should occur.
+
+6. Database Updates
+
+If not already present, ensure:
+
+profiles.role
+
+exists.
+
+Allowed values:
+
+user
+admin
+coach
+
+Default:
+
+user
+
+Existing users without a role should automatically become:
+
+user
+7. Real-Time UI Updates
+
+After promoting or demoting a user:
+
+Update only the affected row.
+Do not reload the page.
+Preserve search filters, pagination, and scroll position.
+8. Search & Filtering
+
+If not already implemented, allow administrators to:
+
+Search by:
+
+Name
+Email
+
+Filter by:
+
+All Users
+Administrators
+Standard Users
+Coaches
+
+Sorting should continue to function after role changes.
+
+9. Audit Logging (Recommended)
+
+Create a lightweight audit log table if one does not already exist.
+
+Suggested schema:
+
+admin_audit_log
+
+id
+created_at
+performed_by
+target_user
+action
+old_role
+new_role
+
+Examples:
+
+Aaron promoted John Smith to Admin
+
+Aaron removed Admin from Jane Doe
+
+This provides accountability for administrative changes.
+
+10. Supabase RLS
+
+Ensure Row Level Security policies only allow administrators to update another user's role.
+
+Regular users must never be able to modify:
+
+profiles.role
+
+under any circumstance.
+
+11. UI Polish
+
+Use color-coded role badges:
+
+🟢 Admin
+🔵 Coach
+⚪ User
+
+Action buttons:
+
+Green → Promote to Admin
+Red → Remove Admin
+
+Disable buttons while the update is in progress.
+
+Show loading spinner during the request.
+
+12. Error Handling
+
+Gracefully handle:
+
+Network failures
+Database errors
+Permission failures
+User no longer exists
+
+Display friendly error messages without crashing the admin page.
+
+Acceptance Criteria
+Only administrators can change roles.
+Users can be promoted and demoted directly from the Users page.
+Changes are reflected immediately without reloading.
+Self-demotion is prevented.
+RLS enforces security even if the API is bypassed.
+Audit logging records all role changes.
+Mobile app behavior remains unchanged.
+
+Implementation Notes
+
+Reuse the existing authentication and RBAC system.
+Follow the current admin dashboard styling and component library.
+Keep role management modular so additional roles and permissions can be added in the future without major refactoring.
