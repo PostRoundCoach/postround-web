@@ -19,8 +19,10 @@ export default async function AdminLayout({
     redirect('/login')
   }
 
-  // TODO: Add role-based access check here when roles are implemented
-  // e.g. if (!user.app_metadata?.role === 'admin') redirect('/dashboard')
+  // Role-based access control: only users with app_metadata.role === 'admin' may access /admin
+  if (user.app_metadata?.role !== 'admin') {
+    redirect('/dashboard?error=admin_required')
+  }
 
   return (
     <>

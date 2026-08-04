@@ -40,9 +40,14 @@ function scoreDiffColor(score: number | null, par: number | null): string {
   return 'text-muted-foreground'
 }
 
-export default async function DashboardPage() {
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string }>
+}) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
+  const { error: errorParam } = await searchParams
 
   if (!user) return null
 
@@ -91,6 +96,14 @@ export default async function DashboardPage() {
 
   return (
     <div className="p-6 lg:p-8 max-w-7xl mx-auto">
+      {/* Admin access denied banner */}
+      {errorParam === 'admin_required' && (
+        <div className="mb-6 flex items-center gap-3 rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          <span className="font-semibold">Access denied.</span>
+          <span>You don&apos;t have permission to access the admin portal.</span>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div>
