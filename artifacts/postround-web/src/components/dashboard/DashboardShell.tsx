@@ -13,7 +13,7 @@ import {
   CreditCard, 
   Settings, 
   Menu,
-  X
+  Shield,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { SignOutButton } from '@/components/auth/SignOutButton'
@@ -35,7 +35,7 @@ const navItems = [
   { href: '/dashboard/settings', icon: Settings, label: 'Settings' },
 ]
 
-function Sidebar({ pathname }: { pathname: string }) {
+function Sidebar({ pathname, isAdmin }: { pathname: string; isAdmin: boolean }) {
   return (
     <div className="flex flex-col h-full bg-[#0D1B12] border-r border-border">
       {/* Sidebar Header */}
@@ -72,6 +72,25 @@ function Sidebar({ pathname }: { pathname: string }) {
             </Link>
           )
         })}
+
+        {/* Admin link — only visible to administrators */}
+        {isAdmin && (
+          <>
+            <div className="my-2 border-t border-border/50" />
+            <Link
+              href="/admin"
+              className={cn(
+                'flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors text-sm font-medium',
+                pathname.startsWith('/admin')
+                  ? 'bg-[#D4AF37]/10 text-[#D4AF37] border border-[#D4AF37]/20'
+                  : 'text-gray-400 hover:bg-[#1B5E35]/20 hover:text-white'
+              )}
+            >
+              <Shield className="h-5 w-5" />
+              Admin
+            </Link>
+          </>
+        )}
       </nav>
 
       {/* Sidebar Footer */}
@@ -88,12 +107,13 @@ function Sidebar({ pathname }: { pathname: string }) {
 export function DashboardShell({ children, user }: DashboardShellProps) {
   const pathname = usePathname()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const isAdmin = user.app_metadata?.role === 'admin'
 
   return (
     <div className="min-h-[100dvh] flex">
       {/* Desktop Sidebar */}
       <aside className="hidden lg:block w-64 fixed left-0 top-0 bottom-0">
-        <Sidebar pathname={pathname} />
+        <Sidebar pathname={pathname} isAdmin={isAdmin} />
       </aside>
 
       {/* Main Content */}
@@ -109,7 +129,7 @@ export function DashboardShell({ children, user }: DashboardShellProps) {
                   </Button>
                 </SheetTrigger>
                 <SheetContent side="left" className="w-64 p-0">
-                  <Sidebar pathname={pathname} />
+                  <Sidebar pathname={pathname} isAdmin={isAdmin} />
                 </SheetContent>
               </Sheet>
               
