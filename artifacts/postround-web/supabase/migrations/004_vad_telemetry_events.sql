@@ -5,6 +5,9 @@ create table if not exists public.vad_telemetry_events (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null default auth.uid() references auth.users(id) on delete cascade,
   session_id text not null check (char_length(session_id) between 1 and 120),
+  session_key text generated always as (
+    encode(digest(user_id::text || ':' || session_id, 'sha256'), 'hex')
+  ) stored,
   round_id uuid references public.rounds(id) on delete set null,
   ai_session_id uuid references public.ai_sessions(id) on delete set null,
   feature text not null check (feature in ('round-buddy', 'coaching')),
@@ -18,7 +21,9 @@ create table if not exists public.vad_telemetry_events (
   termination text,
   duration_ms integer check (duration_ms is null or duration_ms >= 0),
   is_failure boolean not null default false,
-  payload jsonb not null default '{}'::jsonb,
+  payload jsonb not null default '{}'::jsonb
+    check (octet_length(payload::text) <= 8192)
+    check (not (payload ?| array['audio', 'audioBase64', 'rawAudio', 'transcript'])),
   created_at timestamptz not null default now(),
   unique (user_id, session_id, sequence)
 );
@@ -27,7 +32,7 @@ create index if not exists vad_telemetry_events_occurred_at_idx
   on public.vad_telemetry_events (occurred_at desc);
 
 create index if not exists vad_telemetry_events_session_idx
-  on public.vad_telemetry_events (session_id, occurred_at, sequence);
+  on public.vad_telemetry_events (session_key, occurred_at, sequence);
 
 create index if not exists vad_telemetry_events_feature_idx
   on public.vad_telemetry_events (feature, occurred_at desc);
