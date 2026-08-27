@@ -3,7 +3,9 @@ export const VAD_SESSION_LIMIT = 50
 
 export type VadTelemetryRow = {
   id: string
+  user_id: string
   session_id: string
+  session_key: string
   round_id: string | null
   ai_session_id: string | null
   feature: 'round-buddy' | 'coaching'
@@ -83,13 +85,21 @@ export function buildVadReadModel(
   const sessionsById = new Map<string, SessionAccumulator>()
 
   for (const row of rows) {
-    if (!row?.session_id || !row.event_name || !row.occurred_at || !row.feature) {
+    if (
+      !row?.user_id ||
+      !row.session_id ||
+      !row.session_key ||
+      !row.event_name ||
+      !row.occurred_at ||
+      !row.feature ||
+      timestampValue(row.occurred_at) === 0
+    ) {
       malformedRecords.push(row?.id ?? 'unknown')
       continue
     }
 
-    const current = sessionsById.get(row.session_id) ?? {
-      id: row.session_id,
+    const current = sessionsById.get(row.session_key) ?? {
+      id: row.session_key,
       timestamp: row.occurred_at,
       feature: row.feature,
       profile: row.vad_profile,
@@ -120,7 +130,7 @@ export function buildVadReadModel(
       payload: row.payload,
       severity: row.is_failure ? 'failure' : null,
     })
-    sessionsById.set(row.session_id, current)
+    sessionsById.set(row.session_key, current)
   }
 
   let sessions = [...sessionsById.values()]
