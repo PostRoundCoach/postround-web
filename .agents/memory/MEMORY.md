@@ -1,0 +1,1 @@
+- [Web-owned routes beside the shared API](web-owned-routes.md) — avoid `/api` for Next-owned endpoints because the API artifact claims that proxy prefix.
