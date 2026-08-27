@@ -80,7 +80,7 @@ export async function GET(request: NextRequest) {
   let query = serviceClient
     .from('vad_telemetry_events')
     .select(
-      'id,session_id,round_id,ai_session_id,feature,event_name,occurred_at,sequence,vad_profile,platform,environment,device,termination,duration_ms,is_failure,payload'
+      'id,user_id,session_id,session_key,round_id,ai_session_id,feature,event_name,occurred_at,sequence,vad_profile,platform,environment,device,termination,duration_ms,is_failure,payload'
     )
     .order('occurred_at', { ascending: false })
     .order('sequence', { ascending: false })
@@ -91,7 +91,7 @@ export async function GET(request: NextRequest) {
   if (filters.profile) query = query.eq('vad_profile', filters.profile)
   if (filters.feature) query = query.eq('feature', filters.feature)
   if (filters.termination) query = query.eq('termination', filters.termination)
-  if (filters.sessionId) query = query.eq('session_id', filters.sessionId)
+  if (filters.sessionId) query = query.eq('session_key', filters.sessionId)
 
   const { data, error: sourceError } = await query
   if (sourceError) {
