@@ -1,0 +1,644 @@
+## Objective
+
+I have already built a substantial backend analytics and diagnostic system for PostRound Coach, including VAD/capture diagnostics and structured event logging.
+
+I also have a separate Replit web/admin project with an existing admin page that I can currently access via browser using an admin account.
+
+I want to turn the **web/admin project into a centralized Analytics & Diagnostics Command Center** where I can easily understand what is happening inside the application in real-world use.
+
+### VERY IMPORTANT
+
+**Do not replace, duplicate, or redesign existing analytics/diagnostic infrastructure unnecessarily.**
+
+First, inspect the existing codebase, database schema, Supabase tables, Edge Functions, API endpoints, logging systems, diagnostic systems, event structures, and admin functionality.
+
+Identify what already exists and integrate it into the admin interface.
+
+The goal is to create a useful visualization/query layer on top of the existing systems.
+
+---
+
+# Phase 1 — Audit Existing Analytics & Diagnostics
+
+Before implementing UI, perform a thorough audit of the existing application and backend.
+
+Identify:
+
+### VAD / Audio Diagnostics
+
+Find and document all existing:
+
+* VAD events
+* VAD state transitions
+* Metering data
+* Speech detection events
+* Silence detection
+* Silence timers
+* Speech streak logic
+* `speechEndCommitted`
+* `GENUINE_SPEECH_STREAK`
+* Recording start/stop events
+* Manual microphone taps
+* Automatic recording termination
+* Premature recording termination
+* Failed recording termination
+* Audio capture failures
+* Audio upload failures
+* Transcription failures
+* Coaching voice pipeline events
+* Round Buddy capture events
+* `COACH_*` events
+* `BUDDY_*` events
+* VAD diagnostic reports
+* VAD profiles/environment information
+
+Also identify any existing VAD profile architecture, including current or planned environments such as:
+
+* On Course
+* Earbuds / Headphones
+* Speakerphone
+* Android Auto
+* Apple CarPlay
+
+Do not assume these names or implementations exist. Inspect the code and database first.
+
+---
+
+# Phase 2 — Audit ALL Other Analytics
+
+Do the same for the rest of the application.
+
+Look for existing analytics, logging, diagnostics, and telemetry related to:
+
+### Round Buddy
+
+* Round starts
+* Hole starts/completions
+* Audio capture
+* Automatic submits
+* Manual submits
+* Failed submits
+* AI requests
+* AI responses
+* Round completion
+* Entitlement reservation
+* Entitlement consumption
+* Failed entitlement operations
+
+### AI Coaching
+
+* Coaching sessions
+* Session starts
+* Session completion
+* Voice interactions
+* Manual interactions
+* Automatic interactions
+* Transcript generation
+* Coach response generation
+* API failures
+* Latency
+* Token/usage information if available
+* Credit consumption
+* Failed credit consumption
+* Session abandonment
+
+### Payments / Monetization
+
+Integrate existing telemetry around:
+
+* Stripe checkout
+* Checkout success/failure
+* Return from Stripe
+* Subscription creation
+* Subscription synchronization
+* Credit purchases
+* Credit consumption
+* Entitlement failures
+* Subscription status
+* Payment errors
+
+Pay particular attention to the previously observed Stripe/Expo Go return-flow crash.
+
+### Application Reliability
+
+Find existing information about:
+
+* Exceptions
+* API errors
+* Supabase errors
+* Edge Function failures
+* Network failures
+* Authentication failures
+* App crashes if available
+* Timeouts
+* Retry behavior
+* Unexpected state transitions
+
+### User / Product Usage
+
+Where data already exists, surface:
+
+* Active users
+* New users
+* Rounds played
+* Round Buddy usage
+* AI Coaching usage
+* Free vs paid usage
+* Credits purchased
+* Credits consumed
+* Subscription status
+* Feature usage
+* Conversion points
+* Abandoned workflows
+
+---
+
+# Phase 3 — Create a Unified Admin Analytics Layer
+
+Do not force unrelated systems into a single database table if that would damage the existing architecture.
+
+Instead, create a sensible **analytics/diagnostics abstraction layer in the web project** that can query the existing sources.
+
+The admin UI should make it easy to move from:
+
+**High-level application health → feature → session → event → diagnostic details**
+
+For example:
+
+Dashboard:
+
+> "Something is wrong with Round Buddy."
+
+Click Round Buddy:
+
+> "Most failures are occurring in On Course / noisy environments."
+
+Click environment:
+
+> "Most failures occur when speech is followed by intermittent above-threshold metering."
+
+Click session:
+
+> Show the complete event timeline.
+
+This should feel like an **investigation tool**, not just a collection of charts.
+
+---
+
+# Phase 4 — ON the currently existing admin dashboardh Build the Main Admin Dashboard
+
+Create an executive/operational dashboard showing the current state of the application.
+
+Include cards/metrics for:
+
+### Application
+
+* Total users
+* Active users
+* Rounds
+* Round Buddy sessions
+* AI Coaching sessions
+* Errors
+* Error rate
+* Successful vs failed workflows
+
+### VAD / Audio
+
+* Total recordings
+* Automatic submissions
+* Manual submissions
+* Premature submissions
+* Failed recordings
+* Average recording duration
+* VAD success rate
+* VAD failure rate
+* Manual-intervention rate
+
+Most importantly:
+
+**Manual intervention rate**
+
+This is one of the most important real-world product-health metrics.
+
+If users frequently have to manually tap because VAD doesn't behave correctly, that should immediately stand out.
+
+### AI
+
+* AI requests
+* Successful responses
+* Failed responses
+* Average latency
+* Average session duration
+* Credit consumption
+* Cost estimates if available
+
+### Payments
+
+* Checkout attempts
+* Successful purchases
+* Failed purchases
+* Subscription conversions
+* Payment/return errors
+
+---
+
+# Phase 5 — Build a Dedicated VAD Diagnostics Dashboard compatible with our multi profile VAD engine
+
+Create a dedicated section called something like:
+
+**VAD Diagnostics**
+
+This should be one of the most detailed areas of the admin console. Include each profile in this either as a filter or display.
+
+Show:
+
+### Overall VAD Health
+
+* Automatic termination %
+* Manual termination %
+* Premature termination %
+* Failed termination %
+* Average time to speech detection
+* Average silence duration before termination
+* Average recording duration
+* Number of VAD anomalies
+
+### Environment Breakdown
+
+Make VAD profiles first-class filters.
+
+For example:
+
+| Environment  | Sessions | Auto End % | Manual % | Failures | Avg Duration |
+| ------------ | -------: | ---------: | -------: | -------: | -----------: |
+| On Course    |          |            |          |          |              |
+| Earbuds      |          |            |          |          |              |
+| Speakerphone |          |            |          |          |              |
+| Android Auto |          |            |          |          |              |
+| CarPlay      |          |            |          |          |              |
+
+Do not hard-code these values if the underlying system already has a profile model.
+
+Use whatever canonical profile/environment representation already exists.
+
+---
+
+# Phase 6 — VAD Event Timeline
+
+This is extremely important.
+
+For any individual Round Buddy or Coaching interaction, allow me to open a detailed event timeline.
+
+Example:
+
+```text
+10:42:01  RECORDING_STARTED
+10:42:02  SPEECH_DETECTED
+10:42:04  SPEECH_ENDED
+10:42:04  SILENCE_TIMER_STARTED
+10:42:04  ABOVE_THRESHOLD_TICK
+10:42:04  SPEECH_STREAK = 1
+10:42:05  SPEECH_STREAK = 2
+10:42:05  SPEECH_STREAK = 3
+10:42:06  SILENCE_TIMER_COMPLETED
+10:42:06  SPEECH_END_COMMITTED
+10:42:06  RECORDING_STOPPED
+10:42:06  AUDIO_UPLOAD_STARTED
+10:42:07  TRANSCRIPTION_STARTED
+10:42:09  TRANSCRIPTION_COMPLETED
+10:42:09  COACH_RESPONSE_STARTED
+10:42:11  COACH_RESPONSE_COMPLETED
+```
+
+Make anomalies visually obvious.
+
+I should be able to immediately determine:
+
+* Why recording started
+* Why recording stopped
+* Whether VAD ended it
+* Whether the user manually ended it
+* Whether silence was detected
+* Whether noise interrupted the silence timer
+* Whether the genuine-speech streak guard triggered
+* Whether the upload succeeded
+* Whether transcription succeeded
+* Whether AI response succeeded
+
+---
+
+# Phase 7 — Diagnostic Session Detail
+
+When I click an individual session, create a detailed diagnostic page.
+
+Show:
+
+### Session Metadata
+
+* Session ID
+* User
+* Date/time
+* Feature
+* Round
+* Hole
+* VAD profile
+* Device information if available
+* Platform
+* App version
+* Network information if available
+
+### Capture
+
+* Recording start
+* Recording end
+* Duration
+* Automatic/manual termination
+* Number of manual interventions
+* VAD state transitions
+
+### VAD
+
+Show the actual diagnostic events and measurements available for that session.
+
+If metering data is stored, provide a visualization of the signal over time.
+
+If it is not currently stored, **do not invent it**. Simply identify that it is unavailable.
+
+### AI Pipeline
+
+Show:
+
+* Audio upload
+* Transcription
+* Transcript
+* AI request
+* AI response
+* Latency
+* Errors
+
+### Outcome
+
+Clearly classify the interaction:
+
+* Successful
+* Successful with manual intervention
+* VAD failure
+* Capture failure
+* Upload failure
+* Transcription failure
+* AI failure
+* Unknown
+
+---
+
+# Phase 8 — Filters
+
+The admin interface should have powerful global filters.
+
+At minimum:
+
+* Date range
+* User
+* Round
+* Hole
+* Feature
+* VAD profile/environment
+* Platform
+* App version
+* Success/failure
+* Automatic/manual
+* Error type
+
+Filters should persist as I navigate deeper into the diagnostic system where practical.
+
+Example:
+
+I filter:
+
+> `Round Buddy + On Course + manual termination + last 7 days`
+
+Then every page I navigate to should maintain that investigation context where appropriate.
+
+---
+
+# Phase 9 — "What Is Going Wrong?" View
+
+Create a section specifically designed to answer:
+
+**"What is going wrong in production right now?"**
+
+Rank problems by impact.
+
+For example:
+
+### 🔴 Critical
+
+* Payment failures
+* AI request failures
+* Authentication failures
+* Complete feature failures
+
+### 🟠 High
+
+* VAD failures
+* Recording failures
+* Transcription failures
+* High manual-intervention rate
+
+### 🟡 Watch
+
+* Increasing latency
+* Increasing retries
+* Unusual environment-specific failure rates
+
+The ranking should be based on actual available data, not arbitrary assumptions.
+
+---
+
+# Phase 10 — Trend Detection
+
+Where enough historical data exists, show trends.
+
+For example:
+
+* VAD success rate over time
+* Manual intervention rate over time
+* AI failure rate over time
+* Recording duration over time
+* Feature usage over time
+* Payment success rate over time
+
+Make it easy to answer:
+
+> "Did the latest VAD changes actually improve things?"
+
+For example:
+
+Compare app versions:
+
+```text
+Version A
+Auto-submit: 62%
+Manual: 38%
+
+Version B
+Auto-submit: 84%
+Manual: 16%
+```
+
+If app version data is available, make this a first-class comparison capability.
+
+---
+
+# Phase 11 — Diagnostic Reports
+
+I already have VAD diagnostic reporting infrastructure.
+
+**Integrate the existing reports rather than creating a parallel reporting system.**
+
+I want to be able to:
+
+* Find a diagnostic report
+* Open it
+* See the underlying session/round
+* Drill into the events that produced the report
+* Compare reports
+* Filter reports by VAD profile/environment
+* Compare reports across app versions
+
+If the existing diagnostic system generates structured findings, expose those findings directly in the admin UI.
+
+---
+
+# Phase 12 — Architecture Requirements
+
+Follow these principles:
+
+### 1. Reuse existing infrastructure
+
+Do not create duplicate event tracking.
+
+### 2. Read-only first
+
+The initial analytics/diagnostics interface should primarily be read-only.
+
+Do not allow the admin dashboard to mutate production application data unless there is an existing, clearly justified admin operation.
+
+### 3. Secure it
+
+This is an internal admin interface.
+
+Ensure appropriate authentication/authorization and do not expose sensitive user information unnecessarily.
+
+### 4. Don't move analytics logic into the frontend unnecessarily
+
+The web UI should query appropriate backend/API/database layers rather than embedding business logic everywhere.
+
+### 5. Don't expose secrets
+
+Never expose:
+
+* API keys
+* Stripe secrets
+* Supabase service-role keys
+* OpenAI credentials
+* private tokens
+
+### 6. Preserve existing functionality
+
+Do not break the existing admin page or existing analytics infrastructure.
+
+---
+
+# Phase 13 — Implementation Process
+
+Work in this order:
+
+### Step 1
+
+Audit the existing web project.
+
+### Step 2
+
+Audit the connected backend/database and identify all existing analytics/diagnostic data.
+
+### Step 3
+
+Produce a short architecture report identifying:
+
+* Existing analytics systems
+* Existing diagnostic systems
+* Data sources
+* Tables
+* API endpoints
+* Event types
+* Missing data
+* Recommended integration architecture
+
+### Step 4
+
+Implement the unified analytics data access layer.
+
+### Step 5
+
+Implement the main dashboard.
+
+### Step 6
+
+Implement VAD Diagnostics.
+
+### Step 7
+
+Implement session-level diagnostic timelines.
+
+### Step 8
+
+Implement filters and drill-down navigation.
+
+### Step 9
+
+Implement trend/version/environment comparisons.
+
+### Step 10
+
+Test everything against real existing production/test data.
+
+---
+
+# Success Criteria
+
+When this is finished, I should be able to open the web admin project and answer questions like:
+
+**"How is the app doing?"**
+
+**"What is failing?"**
+
+**"Is VAD getting better?"**
+
+**"How often are users forced to manually tap?"**
+
+**"Which environments are causing problems?"**
+
+**"Is On Course worse than earbuds?"**
+
+**"Did the latest VAD change improve Round Buddy?"**
+
+**"Why did this particular recording fail?"**
+
+**"What happened during this coaching session?"**
+
+**"Are payment failures increasing?"**
+
+**"Where are users dropping out?"**
+
+**"What changed between app versions?"**
+
+The end result should be a **single operational command center for PostRound Coach**.
+
+Do not optimize for visual complexity.
+
+Optimize for:
+
+**visibility → diagnosis → drill-down → understanding → action.**
+
+Before writing significant new code, inspect what already exists and explain the integration plan.
