@@ -15,7 +15,9 @@ const filters: VadFilters = {
 function row(overrides: Partial<VadTelemetryRow>): VadTelemetryRow {
   return {
     id: 'event-1',
+    user_id: 'user-1',
     session_id: 'session-1',
+    session_key: 'key-1',
     round_id: null,
     ai_session_id: null,
     feature: 'round-buddy',
@@ -54,7 +56,7 @@ test('groups rows into sessions and preserves chronological event order', () => 
       }),
     ],
     filters,
-    'session-1'
+    'key-1'
   )
 
   assert.equal(result.summary.sessions, 1)
@@ -73,6 +75,7 @@ test('calculates failures, profiles, and anomaly filtering from stored fields on
       row({
         id: 'failure',
         session_id: 'session-2',
+        session_key: 'key-2',
         feature: 'coaching',
         event_name: 'COACH_RECORDING_FAILED',
         occurred_at: '2026-08-27T13:00:00.000Z',
@@ -86,7 +89,7 @@ test('calculates failures, profiles, and anomaly filtering from stored fields on
 
   assert.equal(result.summary.sessions, 1)
   assert.equal(result.summary.failures, 1)
-  assert.deepEqual(result.sessions.map((session) => session.id), ['session-2'])
+  assert.deepEqual(result.sessions.map((session) => session.id), ['key-2'])
   assert.deepEqual(result.filterOptions.profiles, ['course-default', 'quiet'])
 })
 
@@ -97,4 +100,29 @@ test('skips malformed source records and reports a degraded source', () => {
   assert.equal(result.source.state, 'degraded')
   assert.match(result.source.detail, /1 malformed/)
   assert.equal(result.summary.sessions, 1)
+})
+
+test('does not merge identical client session IDs from different users', () => {
+  const result = buildVadReadModel(
+    [
+      row({ id: 'user-one', user_id: 'user-1', session_key: 'key-1' }),
+      row({ id: 'user-two', user_id: 'user-2', session_key: 'key-2' }),
+    ],
+    filters,
+    null
+  )
+
+  assert.equal(result.summary.sessions, 2)
+  assert.deepEqual(result.sessions.map((session) => session.id), ['key-1', 'key-2'])
+})
+
+test('rejects invalid source timestamps as malformed', () => {
+  const result = buildVadReadModel(
+    [row({ id: 'invalid-date', occurred_at: 'not-a-date' })],
+    filters,
+    null
+  )
+
+  assert.equal(result.source.state, 'degraded')
+  assert.equal(result.summary.sessions, 0)
 })
