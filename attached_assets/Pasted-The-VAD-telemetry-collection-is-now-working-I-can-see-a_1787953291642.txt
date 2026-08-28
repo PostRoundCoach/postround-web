@@ -1,0 +1,29 @@
+The VAD telemetry collection is now working: I can see actual rows in `vad_telemetry_events` in the configured Supabase project.
+
+However, the VAD admin panel currently shows:
+
+"Could not load diagnostics
+VAD telemetry schema is not installed in the configured Supabase project"
+
+This strongly suggests the admin/web diagnostics layer is still expecting the previous VAD telemetry schema/table/columns rather than the new `vad_telemetry_events` schema.
+
+Please investigate the VAD admin diagnostics read path and compare it against the ACTUAL current `vad_telemetry_events` table/schema being written by the mobile app.
+
+Specifically:
+
+1. Find the admin-panel/API code responsible for loading VAD diagnostics and producing the "VAD telemetry schema is not installed..." error.
+2. Identify exactly what table(s), columns, RPCs, views, or schema/version checks it currently expects.
+3. Compare those expectations against the current `vad_telemetry_events` table and the code that writes the telemetry.
+4. Update the admin diagnostics read/query layer to use the CURRENT `vad_telemetry_events` schema and fields actually being collected.
+5. Preserve the existing telemetry event semantics; do NOT change mobile telemetry collection just to satisfy the admin panel.
+6. Make the schema detection/error handling accurately distinguish:
+
+   * table/schema genuinely missing
+   * table exists but query/columns are incompatible
+   * table exists and has valid telemetry
+   * query/auth/RLS/server errors
+7. Add/update tests covering the current `vad_telemetry_events` schema and a successful diagnostics load from real telemetry rows.
+
+Important: do not create a second telemetry table or duplicate the telemetry pipeline. The goal is to make the admin panel consume the telemetry that is ALREADY successfully being collected in `vad_telemetry_events`.
+
+Run the relevant tests/typechecks after the change and report exactly which schema/table/columns the admin panel was previously expecting versus what it now reads.

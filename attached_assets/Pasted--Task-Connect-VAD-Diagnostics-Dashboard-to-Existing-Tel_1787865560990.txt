@@ -1,0 +1,119 @@
+## Task: Connect VAD Diagnostics Dashboard to Existing Telemetry
+
+The VAD diagnostics dashboard UI now exists at `/admin/analytics`, but its backend currently returns `VAD telemetry unavailable` because it is still using a placeholder/no-op telemetry source.
+
+Do NOT redesign the dashboard and do NOT modify the VAD engine unless required for the data connection.
+
+### Objective
+
+Connect the existing mobile VAD diagnostic events to the existing authoritative backend telemetry/data source so `/admin/analytics` displays real VAD diagnostics.
+
+### First: inspect the existing implementation
+
+Trace all of the following before making changes:
+
+1. Where the mobile app currently emits:
+
+   * `COACH_*` VAD events
+   * `BUDDY_*` VAD events
+   * any other VAD/voice diagnostic events
+2. Where those events are currently persisted, if anywhere.
+3. Existing Supabase tables/functions/storage used for analytics, diagnostics, telemetry, coaching sessions, or Round Buddy.
+4. The current `/admin/analytics` frontend implementation.
+5. The API/backend endpoint currently serving the VAD dashboard data.
+6. Any existing authentication/admin authorization already used by the web admin.
+7. Whether an existing analytics/telemetry ingestion path can be reused rather than creating a duplicate system.
+
+### Required architecture
+
+Prefer this flow:
+
+Mobile VAD diagnostics
+→ existing authoritative telemetry persistence
+→ existing/appropriate web API
+→ `/admin/analytics`
+→ VAD diagnostics UI
+
+Reuse existing infrastructure wherever possible.
+
+Do NOT create a second parallel telemetry system if an existing authoritative analytics/event system already exists.
+
+### Required dashboard data
+
+The VAD diagnostics page should be able to show, using real persisted data:
+
+* Number of Round Buddy sessions
+* Number of AI coaching voice sessions
+* VAD profile selected
+* Device/environment context detected
+* Speech detection / speech-ending behavior
+* Automatic speech-end vs manual intervention
+* Relevant VAD timing information
+* VAD failures/errors
+* Recent diagnostic events
+* Enough event detail to troubleshoot real-world failures involving:
+
+  * wind
+  * cart noise
+  * Bluetooth/earbuds
+  * hearing aids
+  * brief above-threshold noise spikes
+  * silence timer cancellation
+  * recording start/stop behavior
+
+Use the event fields that already exist rather than inventing a new event schema unless a genuinely missing field is required.
+
+### Important
+
+The existing VAD changes are already considered implemented and tested. Do not regress them.
+
+In particular, preserve the existing protection against brief noise spikes incorrectly cancelling the silence timer, including the genuine-speech streak behavior already implemented.
+
+### Authentication/configuration
+
+The dashboard must work correctly in production.
+
+Verify that the production web deployment has the required Supabase environment variables and that the VAD API does not silently fall back to a fake/placeholder "telemetry unavailable" response when the real telemetry source exists.
+
+If an environment variable is missing, fail clearly and diagnostically rather than masking the problem as an empty telemetry dataset.
+
+### Deployment boundary
+
+There are two web deployments:
+
+1. Replit web deployment
+2. Vercel deployment serving `www.postroundcoach.com`
+
+Make the source changes in the web project/repository that actually feeds the production Vercel deployment.
+
+Do not assume republishing Replit updates Vercel.
+
+Verify the GitHub/Vercel deployment path after implementation.
+
+### Acceptance criteria
+
+1. `/admin/analytics` loads successfully for an authorized admin.
+2. The page retrieves real VAD telemetry rather than the placeholder `telemetry unavailable` response.
+3. Existing VAD events are visible in the dashboard.
+4. No duplicate telemetry architecture is introduced.
+5. Existing mobile VAD behavior is unchanged.
+6. Existing tests continue to pass.
+7. Add focused tests for the telemetry/API/dashboard data transformation.
+8. Verify the production environment variables required by the web app.
+9. Verify the deployed production custom-domain version contains this implementation.
+10. Perform one final browser-level test against the actual production web deployment.
+
+### Before declaring completion
+
+Report:
+
+* exact telemetry source used
+* exact tables/functions/endpoints involved
+* exact API endpoint used by `/admin/analytics`
+* whether existing mobile events were already persisted or required an ingestion change
+* production environment variables that were missing/fixed
+* GitHub/Vercel deployment status
+* final production URL tested
+* test results
+
+Do not mark this task complete if the UI merely renders an empty state. The goal is a real end-to-end telemetry path.
