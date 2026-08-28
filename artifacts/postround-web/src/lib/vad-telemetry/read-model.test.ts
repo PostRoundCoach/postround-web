@@ -16,22 +16,12 @@ function row(overrides: Partial<VadTelemetryRow>): VadTelemetryRow {
   return {
     id: 'event-1',
     user_id: 'user-1',
-    session_id: 'session-1',
-    session_key: 'key-1',
-    round_id: null,
-    ai_session_id: null,
-    feature: 'round-buddy',
-    event_name: 'BUDDY_RECORDING_STARTED',
-    occurred_at: '2026-08-27T12:00:00.000Z',
-    sequence: 0,
-    vad_profile: null,
-    platform: 'ios',
-    environment: null,
-    device: null,
-    termination: null,
-    duration_ms: null,
-    is_failure: false,
-    payload: {},
+    client_round_id: 'session-1',
+    hole_number: 1,
+    source: 'round_buddy',
+    event_type: 'vad_profile_selected',
+    created_at: '2026-08-27T12:00:00.000Z',
+    metadata: { platform: 'ios', profile: 'COURSE' },
     ...overrides,
   }
 }
@@ -41,22 +31,20 @@ test('groups rows into sessions and preserves chronological event order', () => 
     [
       row({
         id: 'later',
-        event_name: 'BUDDY_RECORDING_STOPPED',
-        occurred_at: '2026-08-27T12:00:02.000Z',
-        sequence: 2,
-        termination: 'silence',
-        duration_ms: 2000,
+        event_type: 'automatic_submission',
+        created_at: '2026-08-27T12:00:02.000Z',
+        metadata: { sequence: 2, termination: 'silence', durationMs: 2000 },
       }),
-      row({ id: 'first', sequence: 0 }),
+      row({ id: 'first', metadata: { sequence: 0, platform: 'ios', profile: 'COURSE' } }),
       row({
         id: 'middle',
-        event_name: 'BUDDY_SPEECH_DETECTED',
-        occurred_at: '2026-08-27T12:00:01.000Z',
-        sequence: 1,
+        event_type: 'speech_paused',
+        created_at: '2026-08-27T12:00:01.000Z',
+        metadata: { sequence: 1 },
       }),
     ],
     filters,
-    'key-1'
+    'session-1'
   )
 
   assert.equal(result.summary.sessions, 1)
@@ -64,23 +52,21 @@ test('groups rows into sessions and preserves chronological event order', () => 
   assert.equal(result.summary.averageDurationSeconds, 2)
   assert.deepEqual(
     result.selectedSession?.events.map((event) => event.name),
-    ['BUDDY_RECORDING_STARTED', 'BUDDY_SPEECH_DETECTED', 'BUDDY_RECORDING_STOPPED']
+    ['vad_profile_selected', 'speech_paused', 'automatic_submission']
   )
 })
 
 test('calculates failures, profiles, and anomaly filtering from stored fields only', () => {
   const result = buildVadReadModel(
     [
-      row({ vad_profile: 'course-default' }),
+      row({ metadata: { profile: 'COURSE' } }),
       row({
         id: 'failure',
-        session_id: 'session-2',
-        session_key: 'key-2',
-        feature: 'coaching',
-        event_name: 'COACH_RECORDING_FAILED',
-        occurred_at: '2026-08-27T13:00:00.000Z',
-        is_failure: true,
-        vad_profile: 'quiet',
+        client_round_id: 'session-2',
+        source: 'ai_coaching',
+        event_type: 'recording_failed',
+        created_at: '2026-08-27T13:00:00.000Z',
+        metadata: { profile: 'QUIET' },
       }),
     ],
     { ...filters, anomaliesOnly: true },
@@ -89,12 +75,12 @@ test('calculates failures, profiles, and anomaly filtering from stored fields on
 
   assert.equal(result.summary.sessions, 1)
   assert.equal(result.summary.failures, 1)
-  assert.deepEqual(result.sessions.map((session) => session.id), ['key-2'])
-  assert.deepEqual(result.filterOptions.profiles, ['course-default', 'quiet'])
+  assert.deepEqual(result.sessions.map((session) => session.id), ['session-2'])
+  assert.deepEqual(result.filterOptions.profiles, ['COURSE', 'QUIET'])
 })
 
 test('skips malformed source records and reports a degraded source', () => {
-  const malformed = row({ id: 'bad', event_name: '' })
+  const malformed = row({ id: 'bad', event_type: '' })
   const result = buildVadReadModel([malformed, row({ id: 'good' })], filters, null)
 
   assert.equal(result.source.state, 'degraded')
@@ -105,24 +91,41 @@ test('skips malformed source records and reports a degraded source', () => {
 test('does not merge identical client session IDs from different users', () => {
   const result = buildVadReadModel(
     [
-      row({ id: 'user-one', user_id: 'user-1', session_key: 'key-1' }),
-      row({ id: 'user-two', user_id: 'user-2', session_key: 'key-2' }),
+      row({ id: 'user-one', user_id: 'user-1' }),
+      row({ id: 'user-two', user_id: 'user-2' }),
     ],
     filters,
     null
   )
 
   assert.equal(result.summary.sessions, 2)
-  assert.deepEqual(result.sessions.map((session) => session.id), ['key-1', 'key-2'])
+  assert.deepEqual(result.sessions.map((session) => session.id), ['session-1', 'session-1'])
 })
 
 test('rejects invalid source timestamps as malformed', () => {
   const result = buildVadReadModel(
-    [row({ id: 'invalid-date', occurred_at: 'not-a-date' })],
+    [row({ id: 'invalid-date', created_at: 'not-a-date' })],
     filters,
     null
   )
 
   assert.equal(result.source.state, 'degraded')
   assert.equal(result.summary.sessions, 0)
+})
+
+test('filters sessions by the termination category derived from stored events', () => {
+  const result = buildVadReadModel(
+    [
+      row({ id: 'automatic', event_type: 'automatic_submission' }),
+      row({
+        id: 'manual',
+        client_round_id: 'session-2',
+        event_type: 'manual_submission',
+      }),
+    ],
+    { ...filters, termination: 'manual' },
+    null
+  )
+
+  assert.deepEqual(result.sessions.map((session) => session.id), ['session-2'])
 })
