@@ -4,22 +4,12 @@ export const VAD_SESSION_LIMIT = 50
 export type VadTelemetryRow = {
   id: string
   user_id: string
-  session_id: string
-  session_key: string
-  round_id: string | null
-  ai_session_id: string | null
-  feature: 'round-buddy' | 'coaching'
-  event_name: string
-  occurred_at: string
-  sequence: number
-  vad_profile: string | null
-  platform: string | null
-  environment: string | null
-  device: string | null
-  termination: string | null
-  duration_ms: number | null
-  is_failure: boolean
-  payload: unknown
+  client_round_id: string | null
+  hole_number: number | null
+  source: string
+  event_type: string
+  created_at: string
+  metadata: Record<string, unknown> | null
 }
 
 export type VadFilters = {
@@ -47,7 +37,7 @@ type SessionAccumulator = {
     id: string
     name: string
     timestamp: string | null
-    sequence: number
+    sequence: number | null
     payload: unknown
     severity: string | null
   }>
@@ -64,7 +54,7 @@ function roundPercent(part: number, total: number): number | null {
 }
 
 function isAutomaticTermination(value: string | null): boolean {
-  return value === 'silence' || value === 'initial-silence' || value === 'max-duration'
+  return value === 'automatic' || value === 'silence' || value === 'initial-silence' || value === 'max-duration'
 }
 
 function isManualTermination(value: string | null): boolean {
@@ -72,8 +62,52 @@ function isManualTermination(value: string | null): boolean {
 }
 
 function isAnomaly(row: VadTelemetryRow): boolean {
-  const name = row.event_name.toLowerCase()
-  return row.is_failure || name.includes('error') || name.includes('fail') || name.includes('anomal')
+  const name = row.event_type.toLowerCase()
+  return (
+    name.includes('error') ||
+    name.includes('fail') ||
+    name.includes('anomal') ||
+    name.includes('noise_pattern')
+  )
+}
+
+function metadataString(metadata: Record<string, unknown>, ...keys: string[]): string | null {
+  for (const key of keys) {
+    const value = metadata[key]
+    if (typeof value === 'string' && value.trim()) return value
+  }
+  return null
+}
+
+function metadataNumber(metadata: Record<string, unknown>, ...keys: string[]): number | null {
+  for (const key of keys) {
+    const value = metadata[key]
+    if (typeof value === 'number' && Number.isFinite(value)) return value
+  }
+  return null
+}
+
+function sourceFeature(source: string | null | undefined): 'round-buddy' | 'coaching' | null {
+  if (!source) return null
+  const normalized = source.toLowerCase().replaceAll('-', '_')
+  if (normalized === 'round_buddy' || normalized === 'buddy') return 'round-buddy'
+  if (normalized === 'coaching' || normalized === 'ai_coaching' || normalized === 'coach') return 'coaching'
+  return null
+}
+
+export function mapFeatureToSources(feature: string): string[] {
+  return feature === 'round-buddy'
+    ? ['round_buddy', 'round-buddy', 'buddy']
+    : ['coaching', 'ai_coaching', 'coach']
+}
+
+function terminationFromEvent(eventType: string, metadata: Record<string, unknown>): string | null {
+  const stored = metadataString(metadata, 'termination', 'terminationReason')
+  if (stored) return stored
+  const name = eventType.toLowerCase()
+  if (name.includes('automatic_submission') || name.includes('silence_timer_fired')) return 'automatic'
+  if (name.includes('manual_submission')) return 'manual'
+  return null
 }
 
 export function buildVadReadModel(
@@ -87,24 +121,35 @@ export function buildVadReadModel(
   for (const row of rows) {
     if (
       !row?.user_id ||
-      !row.session_id ||
-      !row.session_key ||
-      !row.event_name ||
-      !row.occurred_at ||
-      !row.feature ||
-      timestampValue(row.occurred_at) === 0
+      !row.client_round_id ||
+      !row.event_type ||
+      !row.created_at ||
+      !row.source ||
+      !sourceFeature(row.source) ||
+      timestampValue(row.created_at) === 0
     ) {
       malformedRecords.push(row?.id ?? 'unknown')
       continue
     }
 
-    const current = sessionsById.get(row.session_key) ?? {
-      id: row.session_key,
-      timestamp: row.occurred_at,
-      feature: row.feature,
-      profile: row.vad_profile,
-      environment: row.environment ?? row.platform,
-      device: row.device,
+    const metadata = row.metadata && typeof row.metadata === 'object' ? row.metadata : {}
+    const profile = metadataString(metadata, 'profile', 'vadProfile')
+    const platform = metadataString(metadata, 'platform', 'environment')
+    const audioRoute = metadataString(metadata, 'audioRoute')
+    const bluetooth = metadataString(metadata, 'bluetoothDeviceType')
+    const device = [audioRoute, bluetooth].filter((value) => value && value !== 'UNKNOWN').join(' · ') || null
+    const termination = terminationFromEvent(row.event_type, metadata)
+    const durationMs = metadataNumber(metadata, 'durationMs', 'duration_ms')
+    const failure = row.event_type.toLowerCase().includes('fail') || row.event_type.toLowerCase().includes('error')
+
+    const groupKey = `${row.user_id}:${row.client_round_id}`
+    const current = sessionsById.get(groupKey) ?? {
+      id: row.client_round_id,
+      timestamp: row.created_at,
+      feature: sourceFeature(row.source),
+      profile,
+      environment: platform,
+      device,
       durationSeconds: null,
       termination: null,
       hasAnomaly: false,
@@ -112,25 +157,29 @@ export function buildVadReadModel(
       events: [],
     }
 
-    if (timestampValue(row.occurred_at) < timestampValue(current.timestamp)) {
-      current.timestamp = row.occurred_at
+    if (timestampValue(row.created_at) < timestampValue(current.timestamp)) {
+      current.timestamp = row.created_at
     }
-    current.profile ??= row.vad_profile
-    current.environment ??= row.environment ?? row.platform
-    current.device ??= row.device
-    current.termination ??= row.termination
-    if (row.duration_ms != null) current.durationSeconds = row.duration_ms / 1000
-    current.hasFailure ||= row.is_failure
+    current.profile ??= profile
+    current.environment ??= platform
+    current.device ??= device
+    current.termination ??= termination
+    if (durationMs != null) current.durationSeconds = durationMs / 1000
+    current.hasFailure ||= failure
     current.hasAnomaly ||= isAnomaly(row)
     current.events.push({
       id: row.id,
-      name: row.event_name,
-      timestamp: row.occurred_at,
-      sequence: row.sequence,
-      payload: row.payload,
-      severity: row.is_failure ? 'failure' : null,
+      name: row.event_type,
+      timestamp: row.created_at,
+      sequence: metadataNumber(metadata, 'sequence'),
+      payload: {
+        source: row.source,
+        holeNumber: row.hole_number,
+        ...metadata,
+      },
+      severity: failure ? 'failure' : null,
     })
-    sessionsById.set(row.session_key, current)
+    sessionsById.set(groupKey, current)
   }
 
   let sessions = [...sessionsById.values()]
@@ -138,12 +187,13 @@ export function buildVadReadModel(
     session.events.sort(
       (a, b) =>
         timestampValue(a.timestamp) - timestampValue(b.timestamp) ||
-        a.sequence - b.sequence ||
+        (a.sequence ?? 0) - (b.sequence ?? 0) ||
         a.id.localeCompare(b.id)
     )
   }
 
   sessions = sessions
+    .filter((session) => !filters.termination || session.termination === filters.termination)
     .filter((session) => !filters.anomaliesOnly || session.hasAnomaly || session.hasFailure)
     .sort((a, b) => timestampValue(b.timestamp) - timestampValue(a.timestamp) || a.id.localeCompare(b.id))
 
@@ -177,7 +227,7 @@ export function buildVadReadModel(
       anomalies: grouped.filter((session) => session.hasAnomaly).length,
     }))
 
-  const selected = selectedSessionId ? sessionsById.get(selectedSessionId) ?? null : null
+  const selected = selectedSessionId ? sessions.find((session) => session.id === selectedSessionId) ?? null : null
   const page = sessions.slice(0, VAD_SESSION_LIMIT)
 
   return {
@@ -187,7 +237,7 @@ export function buildVadReadModel(
       label: 'Supabase VAD telemetry',
       detail: malformedRecords.length
         ? `${malformedRecords.length} malformed event record(s) were skipped.`
-        : 'Canonical mobile VAD events persisted in public.vad_telemetry_events.',
+        : 'Canonical mobile VAD events from the established public.vad_telemetry_events contract.',
     },
     filters,
     summary: {
@@ -209,10 +259,26 @@ export function buildVadReadModel(
       ],
     },
     filterOptions: {
-      profiles: [...new Set(rows.map((row) => row.vad_profile).filter((value): value is string => !!value))].sort(),
-      features: [...new Set(rows.map((row) => row.feature))].sort(),
+      profiles: [
+        ...new Set(
+          rows
+            .map((row) => metadataString(row.metadata ?? {}, 'profile', 'vadProfile'))
+            .filter((value): value is string => !!value)
+        ),
+      ].sort(),
+      features: [
+        ...new Set(
+          rows
+            .map((row) => sourceFeature(row.source))
+            .filter((value): value is 'round-buddy' | 'coaching' => value != null)
+        ),
+      ].sort(),
       terminationCategories: [
-        ...new Set(rows.map((row) => row.termination).filter((value): value is string => !!value)),
+        ...new Set(
+          rows
+            .map((row) => terminationFromEvent(row.event_type, row.metadata ?? {}))
+            .filter((value): value is string => !!value)
+        ),
       ].sort(),
     },
     profiles,
