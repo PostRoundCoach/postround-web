@@ -246,7 +246,13 @@ export function buildVadReadModel(
       anomalies: grouped.filter((session) => session.hasAnomaly).length,
     }))
 
-  const selected = selectedSessionId ? sessions.find((session) => session.id === selectedSessionId) ?? null : null
+  const selectedByKey = selectedSessionId
+    ? sessions.find((session) => session.id === selectedSessionId) ?? null
+    : null
+  const selectedByClientId = selectedSessionId
+    ? sessions.filter((session) => session.clientRoundId === selectedSessionId)
+    : []
+  const selected = selectedByKey ?? (selectedByClientId.length === 1 ? selectedByClientId[0] : null)
   const page = sessions.slice(0, VAD_SESSION_LIMIT)
 
   return {
