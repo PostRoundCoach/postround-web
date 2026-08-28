@@ -27,25 +27,23 @@ function row(overrides: Partial<VadTelemetryRow>): VadTelemetryRow {
 }
 
 test('groups rows into sessions and preserves chronological event order', () => {
-  const result = buildVadReadModel(
-    [
-      row({
-        id: 'later',
-        event_type: 'automatic_submission',
-        created_at: '2026-08-27T12:00:02.000Z',
-        metadata: { sequence: 2, termination: 'silence', durationMs: 2000 },
-      }),
-      row({ id: 'first', metadata: { sequence: 0, platform: 'ios', profile: 'COURSE' } }),
-      row({
-        id: 'middle',
-        event_type: 'speech_paused',
-        created_at: '2026-08-27T12:00:01.000Z',
-        metadata: { sequence: 1 },
-      }),
-    ],
-    filters,
-    'session-1'
-  )
+  const rows = [
+    row({
+      id: 'later',
+      event_type: 'automatic_submission',
+      created_at: '2026-08-27T12:00:02.000Z',
+      metadata: { sequence: 2, termination: 'silence', durationMs: 2000 },
+    }),
+    row({ id: 'first', metadata: { sequence: 0, platform: 'ios', profile: 'COURSE' } }),
+    row({
+      id: 'middle',
+      event_type: 'speech_paused',
+      created_at: '2026-08-27T12:00:01.000Z',
+      metadata: { sequence: 1 },
+    }),
+  ]
+  const session = buildVadReadModel(rows, filters, null).sessions[0]
+  const result = buildVadReadModel(rows, filters, session.id)
 
   assert.equal(result.summary.sessions, 1)
   assert.equal(result.summary.automaticEndPercent, 100)
@@ -75,7 +73,7 @@ test('calculates failures, profiles, and anomaly filtering from stored fields on
 
   assert.equal(result.summary.sessions, 1)
   assert.equal(result.summary.failures, 1)
-  assert.deepEqual(result.sessions.map((session) => session.id), ['session-2'])
+  assert.deepEqual(result.sessions.map((session) => session.clientRoundId), ['session-2'])
   assert.deepEqual(result.filterOptions.profiles, ['COURSE', 'QUIET'])
 })
 
@@ -99,7 +97,8 @@ test('does not merge identical client session IDs from different users', () => {
   )
 
   assert.equal(result.summary.sessions, 2)
-  assert.deepEqual(result.sessions.map((session) => session.id), ['session-1', 'session-1'])
+  assert.equal(new Set(result.sessions.map((session) => session.id)).size, 2)
+  assert.deepEqual(result.sessions.map((session) => session.clientRoundId), ['session-1', 'session-1'])
 })
 
 test('rejects invalid source timestamps as malformed', () => {
@@ -127,5 +126,16 @@ test('filters sessions by the termination category derived from stored events', 
     null
   )
 
-  assert.deepEqual(result.sessions.map((session) => session.id), ['session-2'])
+  assert.deepEqual(result.sessions.map((session) => session.clientRoundId), ['session-2'])
+})
+
+test('skips non-object metadata instead of presenting missing context as valid', () => {
+  const result = buildVadReadModel(
+    [row({ id: 'bad-metadata', metadata: ['not', 'an', 'object'] })],
+    filters,
+    null
+  )
+
+  assert.equal(result.source.state, 'degraded')
+  assert.equal(result.summary.sessions, 0)
 })
