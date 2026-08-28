@@ -9,7 +9,7 @@ export type VadTelemetryRow = {
   source: string
   event_type: string
   created_at: string
-  metadata: Record<string, unknown> | null
+  metadata: unknown
 }
 
 export type VadFilters = {
@@ -24,6 +24,7 @@ export type VadFilters = {
 
 type SessionAccumulator = {
   id: string
+  clientRoundId: string
   timestamp: string | null
   feature: string | null
   profile: string | null
@@ -87,6 +88,22 @@ function metadataNumber(metadata: Record<string, unknown>, ...keys: string[]): n
   return null
 }
 
+function isMetadataRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function sessionKey(userId: string, clientRoundId: string): string {
+  let first = 2166136261
+  let second = 5381
+  const input = `${userId}\u0000${clientRoundId}`
+  for (let index = 0; index < input.length; index += 1) {
+    const code = input.charCodeAt(index)
+    first = Math.imul(first ^ code, 16777619)
+    second = Math.imul(second ^ code, 33)
+  }
+  return `session-${(first >>> 0).toString(16).padStart(8, '0')}-${(second >>> 0).toString(16).padStart(8, '0')}`
+}
+
 function sourceFeature(source: string | null | undefined): 'round-buddy' | 'coaching' | null {
   if (!source) return null
   const normalized = source.toLowerCase().replaceAll('-', '_')
@@ -126,13 +143,14 @@ export function buildVadReadModel(
       !row.created_at ||
       !row.source ||
       !sourceFeature(row.source) ||
-      timestampValue(row.created_at) === 0
+      timestampValue(row.created_at) === 0 ||
+      (row.metadata != null && !isMetadataRecord(row.metadata))
     ) {
       malformedRecords.push(row?.id ?? 'unknown')
       continue
     }
 
-    const metadata = row.metadata && typeof row.metadata === 'object' ? row.metadata : {}
+    const metadata = isMetadataRecord(row.metadata) ? row.metadata : {}
     const profile = metadataString(metadata, 'profile', 'vadProfile')
     const platform = metadataString(metadata, 'platform', 'environment')
     const audioRoute = metadataString(metadata, 'audioRoute')
@@ -144,7 +162,8 @@ export function buildVadReadModel(
 
     const groupKey = `${row.user_id}:${row.client_round_id}`
     const current = sessionsById.get(groupKey) ?? {
-      id: row.client_round_id,
+      id: sessionKey(row.user_id, row.client_round_id),
+      clientRoundId: row.client_round_id,
       timestamp: row.created_at,
       feature: sourceFeature(row.source),
       profile,
@@ -262,7 +281,7 @@ export function buildVadReadModel(
       profiles: [
         ...new Set(
           rows
-            .map((row) => metadataString(row.metadata ?? {}, 'profile', 'vadProfile'))
+            .map((row) => (isMetadataRecord(row.metadata) ? metadataString(row.metadata, 'profile', 'vadProfile') : null))
             .filter((value): value is string => !!value)
         ),
       ].sort(),
@@ -276,7 +295,7 @@ export function buildVadReadModel(
       terminationCategories: [
         ...new Set(
           rows
-            .map((row) => terminationFromEvent(row.event_type, row.metadata ?? {}))
+            .map((row) => (isMetadataRecord(row.metadata) ? terminationFromEvent(row.event_type, row.metadata) : null))
             .filter((value): value is string => !!value)
         ),
       ].sort(),

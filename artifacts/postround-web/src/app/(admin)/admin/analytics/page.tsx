@@ -73,6 +73,7 @@ type VadEvent = {
 
 type VadSession = {
   id: string
+  clientRoundId: string
   timestamp: string | null
   feature: string | null
   profile: string | null
@@ -537,7 +538,7 @@ export default function AdminAnalyticsPage() {
                               onClick={() => selectSession(session.id)}
                               onKeyDown={(event) => handleSessionKeyDown(event, session.id)}
                             >
-                              <TableCell className="font-mono text-xs">{session.id}</TableCell>
+                               <TableCell className="font-mono text-xs">{session.clientRoundId}</TableCell>
                               <TableCell className="whitespace-nowrap text-xs">{formatDateTime(session.timestamp)}</TableCell>
                               <TableCell>{formatFeature(session.feature)}</TableCell>
                               <TableCell>{session.profile || 'Unavailable'}</TableCell>
@@ -614,7 +615,7 @@ function SessionDetail({ session }: { session: VadSessionDetail }) {
   return (
     <div className="space-y-5" data-testid={`detail-vad-session-${session.id}`}>
       <div className="grid gap-3 rounded-lg border border-border bg-muted/20 p-4 sm:grid-cols-2 lg:grid-cols-4">
-        <DetailItem icon={Database} label="Session ID" value={session.id} mono />
+         <DetailItem icon={Database} label="Client round ID" value={session.clientRoundId} mono />
         <DetailItem icon={CalendarClock} label="Timestamp" value={formatDateTime(session.timestamp)} />
         <DetailItem icon={Mic2} label="Feature / profile" value={`${formatFeature(session.feature)} / ${session.profile || 'Unavailable'}`} />
         <DetailItem icon={Smartphone} label="Environment / device" value={`${session.environment || 'Unavailable'} / ${session.device || 'Unavailable'}`} />

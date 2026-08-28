@@ -8,11 +8,13 @@ import {
   type VadFilters,
   type VadTelemetryRow,
 } from '@/lib/vad-telemetry/read-model'
+import { classifyVadSourceError } from '@/lib/vad-telemetry/source-error'
 
 export const dynamic = 'force-dynamic'
 
 const MAX_FILTER_LENGTH = 160
 const MAX_SESSION_ID_LENGTH = 120
+const DERIVED_SESSION_KEY = /^session-[0-9a-f]{8}-[0-9a-f]{8}$/
 
 function boundedParam(value: string | null, maxLength = MAX_FILTER_LENGTH): string | null {
   const trimmed = value?.trim() ?? ''
@@ -90,20 +92,15 @@ export async function GET(request: NextRequest) {
   if (filters.end) query = query.lte('created_at', filters.end)
   if (filters.profile) query = query.contains('metadata', { profile: filters.profile })
   if (filters.feature) query = query.in('source', mapFeatureToSources(filters.feature))
-  if (filters.sessionId) query = query.eq('client_round_id', filters.sessionId)
+  if (filters.sessionId && !DERIVED_SESSION_KEY.test(filters.sessionId)) {
+    query = query.eq('client_round_id', filters.sessionId)
+  }
 
   const { data, error: sourceError } = await query
   if (sourceError) {
     console.error('[VAD diagnostics] Supabase telemetry query failed', sourceError)
-    const missingTable = sourceError.code === '42P01' || sourceError.message.includes('vad_telemetry_events')
-    return NextResponse.json(
-      {
-        error: missingTable
-          ? 'VAD telemetry schema is not installed in the configured Supabase project'
-          : 'VAD telemetry source query failed',
-      },
-      { status: 503 }
-    )
+    const classified = classifyVadSourceError(sourceError)
+    return NextResponse.json({ error: classified.message }, { status: classified.status })
   }
 
   return NextResponse.json(buildVadReadModel((data ?? []) as VadTelemetryRow[], filters, filters.sessionId), {
