@@ -10,7 +10,7 @@ export function classifyVadSourceError(error: SourceError | null | undefined): {
   const code = error?.code ?? ''
   const message = error?.message ?? ''
 
-  if (code === '42P01') {
+  if (code === '42P01' || code === 'PGRST205') {
     return {
       status: 503,
       message: 'VAD telemetry table is not installed in the configured Supabase project',
@@ -18,7 +18,7 @@ export function classifyVadSourceError(error: SourceError | null | undefined): {
   }
 
   if (
-    ['42703', 'PGRST204', 'PGRST205'].includes(code) ||
+    ['42703', 'PGRST204'].includes(code) ||
     /column|schema cache|relationship|does not exist/i.test(message)
   ) {
     return {
