@@ -1,1 +1,2 @@
 - [Web-owned routes beside the shared API](web-owned-routes.md) — avoid `/api` for Next-owned endpoints because the API artifact claims that proxy prefix.
+- [Canonical VAD telemetry](vad-telemetry-source.md) — mobile capture events persist to shared Supabase; the admin web route is read-only and server-protected.
