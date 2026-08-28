@@ -99,6 +99,16 @@ test('does not merge identical client session IDs from different users', () => {
   assert.equal(result.summary.sessions, 2)
   assert.equal(new Set(result.sessions.map((session) => session.id)).size, 2)
   assert.deepEqual(result.sessions.map((session) => session.clientRoundId), ['session-1', 'session-1'])
+
+  const ambiguous = buildVadReadModel(
+    [
+      row({ id: 'user-one', user_id: 'user-1' }),
+      row({ id: 'user-two', user_id: 'user-2' }),
+    ],
+    filters,
+    'session-1'
+  )
+  assert.equal(ambiguous.selectedSession, null)
 })
 
 test('rejects invalid source timestamps as malformed', () => {
@@ -138,4 +148,15 @@ test('skips non-object metadata instead of presenting missing context as valid',
 
   assert.equal(result.source.state, 'degraded')
   assert.equal(result.summary.sessions, 0)
+})
+
+test('selects an exact client round ID only when it identifies one session', () => {
+  const result = buildVadReadModel(
+    [row({ id: 'unique-event', client_round_id: 'unique-round' })],
+    filters,
+    'unique-round'
+  )
+
+  assert.equal(result.selectedSession?.clientRoundId, 'unique-round')
+  assert.equal(result.selectedSession?.events[0]?.id, 'unique-event')
 })
