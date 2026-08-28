@@ -4,6 +4,7 @@ import { createServiceClient } from '@/lib/supabase/service'
 import {
   buildVadReadModel,
   VAD_EVENT_LIMIT,
+  mapFeatureToSources,
   type VadFilters,
   type VadTelemetryRow,
 } from '@/lib/vad-telemetry/read-model'
@@ -80,18 +81,16 @@ export async function GET(request: NextRequest) {
   let query = serviceClient
     .from('vad_telemetry_events')
     .select(
-      'id,user_id,session_id,session_key,round_id,ai_session_id,feature,event_name,occurred_at,sequence,vad_profile,platform,environment,device,termination,duration_ms,is_failure,payload'
+      'id,user_id,client_round_id,hole_number,source,event_type,created_at,metadata'
     )
-    .order('occurred_at', { ascending: false })
-    .order('sequence', { ascending: false })
+    .order('created_at', { ascending: false })
     .limit(VAD_EVENT_LIMIT)
 
-  if (filters.start) query = query.gte('occurred_at', filters.start)
-  if (filters.end) query = query.lte('occurred_at', filters.end)
-  if (filters.profile) query = query.eq('vad_profile', filters.profile)
-  if (filters.feature) query = query.eq('feature', filters.feature)
-  if (filters.termination) query = query.eq('termination', filters.termination)
-  if (filters.sessionId) query = query.eq('session_key', filters.sessionId)
+  if (filters.start) query = query.gte('created_at', filters.start)
+  if (filters.end) query = query.lte('created_at', filters.end)
+  if (filters.profile) query = query.contains('metadata', { profile: filters.profile })
+  if (filters.feature) query = query.in('source', mapFeatureToSources(filters.feature))
+  if (filters.sessionId) query = query.eq('client_round_id', filters.sessionId)
 
   const { data, error: sourceError } = await query
   if (sourceError) {
