@@ -5,7 +5,11 @@ import {
   buildVadReadModel,
   VAD_EVENT_LIMIT,
   mapFeatureToSources,
+  uniqueClientRoundIds,
   type VadFilters,
+  type VadDiagnosticCategory,
+  type VadDiagnosticConfidence,
+  type VadDiagnosticSeverity,
   type VadTelemetryRow,
 } from '@/lib/vad-telemetry/read-model'
 import { classifyVadSourceError } from '@/lib/vad-telemetry/source-error'
@@ -15,6 +19,10 @@ export const dynamic = 'force-dynamic'
 const MAX_FILTER_LENGTH = 160
 const MAX_SESSION_ID_LENGTH = 120
 const DERIVED_SESSION_KEY = /^session-[0-9a-f]{8}-[0-9a-f]{8}$/
+const SAFE_PROFILE = /^[A-Za-z0-9 _.-]+$/
+const CATEGORIES = new Set<VadDiagnosticCategory>(['environmental', 'vad_behavior', 'audio_device', 'context', 'unknown'])
+const SEVERITIES = new Set<VadDiagnosticSeverity>(['info', 'low', 'medium', 'high', 'critical'])
+const CONFIDENCES = new Set<VadDiagnosticConfidence>(['low', 'medium', 'high'])
 
 function boundedParam(value: string | null, maxLength = MAX_FILTER_LENGTH): string | null {
   const trimmed = value?.trim() ?? ''
@@ -32,15 +40,25 @@ function parseDateParam(value: string | null): string | null {
 function parseFilters(request: NextRequest): VadFilters {
   const { searchParams } = request.nextUrl
   const feature = boundedParam(searchParams.get('feature'))
+  const requestedProfile = boundedParam(searchParams.get('profile'))
+  const category = boundedParam(searchParams.get('category')) as VadDiagnosticCategory | null
+  const severity = boundedParam(searchParams.get('severity')) as VadDiagnosticSeverity | null
+  const confidence = boundedParam(searchParams.get('confidence')) as VadDiagnosticConfidence | null
 
   return {
     start: parseDateParam(searchParams.get('start')),
     end: parseDateParam(searchParams.get('end')),
-    profile: boundedParam(searchParams.get('profile')),
+    profile: requestedProfile && SAFE_PROFILE.test(requestedProfile) ? requestedProfile : null,
     feature: feature === 'round-buddy' || feature === 'coaching' ? feature : null,
     termination: boundedParam(searchParams.get('termination')),
     anomaliesOnly: searchParams.get('anomaliesOnly') === 'true',
     sessionId: boundedParam(searchParams.get('sessionId'), MAX_SESSION_ID_LENGTH),
+    category: category && CATEGORIES.has(category) ? category : null,
+    subtype: boundedParam(searchParams.get('subtype')),
+    severity: severity && SEVERITIES.has(severity) ? severity : null,
+    confidence: confidence && CONFIDENCES.has(confidence) ? confidence : null,
+    audioRoute: boundedParam(searchParams.get('audioRoute')),
+    platform: boundedParam(searchParams.get('platform')),
   }
 }
 
@@ -80,23 +98,61 @@ export async function GET(request: NextRequest) {
     )
   }
 
+  const selectColumns =
+    'id,user_id,client_round_id,hole_number,source,event_type,created_at,metadata'
+
   let query = serviceClient
     .from('vad_telemetry_events')
-    .select(
-      'id,user_id,client_round_id,hole_number,source,event_type,created_at,metadata'
-    )
+    .select(selectColumns)
     .order('created_at', { ascending: false })
-    .limit(VAD_EVENT_LIMIT)
 
   if (filters.start) query = query.gte('created_at', filters.start)
   if (filters.end) query = query.lte('created_at', filters.end)
-  if (filters.profile) query = query.contains('metadata', { profile: filters.profile })
+  if (filters.profile) {
+    query = query.or(
+      `metadata->>profile.eq."${filters.profile}",metadata->>vadProfile.eq."${filters.profile}"`
+    )
+  }
   if (filters.feature) query = query.in('source', mapFeatureToSources(filters.feature))
   if (filters.sessionId && !DERIVED_SESSION_KEY.test(filters.sessionId)) {
     query = query.eq('client_round_id', filters.sessionId)
   }
 
-  const { data, error: sourceError } = await query
+  let data
+  let sourceError
+
+  if (filters.profile) {
+    const { data: profileRows, error: profileError } = await query.limit(VAD_EVENT_LIMIT)
+    if (profileError) {
+      sourceError = profileError
+    } else {
+      const matchingClientRoundIds = uniqueClientRoundIds(profileRows ?? []).slice(0, VAD_EVENT_LIMIT)
+
+      if (matchingClientRoundIds.length > 0) {
+        let sessionQuery = serviceClient
+          .from('vad_telemetry_events')
+          .select(selectColumns)
+          .in('client_round_id', matchingClientRoundIds)
+          .order('created_at', { ascending: false })
+          .limit(VAD_EVENT_LIMIT)
+
+        if (filters.start) sessionQuery = sessionQuery.gte('created_at', filters.start)
+        if (filters.end) sessionQuery = sessionQuery.lte('created_at', filters.end)
+        if (filters.feature) sessionQuery = sessionQuery.in('source', mapFeatureToSources(filters.feature))
+
+        const sessionResult = await sessionQuery
+        data = sessionResult.data
+        sourceError = sessionResult.error
+      } else {
+        data = []
+      }
+    }
+  } else {
+    const result = await query.limit(VAD_EVENT_LIMIT)
+    data = result.data
+    sourceError = result.error
+  }
+
   if (sourceError) {
     console.error('[VAD diagnostics] Supabase telemetry query failed', sourceError)
     const classified = classifyVadSourceError(sourceError)

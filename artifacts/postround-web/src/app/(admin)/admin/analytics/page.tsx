@@ -41,6 +41,12 @@ type VadFilters = {
   termination: string | null
   anomaliesOnly: boolean
   sessionId: string | null
+  category: string | null
+  subtype: string | null
+  severity: string | null
+  confidence: string | null
+  audioRoute: string | null
+  platform: string | null
 }
 
 type VadSummary = {
@@ -69,6 +75,54 @@ type VadEvent = {
   sequence?: number | null
   payload?: unknown
   severity?: string | null
+  classification?: VadClassification | null
+}
+
+type VadClassification = {
+  eventId: string
+  eventName: string
+  timestamp: string | null
+  category: string
+  subtype: string
+  detection: string
+  likelyCause: string
+  vadImpact: string
+  severity: 'info' | 'low' | 'medium' | 'high' | 'critical'
+  confidence: 'low' | 'medium' | 'high'
+  explanation: string
+  evidence: Record<string, unknown>
+}
+
+type VadCoachingDiagnostics = {
+  hasCoachingEvents: boolean
+  coachingSessionId: string | null
+  environment: {
+    audioInputRoute: string | null
+    audioOutputRoute: string | null
+    vadProfile: string | null
+  }
+  vadState: {
+    noiseFloor: number | null
+    adaptiveThreshold: number | null
+    speechState: string | null
+    speechStreak: number | null
+  }
+  silence: {
+    silenceTimerState: string | null
+    silenceTimerCancellations: number | null
+  }
+  meterWindows: Array<{
+    sampleWindowStart: string | null
+    sampleWindowEnd: string | null
+    sampleCount: number | null
+    minMetering: number | null
+    maxMetering: number | null
+    averageMetering: number | null
+    thresholdCrossingCount: number | null
+    silenceTimerCancellationCount: number | null
+  }>
+  routeChanges: Array<Record<string, unknown>>
+  anomalies: Array<Record<string, unknown>>
 }
 
 type VadSession = {
@@ -78,11 +132,16 @@ type VadSession = {
   feature: string | null
   profile: string | null
   environment: string | null
+  platform?: string | null
+  audioRoute?: string | null
   device: string | null
   durationSeconds: number | null
   termination: string | null
   hasAnomaly: boolean | null
   hasFailure: boolean | null
+  coachingSessionId?: string | null
+  coachingDiagnostics?: VadCoachingDiagnostics
+  classifications: VadClassification[]
 }
 
 type VadSessionDetail = VadSession & {
@@ -103,6 +162,12 @@ type VadResponse = {
     profiles: string[]
     features: string[]
     terminationCategories: string[]
+    categories: string[]
+    subtypes: string[]
+    severities: string[]
+    confidences: string[]
+    audioRoutes: string[]
+    platforms: string[]
   }
   profiles: ProfileBreakdown[]
   sessions: VadSession[]
@@ -123,6 +188,12 @@ type FilterState = {
   termination: string
   anomaliesOnly: boolean
   sessionId: string
+  category: string
+  subtype: string
+  severity: string
+  confidence: string
+  audioRoute: string
+  platform: string
 }
 
 const REQUESTED_FEATURES = [
@@ -178,10 +249,43 @@ function formatPayload(payload: unknown): string {
   }
 }
 
+function formatDiagnosticValue(value: unknown): string {
+  if (value == null || value === '') return 'Unavailable'
+  if (typeof value === 'boolean') return value ? 'Yes' : 'No'
+  if (typeof value === 'object') return formatPayload(value)
+  return String(value)
+}
+
+function formatDiagnosticLabel(value: string): string {
+  if (value === 'vad_behavior') return 'VAD Behavior'
+  if (value === 'audio_device') return 'Audio / Device'
+  return value.replaceAll('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase())
+}
+
+const SEVERITY_RANK: Record<VadClassification['severity'], number> = {
+  info: 0,
+  low: 1,
+  medium: 2,
+  high: 3,
+  critical: 4,
+}
+
+function primaryClassification(session: VadSession): VadClassification | null {
+  return [...(session.classifications ?? [])].sort(
+    (left, right) => SEVERITY_RANK[right.severity] - SEVERITY_RANK[left.severity]
+  )[0] ?? null
+}
+
 function sessionSignal(session: VadSession): { label: string; variant: 'destructive' | 'secondary' } {
   if (session.hasFailure) return { label: 'Failure', variant: 'destructive' }
   if (session.hasAnomaly) return { label: 'Anomaly', variant: 'destructive' }
   return { label: 'No flags', variant: 'secondary' }
+}
+
+function severityClass(severity: VadClassification['severity']): string {
+  if (severity === 'critical' || severity === 'high') return 'border-destructive/40 bg-destructive/10 text-destructive'
+  if (severity === 'medium') return 'border-amber-500/40 bg-amber-500/10 text-amber-800'
+  return 'border-[#1B5E35]/25 bg-[#1B5E35]/5 text-[#1B5E35]'
 }
 
 function eventSignal(event: VadEvent): boolean {
@@ -218,6 +322,12 @@ export default function AdminAnalyticsPage() {
     termination: 'all',
     anomaliesOnly: false,
     sessionId: '',
+    category: 'all',
+    subtype: 'all',
+    severity: 'all',
+    confidence: 'all',
+    audioRoute: 'all',
+    platform: 'all',
   })
 
   const fetchDiagnostics = useCallback(async (signal?: AbortSignal) => {
@@ -232,6 +342,12 @@ export default function AdminAnalyticsPage() {
     if (filters.termination !== 'all') params.set('termination', filters.termination)
     if (filters.anomaliesOnly) params.set('anomaliesOnly', 'true')
     if (filters.sessionId.trim()) params.set('sessionId', filters.sessionId.trim())
+    if (filters.category !== 'all') params.set('category', filters.category)
+    if (filters.subtype !== 'all') params.set('subtype', filters.subtype)
+    if (filters.severity !== 'all') params.set('severity', filters.severity)
+    if (filters.confidence !== 'all') params.set('confidence', filters.confidence)
+    if (filters.audioRoute !== 'all') params.set('audioRoute', filters.audioRoute)
+    if (filters.platform !== 'all') params.set('platform', filters.platform)
 
     try {
       const response = await fetch(`/admin-data/vad-diagnostics?${params.toString()}`, {
@@ -257,12 +373,24 @@ export default function AdminAnalyticsPage() {
           termination: null,
           anomaliesOnly: false,
           sessionId: null,
+          category: null,
+          subtype: null,
+          severity: null,
+          confidence: null,
+          audioRoute: null,
+          platform: null,
         },
         summary: body.summary ?? EMPTY_SUMMARY,
         filterOptions: body.filterOptions ?? {
           profiles: [],
           features: [],
           terminationCategories: [],
+          categories: [],
+          subtypes: [],
+          severities: [],
+          confidences: [],
+          audioRoutes: [],
+          platforms: [],
         },
         profiles: body.profiles ?? [],
         sessions: body.sessions ?? [],
@@ -289,7 +417,7 @@ export default function AdminAnalyticsPage() {
   const selectedSession = data?.selectedSession
   const activeFilterCount = useMemo(
     () =>
-      [filters.start, filters.end, filters.profile, filters.feature, filters.termination, filters.sessionId].filter(
+      [filters.start, filters.end, filters.profile, filters.feature, filters.termination, filters.sessionId, filters.category, filters.subtype, filters.severity, filters.confidence, filters.audioRoute, filters.platform].filter(
         (value) => value && value !== 'all'
       ).length + (filters.anomaliesOnly ? 1 : 0),
     [filters]
@@ -308,6 +436,12 @@ export default function AdminAnalyticsPage() {
       termination: 'all',
       anomaliesOnly: false,
       sessionId: '',
+      category: 'all',
+      subtype: 'all',
+      severity: 'all',
+      confidence: 'all',
+      audioRoute: 'all',
+      platform: 'all',
     })
   }
 
@@ -449,6 +583,48 @@ export default function AdminAnalyticsPage() {
                     </SelectContent>
                   </Select>
                 </FilterField>
+                <DiagnosticFilter
+                  id="vad-category"
+                  label="Diagnostic category"
+                  value={filters.category}
+                  options={data?.filterOptions.categories ?? []}
+                  onChange={(value) => updateFilter('category', value)}
+                />
+                <DiagnosticFilter
+                  id="vad-subtype"
+                  label="Diagnostic subtype"
+                  value={filters.subtype}
+                  options={data?.filterOptions.subtypes ?? []}
+                  onChange={(value) => updateFilter('subtype', value)}
+                />
+                <DiagnosticFilter
+                  id="vad-severity"
+                  label="Severity"
+                  value={filters.severity}
+                  options={data?.filterOptions.severities ?? []}
+                  onChange={(value) => updateFilter('severity', value)}
+                />
+                <DiagnosticFilter
+                  id="vad-confidence"
+                  label="Confidence"
+                  value={filters.confidence}
+                  options={data?.filterOptions.confidences ?? []}
+                  onChange={(value) => updateFilter('confidence', value)}
+                />
+                <DiagnosticFilter
+                  id="vad-audio-route"
+                  label="Audio route"
+                  value={filters.audioRoute}
+                  options={data?.filterOptions.audioRoutes ?? []}
+                  onChange={(value) => updateFilter('audioRoute', value)}
+                />
+                <DiagnosticFilter
+                  id="vad-platform"
+                  label="Platform"
+                  value={filters.platform}
+                  options={data?.filterOptions.platforms ?? []}
+                  onChange={(value) => updateFilter('platform', value)}
+                />
                 <FilterField label="Session ID" htmlFor="vad-session-id">
                   <div className="relative">
                     <Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-muted-foreground" aria-hidden="true" />
@@ -522,12 +698,13 @@ export default function AdminAnalyticsPage() {
                   </div>
                 </CardHeader>
                 <CardContent className="p-0">
-                  {loading ? <TableLoading rows={4} columns={8} /> : data?.sessions.length ? (
+                  {loading ? <TableLoading rows={4} columns={9} /> : data?.sessions.length ? (
                     <div className="overflow-x-auto">
                       <Table>
-                        <TableHeader><TableRow><TableHead>Session</TableHead><TableHead>Time</TableHead><TableHead>Feature</TableHead><TableHead>Profile</TableHead><TableHead>Context</TableHead><TableHead>Duration</TableHead><TableHead>Termination</TableHead><TableHead>Flags</TableHead></TableRow></TableHeader>
+                        <TableHeader><TableRow><TableHead>Session</TableHead><TableHead>Time</TableHead><TableHead>Feature</TableHead><TableHead>Profile</TableHead><TableHead>Context</TableHead><TableHead>Duration</TableHead><TableHead>Termination</TableHead><TableHead>Diagnosis</TableHead><TableHead>Flags</TableHead></TableRow></TableHeader>
                         <TableBody>{data.sessions.map((session) => {
                           const signal = sessionSignal(session)
+                          const diagnosis = primaryClassification(session)
                           return (
                             <TableRow
                               key={session.id}
@@ -545,6 +722,19 @@ export default function AdminAnalyticsPage() {
                               <TableCell className="min-w-32 text-xs">{session.environment || 'Unavailable'}{session.device ? ` · ${session.device}` : ''}</TableCell>
                               <TableCell>{formatDuration(session.durationSeconds)}</TableCell>
                               <TableCell>{session.termination || 'Unavailable'}</TableCell>
+                               <TableCell className="min-w-48">
+                                 {diagnosis ? (
+                                   <div className="space-y-1">
+                                     <Badge variant="outline" className={severityClass(diagnosis.severity)}>
+                                       {formatDiagnosticLabel(diagnosis.category)} · {formatDiagnosticLabel(diagnosis.severity)}
+                                     </Badge>
+                                     <p className="text-xs text-muted-foreground">
+                                       {formatDiagnosticLabel(diagnosis.subtype)} · {diagnosis.confidence} confidence
+                                       {session.classifications.length > 1 ? ` · +${session.classifications.length - 1}` : ''}
+                                     </p>
+                                   </div>
+                                 ) : <span className="text-xs text-muted-foreground">No classified events</span>}
+                               </TableCell>
                               <TableCell><Badge variant={signal.variant}>{signal.label}</Badge></TableCell>
                             </TableRow>
                           )
@@ -581,6 +771,24 @@ function FilterField({ label, htmlFor, children }: { label: string; htmlFor: str
   return <div className="space-y-2"><Label htmlFor={htmlFor} className="text-xs font-medium">{label}</Label>{children}</div>
 }
 
+function DiagnosticFilter({ id, label, value, options, onChange }: { id: string; label: string; value: string; options: string[]; onChange: (value: string) => void }) {
+  return (
+    <FilterField label={label} htmlFor={id}>
+      <Select value={value} onValueChange={onChange} disabled={options.length === 0}>
+        <SelectTrigger id={id} data-testid={`select-${id}`}>
+          <SelectValue placeholder={options.length ? `All ${label.toLowerCase()}` : 'Unavailable'} />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">All</SelectItem>
+          {options.map((option) => (
+            <SelectItem key={option} value={option}>{formatDiagnosticLabel(option)}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </FilterField>
+  )
+}
+
 function MetricCard({ label, value, suffix = '', icon: Icon, loading, danger, testId }: { label: string; value: number | null; suffix?: string; icon: typeof Database; loading: boolean; danger?: boolean; testId: string }) {
   return (
     <Card data-testid={`card-${testId}`}>
@@ -612,16 +820,27 @@ function UnavailablePanel({ icon: Icon, title, detail, testId }: { icon: typeof 
 }
 
 function SessionDetail({ session }: { session: VadSessionDetail }) {
+  const coaching = session.coachingDiagnostics
   return (
     <div className="space-y-5" data-testid={`detail-vad-session-${session.id}`}>
       <div className="grid gap-3 rounded-lg border border-border bg-muted/20 p-4 sm:grid-cols-2 lg:grid-cols-4">
          <DetailItem icon={Database} label="Client round ID" value={session.clientRoundId} mono />
+        {session.coachingSessionId && <DetailItem icon={Database} label="Coaching session ID" value={session.coachingSessionId} mono />}
         <DetailItem icon={CalendarClock} label="Timestamp" value={formatDateTime(session.timestamp)} />
         <DetailItem icon={Mic2} label="Feature / profile" value={`${formatFeature(session.feature)} / ${session.profile || 'Unavailable'}`} />
         <DetailItem icon={Smartphone} label="Environment / device" value={`${session.environment || 'Unavailable'} / ${session.device || 'Unavailable'}`} />
         <DetailItem icon={Clock3} label="Duration" value={formatDuration(session.durationSeconds)} />
         <DetailItem icon={Activity} label="Termination" value={session.termination || 'Unavailable'} />
       </div>
+      {session.classifications?.length > 0 && (
+        <section>
+          <h3 className="mb-3 text-sm font-semibold">Diagnostic classifications</h3>
+          <div className="grid gap-3 lg:grid-cols-2" data-testid="vad-classification-summary">
+            {session.classifications.map((item) => <ClassificationCard key={item.eventId} classification={item} />)}
+          </div>
+        </section>
+      )}
+      {coaching?.hasCoachingEvents && <CoachingDiagnostics diagnostics={coaching} />}
       <div>
         <h3 className="mb-3 text-sm font-semibold">Stored event timeline</h3>
         {session.events.length ? (
@@ -632,15 +851,147 @@ function SessionDetail({ session }: { session: VadSessionDetail }) {
                 <li key={event.id ?? `${event.name}-${event.sequence ?? index}`} className={`relative rounded-lg border p-3 ${highlighted ? 'border-[#D4AF37]/50 bg-[#D4AF37]/5' : 'border-border bg-background'}`} data-testid={`event-vad-${event.id ?? index}`}>
                   <span className={`absolute -left-[1.32rem] top-4 h-2.5 w-2.5 rounded-full border-2 border-background ${highlighted ? 'bg-[#D4AF37]' : 'bg-[#52B788]'}`} aria-hidden="true" />
                   <div className="flex flex-wrap items-start justify-between gap-2">
-                    <p className="font-mono text-sm font-semibold">{event.name}</p>
+                     <div className="flex flex-wrap items-center gap-2">
+                       <p className="font-mono text-sm font-semibold">{event.name}</p>
+                       {event.classification && (
+                         <Badge variant="outline" className={severityClass(event.classification.severity)}>
+                           {formatDiagnosticLabel(event.classification.subtype)} · {event.classification.severity}
+                         </Badge>
+                       )}
+                     </div>
                     <span className="text-xs text-muted-foreground">{formatDateTime(event.timestamp)}{event.sequence != null ? ` · #${event.sequence}` : ''}</span>
                   </div>
+                   {event.classification && (
+                     <div className="mt-3">
+                       <ClassificationCard classification={event.classification} compact />
+                     </div>
+                   )}
                   {event.payload != null && <pre className="mt-3 max-h-48 overflow-auto rounded-md bg-muted/50 p-3 text-xs text-muted-foreground">{formatPayload(event.payload)}</pre>}
                 </li>
               )
             })}
           </ol>
         ) : <UnavailablePanel icon={CircleAlert} title="No stored events" detail="This session has no event records available to display." testId="empty-vad-events" />}
+      </div>
+    </div>
+  )
+}
+
+function ClassificationCard({ classification, compact = false }: { classification: VadClassification; compact?: boolean }) {
+  return (
+    <article className={`rounded-lg border p-3 ${severityClass(classification.severity)}`} data-testid={`classification-${classification.eventId}`}>
+      <div className="flex flex-wrap items-center gap-2">
+        <p className="font-semibold">{formatDiagnosticLabel(classification.subtype)}</p>
+        <Badge variant="outline">{formatDiagnosticLabel(classification.category)}</Badge>
+        <Badge variant="outline">{formatDiagnosticLabel(classification.severity)}</Badge>
+        <span className="text-xs font-medium">{formatDiagnosticLabel(classification.confidence)} confidence</span>
+      </div>
+      <p className="mt-2 text-sm">{classification.explanation}</p>
+      <dl className={`mt-3 grid gap-2 text-xs ${compact ? 'sm:grid-cols-3' : ''}`}>
+        <div><dt className="font-semibold">Detection</dt><dd className="mt-0.5">{classification.detection}</dd></div>
+        <div><dt className="font-semibold">Likely cause</dt><dd className="mt-0.5">{classification.likelyCause}</dd></div>
+        <div><dt className="font-semibold">VAD impact</dt><dd className="mt-0.5">{classification.vadImpact}</dd></div>
+      </dl>
+      <details className="mt-3">
+        <summary className="cursor-pointer text-xs font-semibold">Stored evidence</summary>
+        <pre className="mt-2 max-h-48 overflow-auto rounded-md bg-background/80 p-2 text-xs">{formatPayload(classification.evidence)}</pre>
+      </details>
+    </article>
+  )
+}
+
+function CoachingDiagnostics({ diagnostics }: { diagnostics: VadCoachingDiagnostics }) {
+  return (
+    <section className="space-y-4 rounded-lg border border-[#1B5E35]/20 bg-[#1B5E35]/5 p-4" data-testid="coaching-vad-diagnostics">
+      <div>
+        <h3 className="text-sm font-semibold">Coaching VAD context</h3>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Structured Coaching telemetry preserved from the canonical event payload.
+        </p>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <DiagnosticGroup
+          title="Audio environment"
+          items={[
+            ['Input route', diagnostics.environment.audioInputRoute],
+            ['Output route', diagnostics.environment.audioOutputRoute],
+            ['VAD profile', diagnostics.environment.vadProfile],
+          ]}
+        />
+        <DiagnosticGroup
+          title="VAD state"
+          items={[
+            ['Noise floor', diagnostics.vadState.noiseFloor],
+            ['Adaptive threshold', diagnostics.vadState.adaptiveThreshold],
+            ['Speech state', diagnostics.vadState.speechState],
+            ['Speech streak', diagnostics.vadState.speechStreak],
+          ]}
+        />
+        <DiagnosticGroup
+          title="Silence behavior"
+          items={[
+            ['Timer state', diagnostics.silence.silenceTimerState],
+            ['Timer cancellations', diagnostics.silence.silenceTimerCancellations],
+          ]}
+        />
+      </div>
+      {diagnostics.meterWindows.length > 0 && (
+        <div data-testid="coaching-meter-windows">
+          <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Aggregated COACH_METER windows</h4>
+          <div className="grid gap-2 lg:grid-cols-2">
+            {diagnostics.meterWindows.map((window, index) => (
+              <div key={`${window.sampleWindowStart ?? 'window'}-${index}`} className="grid grid-cols-2 gap-x-4 gap-y-1 rounded-md border border-border bg-background p-3 text-xs sm:grid-cols-4">
+                <DiagnosticValue label="Samples" value={window.sampleCount} />
+                <DiagnosticValue label="Min" value={window.minMetering} />
+                <DiagnosticValue label="Max" value={window.maxMetering} />
+                <DiagnosticValue label="Average" value={window.averageMetering} />
+                <DiagnosticValue label="Threshold crossings" value={window.thresholdCrossingCount} />
+                <DiagnosticValue label="Timer cancellations" value={window.silenceTimerCancellationCount} />
+                <DiagnosticValue label="Window start" value={window.sampleWindowStart} />
+                <DiagnosticValue label="Window end" value={window.sampleWindowEnd} />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      {diagnostics.routeChanges.length > 0 && (
+        <DiagnosticRecordList title="Audio route transitions" records={diagnostics.routeChanges} testId="coaching-route-changes" />
+      )}
+      {diagnostics.anomalies.length > 0 && (
+        <DiagnosticRecordList title="VAD anomalies" records={diagnostics.anomalies} testId="coaching-anomalies" />
+      )}
+    </section>
+  )
+}
+
+function DiagnosticGroup({ title, items }: { title: string; items: Array<[string, unknown]> }) {
+  return (
+    <div className="rounded-md border border-border bg-background p-3">
+      <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{title}</h4>
+      <dl className="space-y-1.5 text-xs">
+        {items.map(([label, value]) => (
+          <div className="flex items-start justify-between gap-3" key={label}>
+            <dt className="text-muted-foreground">{label}</dt>
+            <dd className="text-right font-medium">{formatDiagnosticValue(value)}</dd>
+          </div>
+        ))}
+      </dl>
+    </div>
+  )
+}
+
+function DiagnosticValue({ label, value }: { label: string; value: unknown }) {
+  return <div><p className="text-muted-foreground">{label}</p><p className="mt-0.5 font-medium">{formatDiagnosticValue(value)}</p></div>
+}
+
+function DiagnosticRecordList({ title, records, testId }: { title: string; records: Array<Record<string, unknown>>; testId: string }) {
+  return (
+    <div data-testid={testId}>
+      <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{title}</h4>
+      <div className="space-y-2">
+        {records.map((record, index) => (
+          <pre key={index} className="overflow-auto rounded-md border border-border bg-background p-3 text-xs text-muted-foreground">{formatPayload(record)}</pre>
+        ))}
       </div>
     </div>
   )
