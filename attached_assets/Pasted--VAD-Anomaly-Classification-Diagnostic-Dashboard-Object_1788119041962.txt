@@ -1,0 +1,450 @@
+## VAD Anomaly Classification & Diagnostic Dashboard
+
+### Objective
+
+Improve the existing VAD telemetry/admin dashboard so that generic **"anomaly"** records are automatically categorized into useful diagnostic classifications.
+
+This is a **diagnostic/observability improvement only**.
+
+**Do NOT change VAD detection behavior, thresholds, noise-floor algorithms, recording behavior, silence timers, speech streak logic, or audio routing behavior as part of this task.**
+
+The goal is to make existing anomalies much easier to understand and determine whether they represent environmental noise, device/audio-routing behavior, VAD decision problems, or an actual user-impacting failure.
+
+---
+
+## Step 1 — Audit the existing implementation first
+
+Before making changes, inspect the existing:
+
+* VAD telemetry event types
+* anomaly detection logic
+* `vad_telemetry_events` schema
+* telemetry writer/queue
+* telemetry payload structure
+* VAD handler(s)
+* VAD profiles
+* admin analytics/dashboard
+* existing anomaly queries and UI
+* existing tests
+
+Determine exactly what telemetry is already available.
+
+In particular, look for existing data related to:
+
+* noise floor
+* current audio level / dBFS
+* speech state
+* speech streaks
+* silence timers
+* automatic submissions
+* VAD profile
+* audio route
+* Bluetooth
+* connection context
+* platform
+* device
+* timestamps
+* session/round IDs
+* automotive/car context
+
+**Do not create duplicate telemetry if the required information already exists.**
+
+After the audit, implement the smallest clean solution using the existing architecture.
+
+---
+
+# Step 2 — Create a useful anomaly taxonomy
+
+Replace the current generic "anomaly" presentation with a classification system.
+
+Use these top-level categories:
+
+### 1. Environmental
+
+Potentially normal environmental audio behavior.
+
+Subtypes:
+
+* `sustained_noise`
+* `transient_noise`
+* `noise_floor_rise`
+* `noise_floor_shift`
+
+### 2. VAD Behavior
+
+Potential VAD decision problems.
+
+Subtypes:
+
+* `false_speech_start`
+* `false_speech_continuation`
+* `speech_candidate_rejected`
+* `missed_speech`
+* `silence_timeout`
+
+### 3. Audio / Device
+
+Potential audio subsystem or routing issues.
+
+Subtypes:
+
+* `bluetooth_route_change`
+* `audio_route_unknown`
+* `audio_level_instability`
+
+### 4. Context
+
+Useful environmental/contextual classifications.
+
+Subtypes:
+
+* `automotive_noise`
+* `outdoor_noise`
+* `unknown_context`
+
+---
+
+# Step 3 — Separate event, cause, and impact
+
+Where the available telemetry supports it, classify anomalies using three separate concepts:
+
+### Detection
+
+What physically/technically happened?
+
+Examples:
+
+* noise floor increased
+* transient audio spike
+* Bluetooth route changed
+* speech streak failed
+* silence timer repeatedly reset
+
+### Likely Cause
+
+What appears to have caused it?
+
+Examples:
+
+* environmental noise
+* vehicle motion
+* Bluetooth audio route
+* unknown
+
+### VAD Impact
+
+Did this actually affect VAD behavior?
+
+Examples:
+
+* no impact
+* delayed speech detection
+* false speech continuation
+* premature speech end
+* automatic submission delayed
+* automatic submission prevented
+
+Do NOT invent causality when telemetry doesn't support it.
+
+If evidence is insufficient, use `unknown`.
+
+---
+
+# Step 4 — Add severity
+
+Each classified anomaly should have:
+
+* `info`
+* `low`
+* `medium`
+* `high`
+* `critical`
+
+Use sensible deterministic rules.
+
+Suggested interpretation:
+
+### INFO
+
+Interesting/abnormal telemetry with no apparent user impact.
+
+### LOW
+
+Minor VAD instability with no meaningful user impact.
+
+### MEDIUM
+
+Behavior that could interfere with automatic recording termination or speech detection.
+
+### HIGH
+
+Likely user-visible VAD failure requiring manual intervention.
+
+### CRITICAL
+
+Recording/session failure or telemetry indicating the interaction could not complete successfully.
+
+Do not over-classify normal environmental variation as HIGH or CRITICAL.
+
+---
+
+# Step 5 — Add confidence
+
+Add a confidence value or confidence classification indicating how strongly the available telemetry supports the classification.
+
+Prefer:
+
+* `high`
+* `medium`
+* `low`
+
+If the existing data supports a numeric confidence score cleanly, that is acceptable, but **do not build a complicated statistical/ML system for this task.**
+
+This should be deterministic/rule-based.
+
+---
+
+# Step 6 — Use evidence from existing telemetry
+
+Where practical, store/display the evidence that caused the classification.
+
+For example:
+
+```text
+Noise-floor rise
+Category: Environmental
+Severity: Medium
+Confidence: High
+
+Evidence:
+• Noise floor: -73 dBFS → -53 dBFS
+• Duration: 18.4 sec
+• Speech streak: 0
+• Audio route: Bluetooth
+• VAD profile: AUTOMOTIVE
+```
+
+Another example:
+
+```text
+False speech continuation
+Category: VAD Behavior
+Severity: High
+Confidence: High
+
+Evidence:
+• Speech state remained active
+• No valid speech streak detected
+• Silence timer repeatedly cancelled
+• Automatic submission delayed
+```
+
+The exact evidence fields should be based on what is actually available in the current telemetry.
+
+---
+
+# Step 7 — Important distinction: anomaly vs actual failure
+
+Do not treat every unusual acoustic event as a VAD failure.
+
+For example:
+
+```text
+Vehicle noise increases
+→ noise floor rises
+→ VAD adapts
+→ user speech still works
+```
+
+This should generally be classified as:
+
+`Environmental → noise_floor_rise`
+
+with no meaningful VAD impact.
+
+But:
+
+```text
+Vehicle noise increases
+→ noise floor rises
+→ VAD interprets noise as speech
+→ silence timer repeatedly resets
+→ recording does not automatically submit
+```
+
+should be classified more like:
+
+`VAD Behavior → false_speech_continuation`
+
+with meaningful user impact.
+
+The classification system should therefore distinguish:
+
+**what happened**
+
+from
+
+**whether it actually caused a VAD problem.**
+
+---
+
+# Step 8 — Improve the admin dashboard
+
+Update the existing VAD analytics dashboard so anomalies can be understood at a glance.
+
+At minimum, show:
+
+* Category
+* Subtype
+* Severity
+* Confidence
+* Timestamp
+* VAD profile
+* Audio route
+* Platform/device
+* User/session/round context where already available
+* Short human-readable explanation
+* Evidence/details
+
+Example UI:
+
+```text
+🚗 Noise-floor rise
+Environmental · Medium · High confidence
+
+Noise floor increased 20 dB while using Bluetooth
+with the AUTOMOTIVE VAD profile.
+
+Impact: No apparent VAD failure
+```
+
+And:
+
+```text
+⚠️ False speech continuation
+VAD Behavior · High · High confidence
+
+Speech state remained active despite no valid speech
+streak. Silence timer was repeatedly cancelled.
+
+Impact: Automatic submission delayed
+```
+
+Use whatever existing dashboard UI conventions are already present.
+
+Do not unnecessarily redesign the entire analytics page.
+
+---
+
+# Step 9 — Add filtering
+
+If the existing dashboard supports filters, add useful anomaly filters for:
+
+* category
+* subtype
+* severity
+* confidence
+* VAD profile
+* audio route
+* platform
+* date/time
+
+If the dashboard does not currently have filtering infrastructure, implement only the simplest useful filtering rather than creating a large analytics framework.
+
+---
+
+# Step 10 — Preserve raw telemetry
+
+Do NOT replace or delete the underlying raw telemetry.
+
+The classification should be an additional diagnostic layer.
+
+We should always be able to inspect the original events/payloads that caused the classification.
+
+If adding classification fields to the database is appropriate, use a backward-compatible migration.
+
+Do not break existing telemetry ingestion.
+
+---
+
+# Step 11 — Tests
+
+Add focused unit tests for the classification logic.
+
+At minimum test:
+
+1. Normal environmental noise → `environmental / sustained_noise`
+2. Noise-floor increase → `environmental / noise_floor_rise`
+3. Short audio spike → `environmental / transient_noise`
+4. Repeated silence timer cancellation without valid speech → `vad_behavior / false_speech_continuation`
+5. Bluetooth route change → `audio_device / bluetooth_route_change`
+6. Unknown/incomplete telemetry → `unknown` classification
+7. Environmental noise that does NOT affect VAD → low/no impact
+8. Environmental noise that DOES prevent automatic submission → meaningful VAD impact/high severity
+9. Classification does not modify actual VAD behavior
+10. Existing telemetry/dashboard functionality continues to work
+
+Use the project's existing test framework and conventions.
+
+---
+
+# Step 12 — Do not over-engineer
+
+This is intentionally a **3–6 hour diagnostic improvement**, not a new VAD research project.
+
+Do NOT:
+
+* introduce machine learning
+* introduce a new analytics platform
+* rewrite the telemetry pipeline
+* rewrite the VAD handler
+* change VAD thresholds
+* change noise-floor behavior
+* change recording behavior
+* add unnecessary dependencies
+* redesign the entire admin dashboard
+
+Prefer deterministic rules using telemetry we already collect.
+
+---
+
+# Step 13 — Final verification
+
+After implementation:
+
+1. Run the relevant unit tests.
+2. Run TypeScript/type checking.
+3. Verify the Supabase/database migration if one was required.
+4. Verify existing telemetry ingestion still works.
+5. Verify existing VAD dashboard data still loads.
+6. Verify existing raw event inspection still works.
+7. Verify the new anomaly classifications appear correctly.
+8. Check that no VAD runtime behavior was unintentionally changed.
+
+At the end, provide a concise implementation report containing:
+
+* Files changed
+* Database changes/migrations
+* New anomaly categories/subtypes
+* Classification rules
+* Dashboard changes
+* Tests added
+* Test results
+* Any assumptions or limitations
+* Any telemetry that would be useful to add in a future iteration but is NOT necessary for this task
+
+### Success criteria
+
+After this task, when the dashboard reports an anomaly, I should be able to answer:
+
+> **What happened?**
+
+> **What probably caused it?**
+
+> **Did it actually affect VAD?**
+
+> **How serious was it?**
+
+> **How confident are we in that diagnosis?**
+
+without having to manually inspect every raw telemetry event.
