@@ -7,6 +7,9 @@ import {
   mapFeatureToSources,
   uniqueClientRoundIds,
   type VadFilters,
+  type VadDiagnosticCategory,
+  type VadDiagnosticConfidence,
+  type VadDiagnosticSeverity,
   type VadTelemetryRow,
 } from '@/lib/vad-telemetry/read-model'
 import { classifyVadSourceError } from '@/lib/vad-telemetry/source-error'
@@ -17,6 +20,9 @@ const MAX_FILTER_LENGTH = 160
 const MAX_SESSION_ID_LENGTH = 120
 const DERIVED_SESSION_KEY = /^session-[0-9a-f]{8}-[0-9a-f]{8}$/
 const SAFE_PROFILE = /^[A-Za-z0-9 _.-]+$/
+const CATEGORIES = new Set<VadDiagnosticCategory>(['environmental', 'vad_behavior', 'audio_device', 'context', 'unknown'])
+const SEVERITIES = new Set<VadDiagnosticSeverity>(['info', 'low', 'medium', 'high', 'critical'])
+const CONFIDENCES = new Set<VadDiagnosticConfidence>(['low', 'medium', 'high'])
 
 function boundedParam(value: string | null, maxLength = MAX_FILTER_LENGTH): string | null {
   const trimmed = value?.trim() ?? ''
@@ -35,6 +41,9 @@ function parseFilters(request: NextRequest): VadFilters {
   const { searchParams } = request.nextUrl
   const feature = boundedParam(searchParams.get('feature'))
   const requestedProfile = boundedParam(searchParams.get('profile'))
+  const category = boundedParam(searchParams.get('category')) as VadDiagnosticCategory | null
+  const severity = boundedParam(searchParams.get('severity')) as VadDiagnosticSeverity | null
+  const confidence = boundedParam(searchParams.get('confidence')) as VadDiagnosticConfidence | null
 
   return {
     start: parseDateParam(searchParams.get('start')),
@@ -44,6 +53,12 @@ function parseFilters(request: NextRequest): VadFilters {
     termination: boundedParam(searchParams.get('termination')),
     anomaliesOnly: searchParams.get('anomaliesOnly') === 'true',
     sessionId: boundedParam(searchParams.get('sessionId'), MAX_SESSION_ID_LENGTH),
+    category: category && CATEGORIES.has(category) ? category : null,
+    subtype: boundedParam(searchParams.get('subtype')),
+    severity: severity && SEVERITIES.has(severity) ? severity : null,
+    confidence: confidence && CONFIDENCES.has(confidence) ? confidence : null,
+    audioRoute: boundedParam(searchParams.get('audioRoute')),
+    platform: boundedParam(searchParams.get('platform')),
   }
 }
 

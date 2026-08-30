@@ -166,3 +166,54 @@ those public Supabase values are supplied through the environment.
 - Next.js production build: passed
 - Vercel preview checks: passed
 - Final code review: passed with no blockers
+
+## Deterministic anomaly classification
+
+Added August 30, 2026 as an additive diagnostics layer over the canonical
+`public.vad_telemetry_events` read path.
+
+### Rules
+
+- Environmental: sustained and transient noise are identified from explicit noise
+  events/reasons, stored duration, and metering ranges. Noise-floor rise requires a
+  stored increase of at least 10 dB from an earlier session event; shifts of at least
+  3 dB remain a separate informational subtype.
+- VAD Behavior: false speech continuation requires repeated stored silence-timer
+  cancellation plus absent/zero speech evidence. False starts, rejected candidates,
+  missed speech, and silence timeouts require corresponding explicit fields or event
+  outcomes.
+- Audio / Device: Bluetooth transitions require differing stored old/new routes with
+  a Bluetooth route. Unknown routes and large, non-transient metering instability
+  remain separate subtypes.
+- Context: automotive and outdoor noise require matching stored route, profile, or
+  context values. Explicitly missing context uses `unknown_context`.
+- Unknown: generic anomaly and terminal-failure records with insufficient causal
+  evidence remain explicitly unknown rather than receiving an invented cause.
+
+Every result separately reports detection, likely cause, VAD impact, severity,
+confidence, explanation, and the exact stored fields used as evidence. Environmental
+variation defaults to `info` or `low`; `high` requires stored user-impact,
+submission-delay, or submission-prevention evidence, and `critical` is reserved for a
+stored terminal recording/submission failure.
+
+### Dashboard and filters
+
+The existing session list now shows the highest-severity derived diagnosis and the
+selected-session view shows all classifications both in a summary and beside the raw
+chronological event. Raw payload inspection is unchanged. Derived filters cover
+category, subtype, severity, confidence, profile, audio route, platform, and date/time.
+
+### Database impact
+
+None. No table, migration, duplicate event, writer, VAD runtime, threshold, recording,
+timer, speech-streak, routing, or ingestion behavior changed. Classifications are
+computed in the protected server read model for each request.
+
+### Limitations and useful future telemetry
+
+The classifier is intentionally conservative. It cannot prove physical causality from
+metering alone, and it does not infer a failed automatic submission merely because a
+bounded timeline lacks a submission event. Explicit outcome fields such as
+`automaticSubmissionDelayed`, `automaticSubmissionPrevented`, a normalized
+submission outcome, and explicit speech-candidate validity would increase confidence
+in future diagnoses. They are useful future telemetry, not required or added here.

@@ -1,3 +1,4 @@
 - [Web-owned routes beside the shared API](web-owned-routes.md) — avoid `/api` for Next-owned endpoints because the API artifact claims that proxy prefix.
 - [Canonical VAD telemetry](vad-telemetry-source.md) — mobile capture events persist to shared Supabase; the admin web route is read-only and server-protected.
 - [VAD writer source gap](vad-writer-source-gap.md) — the accessible mobile/API repository removed an incompatible parallel writer; the live canonical writer is not on an accessible branch.
+- [Conservative VAD classification](vad-classification-rules.md) — classify from event-time evidence only; reserve high/critical severity for explicit impact or final failure.

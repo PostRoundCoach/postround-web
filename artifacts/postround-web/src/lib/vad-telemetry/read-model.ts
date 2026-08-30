@@ -1,3 +1,19 @@
+import {
+  classifyVadEvent,
+  type VadClassification,
+  type VadDiagnosticCategory,
+  type VadDiagnosticConfidence,
+  type VadDiagnosticSeverity,
+} from './classifier.ts'
+
+export { classifyVadEvent }
+export type {
+  VadClassification,
+  VadDiagnosticCategory,
+  VadDiagnosticConfidence,
+  VadDiagnosticSeverity,
+} from './classifier.ts'
+
 export const VAD_EVENT_LIMIT = 5000
 export const VAD_SESSION_LIMIT = 50
 
@@ -19,6 +35,7 @@ export type VadEvent = {
   sequence: number | null
   payload: unknown
   severity: string | null
+  classification?: VadClassification | null
 }
 
 export type VadCoachingDiagnostics = {
@@ -61,6 +78,12 @@ export type VadFilters = {
   termination: string | null
   anomaliesOnly: boolean
   sessionId: string | null
+  category: VadDiagnosticCategory | null
+  subtype: string | null
+  severity: VadDiagnosticSeverity | null
+  confidence: VadDiagnosticConfidence | null
+  audioRoute: string | null
+  platform: string | null
 }
 
 type SessionAccumulator = {
@@ -70,6 +93,10 @@ type SessionAccumulator = {
   feature: string | null
   profile: string | null
   environment: string | null
+  platform: string | null
+  audioRoute: string | null
+  platforms: string[]
+  audioRoutes: string[]
   device: string | null
   durationSeconds: number | null
   termination: string | null
@@ -78,6 +105,7 @@ type SessionAccumulator = {
   coachingSessionId: string | null
   coachingDiagnostics: VadCoachingDiagnostics
   events: VadEvent[]
+  classifications: VadClassification[]
 }
 
 function timestampValue(value: string | null): number {
@@ -122,6 +150,16 @@ function metadataNumber(metadata: Record<string, unknown>, ...keys: string[]): n
     if (typeof value === 'number' && Number.isFinite(value)) return value
   }
   return null
+}
+
+function metadataStrings(metadata: Record<string, unknown>, ...keys: string[]): string[] {
+  return [
+    ...new Set(
+      keys
+        .map((key) => metadata[key])
+        .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+    ),
+  ]
 }
 
 function isMetadataRecord(value: unknown): value is Record<string, unknown> {
@@ -296,8 +334,25 @@ export function buildVadReadModel(
 
     const metadata = isMetadataRecord(row.metadata) ? row.metadata : {}
     const profile = metadataString(metadata, 'profile', 'vadProfile')
-    const platform = metadataString(metadata, 'platform', 'environment')
-    const audioRoute = metadataString(metadata, 'audioRoute')
+    const platform = metadataString(metadata, 'platform', 'environment', 'devicePlatform')
+    const audioRoutes = metadataStrings(
+      metadata,
+      'audioRoute',
+      'audio_route',
+      'audioInputRoute',
+      'audio_input_route',
+      'audioOutputRoute',
+      'audio_output_route',
+      'oldAudioInputRoute',
+      'old_audio_input_route',
+      'newAudioInputRoute',
+      'new_audio_input_route',
+      'oldAudioOutputRoute',
+      'old_audio_output_route',
+      'newAudioOutputRoute',
+      'new_audio_output_route'
+    )
+    const audioRoute = audioRoutes[0] ?? null
     const bluetooth = metadataString(metadata, 'bluetoothDeviceType')
     const device = [audioRoute, bluetooth].filter((value) => value && value !== 'UNKNOWN').join(' · ') || null
     const termination = terminationFromEvent(row.event_type, metadata)
@@ -312,6 +367,10 @@ export function buildVadReadModel(
       feature: sourceFeature(row.source),
       profile,
       environment: platform,
+      platform,
+      audioRoute,
+      platforms: platform ? [platform] : [],
+      audioRoutes,
       device,
       durationSeconds: null,
       termination: null,
@@ -320,6 +379,7 @@ export function buildVadReadModel(
       coachingSessionId: null,
       coachingDiagnostics: buildCoachingDiagnostics([]),
       events: [],
+      classifications: [],
     }
 
     if (timestampValue(row.created_at) < timestampValue(current.timestamp)) {
@@ -327,6 +387,12 @@ export function buildVadReadModel(
     }
     current.profile ??= profile
     current.environment ??= platform
+    current.platform ??= platform
+    current.audioRoute ??= audioRoute
+    if (platform && !current.platforms.includes(platform)) current.platforms.push(platform)
+    for (const observedRoute of audioRoutes) {
+      if (!current.audioRoutes.includes(observedRoute)) current.audioRoutes.push(observedRoute)
+    }
     current.device ??= device
     current.termination ??= termination
     current.coachingSessionId ??= metadataString(metadata, 'coachingSessionId', 'coaching_session_id')
@@ -357,11 +423,32 @@ export function buildVadReadModel(
         a.id.localeCompare(b.id)
     )
     session.coachingDiagnostics = buildCoachingDiagnostics(session.events)
+    session.classifications = session.events
+      .map((event, index) => classifyVadEvent(event, session.events.slice(0, index + 1)))
+      .filter((value): value is VadClassification => value != null)
+    for (const event of session.events) {
+      event.classification = session.classifications.find((value) => value.eventId === event.id) ?? null
+    }
   }
 
   sessions = sessions
+    .filter((session) => !filters.start || timestampValue(session.timestamp) >= timestampValue(filters.start))
+    .filter((session) => !filters.end || timestampValue(session.timestamp) <= timestampValue(filters.end))
     .filter((session) => !filters.profile || session.profile === filters.profile)
+    .filter((session) => !filters.feature || session.feature === filters.feature)
     .filter((session) => !filters.termination || session.termination === filters.termination)
+    .filter((session) => !filters.platform || session.platforms.includes(filters.platform))
+    .filter((session) => !filters.audioRoute || session.audioRoutes.includes(filters.audioRoute))
+    .filter((session) => {
+      if (!filters.category && !filters.subtype && !filters.severity && !filters.confidence) return true
+      return session.classifications.some(
+        (value) =>
+          (!filters.category || value.category === filters.category) &&
+          (!filters.subtype || value.subtype === filters.subtype) &&
+          (!filters.severity || value.severity === filters.severity) &&
+          (!filters.confidence || value.confidence === filters.confidence)
+      )
+    })
     .filter((session) => !filters.anomaliesOnly || session.hasAnomaly || session.hasFailure)
     .sort((a, b) => timestampValue(b.timestamp) - timestampValue(a.timestamp) || a.id.localeCompare(b.id))
 
@@ -451,6 +538,40 @@ export function buildVadReadModel(
         ...new Set(
           rows
             .map((row) => (isMetadataRecord(row.metadata) ? terminationFromEvent(row.event_type, row.metadata) : null))
+            .filter((value): value is string => !!value)
+        ),
+      ].sort(),
+      categories: [
+        ...new Set(
+          [...sessionsById.values()].flatMap((session) => session.classifications.map((value) => value.category))
+        ),
+      ].sort(),
+      subtypes: [
+        ...new Set(
+          [...sessionsById.values()].flatMap((session) => session.classifications.map((value) => value.subtype))
+        ),
+      ].sort(),
+      severities: [
+        ...new Set(
+          [...sessionsById.values()].flatMap((session) => session.classifications.map((value) => value.severity))
+        ),
+      ].sort(),
+      confidences: [
+        ...new Set(
+          [...sessionsById.values()].flatMap((session) => session.classifications.map((value) => value.confidence))
+        ),
+      ].sort(),
+      audioRoutes: [
+        ...new Set(
+          [...sessionsById.values()]
+            .flatMap((session) => session.audioRoutes)
+            .filter((value): value is string => !!value)
+        ),
+      ].sort(),
+      platforms: [
+        ...new Set(
+          [...sessionsById.values()]
+            .flatMap((session) => session.platforms)
             .filter((value): value is string => !!value)
         ),
       ].sort(),
