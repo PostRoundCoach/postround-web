@@ -1,0 +1,78 @@
+## Read-Only Audit — Coaching VAD Telemetry Persistence
+
+Do not make any changes yet.
+
+Audit this mobile/app project specifically for the Coaching VAD telemetry pipeline.
+
+Trace the complete path from:
+
+`Coaching VAD runtime events`
+→ `telemetry event construction`
+→ `queue`
+→ `flush`
+→ `API/network request`
+→ `Supabase persistence`
+
+I need to determine exactly what is currently implemented in this workspace.
+
+### Identify:
+
+1. Where `COACH_*` telemetry events are generated.
+2. The complete list of currently implemented Coaching telemetry event types.
+3. The exact metadata/payload fields generated for each event.
+4. How `clientRoundId` is assigned.
+5. How `holeNumber` is assigned for Coaching events.
+6. How events are queued.
+7. How the queue is flushed.
+8. What API endpoint receives the telemetry.
+9. What authentication is used.
+10. What Supabase table/RPC/Edge Function ultimately receives the events.
+11. Any event-type allowlist or validation.
+12. Any database constraints that could reject Coaching events.
+13. Whether retries/error handling exist.
+14. Whether telemetry differs between Expo Go and an EAS Android build.
+15. Whether the current implementation is actually capable of persisting Coaching events to the production Supabase database.
+
+### Pay particular attention to:
+
+* `COACH_VAD_INIT`
+* `COACH_AUDIO_ROUTE`
+* `COACH_VAD_PROFILE`
+* `COACH_NOISE_FLOOR`
+* `COACH_VAD_THRESHOLD`
+* `COACH_METER`
+* `COACH_SPEECH_START`
+* `COACH_SPEECH_END_CANDIDATE`
+* `COACH_SILENCE_TIMER_START`
+* `COACH_SILENCE_TIMER_CANCEL`
+* `COACH_RECORDING_STOP`
+* `COACH_VAD_ANOMALY`
+
+Also search for:
+
+* `vad_telemetry_events`
+* `COACH_`
+* `BUDDY_`
+* `clientRoundId`
+* `holeNumber`
+* telemetry queue/flush implementations
+* telemetry API endpoints
+* Supabase telemetry persistence
+* event-type validation
+
+### Important
+
+This is a READ-ONLY investigation.
+
+Do not modify files, database schemas, migrations, telemetry behavior, VAD behavior, or tests.
+
+At the end, give me:
+
+1. **What is actually implemented**
+2. **What is missing**
+3. **Whether Coaching telemetry should currently reach production Supabase**
+4. **The exact blocker preventing persisted Coaching events, if one exists**
+5. **The smallest concrete next task to make Coaching telemetry persist end-to-end**
+6. **The exact files involved**
+
+Do not assume that attached task documents represent the current implementation. Base the findings on executable code in this workspace.

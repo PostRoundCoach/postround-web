@@ -10,6 +10,117 @@ Verified on August 28, 2026.
 - Admin boundary: an authenticated Supabase user with `app_metadata.role === "admin"` is required before the server creates the privileged read client
 - The service-role credential is used only by the server route and is never returned to or queried from the browser
 
+## Known-good Round Buddy trace
+
+Production rows establish this observable chain:
+
+```text
+Round Buddy metering in an Android Expo Go session
+    ↓
+events including vad_profile_selected, speech_paused,
+silence_timer_armed/cancelled/fired, speech_ended,
+and automatic_submission
+    ↓
+unavailable queue and flush code in the active external Replit mobile workspace
+    ↓
+unavailable authenticated persistence owner
+    ↓
+public.vad_telemetry_events
+```
+
+The newest 200 production rows queried on August 30, 2026 were all
+`source = round_buddy`. They preserve the authenticated `user_id`, generated
+`client_round_id`, hole number, event type, database timestamp, and metadata such as
+`profile`, `platform`, `isExpoGo`, `audioRoute`, `connectionContext`, `delayMs`,
+`maxSilenceMs`, and submission trigger. The latest rows were written on August 30.
+Their `isExpoGo: true` metadata proves the active producer is a live Expo Go runtime
+rather than a versioned EAS production build. The inaccessible Replit
+workspace attribution comes separately from the project handoff and available
+workspace inventory, not from that metadata field alone.
+
+The connected GitHub account confirms that the source repository is the private
+`PostRoundCoach/postroundcoach` repository. Its accessible `main` branch contains the
+mobile app and API routes, but not the code that emitted those rows. A throttled
+content scan of all 183 source/configuration files found no
+`vad_telemetry_events`, `vadTelemetry`, `flushVadTelemetry`,
+`setVadTelemetryContext`, or persisted event fingerprints.
+
+Repository history explains the gap. Commit `774244e` added a direct mobile Supabase
+writer with a different schema (`session_id`, `round_id`, `ai_session_id`, `feature`,
+`event_name`, `occurred_at`, and `payload`). Commit `4de73f6` intentionally removed
+that parallel implementation on August 28 as incompatible. Nevertheless, canonical
+Round Buddy rows continued to be written on August 29 and 30. The stale
+`agent/vad-telemetry-persistence` branch contains only the removed contract, while
+`agent/remove-parallel-vad-contract` contains its removal.
+
+Vercel contains only the `postround-web-api-server` Next.js project linked to
+`PostRoundCoach/postround-web`; it is the diagnostics reader, not the mobile writer.
+The accessible Supabase REST schema exposes no VAD-related RPC, and the GitHub
+repository contains no Supabase Edge Function source. The exact event-construction,
+queue, flush, persistence, and session-authentication function names therefore cannot
+be recovered from any accessible source. They exist in the active external Replit
+mobile workspace or its generated Expo bundle, neither of which is attached to this
+workspace or committed to an accessible branch.
+
+## Coaching trace and first divergence
+
+The task input reports a `sessionMeteringHandler` that creates structured `COACH_*`
+events and hands them to a `vadTelemetry` queue/`flushVadTelemetry` path. Those files
+are not present in this workspace or the accessible owner-repository branches, so
+their exact functions cannot be audited here. The first production query completed
+before the real-device Coaching run and returned no non-Round-Buddy rows.
+
+A later production query on August 30, 2026 confirmed 179 `source = coaching` rows
+for one authenticated user and one `client_round_id`, with `hole_number = null` on
+every row. The persisted event types were `coach_vad_init`, `coach_vad_profile`,
+`coach_noise_floor`, `coach_meter`, `coach_speech_start`,
+`coach_speech_end_candidate`, `coach_silence_timer_start`,
+`coach_silence_timer_cancel`, and `coach_recording_stop`.
+
+This proves the live Coaching producer reaches the same canonical table and preserves
+the required association and diagnostic metadata. Persisted meter windows use
+`windowTicks`, `minLevel`, `maxLevel`, `avgLevel`, `thresholdCrossings`, and
+`silenceTimerCancellations`; the web read model recognizes those production names as
+well as the generic aliases. Reviving the removed direct-Supabase branch or adding an
+endpoint to the checked-in placeholder API would still create a second telemetry
+architecture and was intentionally not done.
+
+The evidence available here establishes the downstream contract: the protected route
+selects the canonical table, accepts all established source values (`coaching`,
+`ai_coaching`, and `coach`), does not filter event names, groups by the stored row
+`user_id` plus `client_round_id`, and allows `hole_number = null`. The complete JSON
+`metadata` object is retained in each event payload.
+
+For Coaching rows, `COACH_*` environment/state fields are summarized without removing
+the original payload. The diagnostics response exposes audio input/output routes,
+VAD profile, noise floor, adaptive threshold, speech and silence state, aggregated
+`COACH_METER` windows, route transitions, anomaly details, and a server-provided
+`coachingSessionId` when that value is present in metadata.
+
+## Required downstream contract
+
+For Coaching telemetry to appear in this diagnostics implementation, the unavailable
+mobile/API writer must insert rows equivalent to:
+
+```text
+user_id         = authenticated user (server-derived, never client-selected)
+client_round_id = Coaching context clientRoundId
+hole_number     = null
+source          = coaching (or an already-established Coaching source alias)
+event_type      = COACH_*
+created_at      = server/database timestamp
+metadata        = full diagnostic JSON, excluding raw audio/transcripts
+```
+
+The web query reads those seven columns plus `metadata`, authenticates an admin
+Supabase user before creating the service client, and retrieves a selected session by
+`client_round_id` (or the derived stored-user-scoped session key). The authenticated
+admin authorizes this cross-user diagnostics read; writer-side derivation of
+`user_id` cannot be verified without the unavailable telemetry write owner.
+Profile filtering recognizes both the established Round Buddy `metadata.profile`
+field and the Coaching `metadata.vadProfile` field before the query's 5,000-row cap,
+then rechecks the normalized session profile in the read model.
+
 ## Production configuration
 
 Vercel project `postround-web-api-server` was checked through the Vercel API. The production target has all required variable names configured:
@@ -35,9 +146,22 @@ The shared production source returned 78 persisted `round_buddy` events grouped 
 
 The project owner performed the authenticated production browser check on the custom-domain page and confirmed that the Round Buddy session and selectable event timeline display correctly. Unauthenticated requests to the page and data route redirect to login as expected.
 
+The project owner confirmed the Coaching data in production Supabase. The verified
+session contains 179 events across six completed recording stops and ten observed
+turn IDs, with VAD initialization/profile context, noise-floor and adaptive-threshold
+updates, aggregated meter windows, speech transitions, silence-timer activity, and
+recording-stop events. No raw audio or transcripts were present in the inspected
+metadata.
+
+The August 30, 2026 local browser pass was also blocked before authentication because
+this development workspace does not provide `NEXT_PUBLIC_SUPABASE_URL` or
+`NEXT_PUBLIC_SUPABASE_ANON_KEY`. The production configuration was previously verified,
+but local `/admin/analytics` currently returns the existing configuration error until
+those public Supabase values are supplied through the environment.
+
 ## Automated verification
 
-- Focused telemetry tests: 11 passed
+- Focused telemetry tests: 14 passed
 - TypeScript typecheck: passed
 - Next.js production build: passed
 - Vercel preview checks: passed

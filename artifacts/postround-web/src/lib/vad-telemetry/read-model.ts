@@ -12,6 +12,47 @@ export type VadTelemetryRow = {
   metadata: unknown
 }
 
+export type VadEvent = {
+  id: string
+  name: string
+  timestamp: string | null
+  sequence: number | null
+  payload: unknown
+  severity: string | null
+}
+
+export type VadCoachingDiagnostics = {
+  hasCoachingEvents: boolean
+  coachingSessionId: string | null
+  environment: {
+    audioInputRoute: string | null
+    audioOutputRoute: string | null
+    vadProfile: string | null
+  }
+  vadState: {
+    noiseFloor: number | null
+    adaptiveThreshold: number | null
+    speechState: string | null
+    speechStreak: number | null
+  }
+  silence: {
+    silenceTimerState: string | null
+    silenceTimerCancellations: number | null
+  }
+  meterWindows: Array<{
+    sampleWindowStart: string | null
+    sampleWindowEnd: string | null
+    sampleCount: number | null
+    minMetering: number | null
+    maxMetering: number | null
+    averageMetering: number | null
+    thresholdCrossingCount: number | null
+    silenceTimerCancellationCount: number | null
+  }>
+  routeChanges: Array<Record<string, unknown>>
+  anomalies: Array<Record<string, unknown>>
+}
+
 export type VadFilters = {
   start: string | null
   end: string | null
@@ -34,14 +75,9 @@ type SessionAccumulator = {
   termination: string | null
   hasAnomaly: boolean
   hasFailure: boolean
-  events: Array<{
-    id: string
-    name: string
-    timestamp: string | null
-    sequence: number | null
-    payload: unknown
-    severity: string | null
-  }>
+  coachingSessionId: string | null
+  coachingDiagnostics: VadCoachingDiagnostics
+  events: VadEvent[]
 }
 
 function timestampValue(value: string | null): number {
@@ -112,10 +148,118 @@ function sourceFeature(source: string | null | undefined): 'round-buddy' | 'coac
   return null
 }
 
+function eventMetadata(event: VadEvent): Record<string, unknown> {
+  return isMetadataRecord(event.payload) ? event.payload : {}
+}
+
+function latestMetadataString(events: VadEvent[], ...keys: string[]): string | null {
+  for (let index = events.length - 1; index >= 0; index -= 1) {
+    const value = metadataString(eventMetadata(events[index]), ...keys)
+    if (value) return value
+  }
+  return null
+}
+
+function latestMetadataNumber(events: VadEvent[], ...keys: string[]): number | null {
+  for (let index = events.length - 1; index >= 0; index -= 1) {
+    const value = metadataNumber(eventMetadata(events[index]), ...keys)
+    if (value != null) return value
+  }
+  return null
+}
+
+function pickMetadata(metadata: Record<string, unknown>, keys: string[]): Record<string, unknown> {
+  return Object.fromEntries(keys.flatMap((key) => (key in metadata ? [[key, metadata[key]]] : [])))
+}
+
+export function buildCoachingDiagnostics(events: VadEvent[]): VadCoachingDiagnostics {
+  const coachingEvents = events.filter((event) => event.name.toUpperCase().startsWith('COACH_'))
+  const meterWindows = coachingEvents
+    .filter((event) => event.name.toUpperCase() === 'COACH_METER')
+    .map((event) => {
+      const metadata = eventMetadata(event)
+      return {
+        sampleWindowStart: metadataString(metadata, 'sampleWindowStart', 'sample_window_start'),
+        sampleWindowEnd: metadataString(metadata, 'sampleWindowEnd', 'sample_window_end'),
+        sampleCount: metadataNumber(metadata, 'sampleCount', 'sample_count', 'windowTicks'),
+        minMetering: metadataNumber(metadata, 'minMetering', 'min_metering', 'minLevel'),
+        maxMetering: metadataNumber(metadata, 'maxMetering', 'max_metering', 'maxLevel'),
+        averageMetering: metadataNumber(metadata, 'averageMetering', 'average_metering', 'avgLevel'),
+        thresholdCrossingCount: metadataNumber(
+          metadata,
+          'thresholdCrossingCount',
+          'threshold_crossing_count',
+          'thresholdCrossings'
+        ),
+        silenceTimerCancellationCount: metadataNumber(
+          metadata,
+          'silenceTimerCancellationCount',
+          'silence_timer_cancellation_count',
+          'silenceTimerCancellations'
+        ),
+      }
+    })
+  const routeChanges = coachingEvents
+    .filter((event) => event.name.toUpperCase() === 'COACH_AUDIO_ROUTE')
+    .map((event) =>
+      pickMetadata(eventMetadata(event), [
+        'oldAudioInputRoute',
+        'newAudioInputRoute',
+        'oldAudioOutputRoute',
+        'newAudioOutputRoute',
+        'oldVADProfile',
+        'newVADProfile',
+        'noiseFloorReset',
+      ])
+    )
+  const anomalies = coachingEvents
+    .filter((event) => event.name.toUpperCase() === 'COACH_VAD_ANOMALY')
+    .map((event) => pickMetadata(eventMetadata(event), ['reason', 'cancellationCount', 'recordingDuration', 'speechDetected']))
+
+  return {
+    hasCoachingEvents: coachingEvents.length > 0,
+    coachingSessionId: latestMetadataString(coachingEvents, 'coachingSessionId', 'coaching_session_id'),
+    environment: {
+      audioInputRoute: latestMetadataString(coachingEvents, 'audioInputRoute', 'audio_input_route', 'newAudioInputRoute'),
+      audioOutputRoute: latestMetadataString(coachingEvents, 'audioOutputRoute', 'audio_output_route', 'newAudioOutputRoute'),
+      vadProfile: latestMetadataString(coachingEvents, 'vadProfile', 'profile', 'newVADProfile'),
+    },
+    vadState: {
+      noiseFloor: latestMetadataNumber(coachingEvents, 'noiseFloor', 'noise_floor'),
+      adaptiveThreshold: latestMetadataNumber(coachingEvents, 'adaptiveThreshold', 'adaptive_threshold'),
+      speechState: latestMetadataString(coachingEvents, 'speechState', 'speech_state'),
+      speechStreak: latestMetadataNumber(coachingEvents, 'speechStreak', 'speech_streak'),
+    },
+    silence: {
+      silenceTimerState: latestMetadataString(coachingEvents, 'silenceTimerState', 'silence_timer_state'),
+      silenceTimerCancellations: latestMetadataNumber(
+        coachingEvents,
+        'silenceTimerCancellations',
+        'silence_timer_cancellations'
+      ),
+    },
+    meterWindows,
+    routeChanges,
+    anomalies,
+  }
+}
+
 export function mapFeatureToSources(feature: string): string[] {
   return feature === 'round-buddy'
     ? ['round_buddy', 'round-buddy', 'buddy']
     : ['coaching', 'ai_coaching', 'coach']
+}
+
+export function uniqueClientRoundIds(
+  rows: Array<Pick<VadTelemetryRow, 'client_round_id'>>
+): string[] {
+  return [
+    ...new Set(
+      rows
+        .map((row) => row.client_round_id)
+        .filter((value): value is string => typeof value === 'string' && value.length > 0)
+    ),
+  ]
 }
 
 function terminationFromEvent(eventType: string, metadata: Record<string, unknown>): string | null {
@@ -173,6 +317,8 @@ export function buildVadReadModel(
       termination: null,
       hasAnomaly: false,
       hasFailure: false,
+      coachingSessionId: null,
+      coachingDiagnostics: buildCoachingDiagnostics([]),
       events: [],
     }
 
@@ -183,6 +329,7 @@ export function buildVadReadModel(
     current.environment ??= platform
     current.device ??= device
     current.termination ??= termination
+    current.coachingSessionId ??= metadataString(metadata, 'coachingSessionId', 'coaching_session_id')
     if (durationMs != null) current.durationSeconds = durationMs / 1000
     current.hasFailure ||= failure
     current.hasAnomaly ||= isAnomaly(row)
@@ -209,9 +356,11 @@ export function buildVadReadModel(
         (a.sequence ?? 0) - (b.sequence ?? 0) ||
         a.id.localeCompare(b.id)
     )
+    session.coachingDiagnostics = buildCoachingDiagnostics(session.events)
   }
 
   sessions = sessions
+    .filter((session) => !filters.profile || session.profile === filters.profile)
     .filter((session) => !filters.termination || session.termination === filters.termination)
     .filter((session) => !filters.anomaliesOnly || session.hasAnomaly || session.hasFailure)
     .sort((a, b) => timestampValue(b.timestamp) - timestampValue(a.timestamp) || a.id.localeCompare(b.id))

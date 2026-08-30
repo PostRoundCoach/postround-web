@@ -1,0 +1,140 @@
+# Trace the Known-Good Round Buddy Telemetry Persistence Path
+
+We have confirmed from production data that `public.vad_telemetry_events` contains real Round Buddy telemetry.
+
+Therefore, some currently functioning application code is persisting Round Buddy VAD events.
+
+Do NOT create a new telemetry endpoint or writer.
+
+Do NOT restore the historical direct-Supabase implementation that was removed.
+
+Instead, start from the existing Round Buddy code and trace the actual persistence path.
+
+## Find the producer
+
+Search the mobile/application code for:
+
+* `BUDDY_*`
+* `vad_telemetry_events`
+* `vadTelemetry`
+* `flushVadTelemetry`
+* `setVadTelemetryContext`
+* Supabase `.from(...)`
+* `.insert(...)`
+* `fetch(...)`
+* `/api/`
+* Edge Function references
+* telemetry queue/persistence helpers
+
+Identify where a Round Buddy event is created and follow it all the way to persistence.
+
+## Required trace
+
+Produce the actual chain:
+
+```text
+Round Buddy metering event
+    ↓
+event construction
+    ↓
+telemetry queue
+    ↓
+flush/persistence function
+    ↓
+API / Supabase / Edge Function
+    ↓
+authenticated identity
+    ↓
+public.vad_telemetry_events
+```
+
+For every step, identify the exact file and function.
+
+## Then trace Coaching
+
+Do the same for:
+
+```text
+Coaching sessionMeteringHandler
+    ↓
+COACH_* event
+    ↓
+vadTelemetry queue
+    ↓
+flushVadTelemetry
+    ↓
+persistence
+```
+
+Compare the two paths.
+
+### Primary question
+
+Where is the FIRST point where Coaching diverges from the known-good Round Buddy persistence path?
+
+Possible outcomes include:
+
+* Coaching events are generated but never queued.
+* Coaching events are queued but never flushed.
+* Coaching flush uses a different persistence function.
+* Coaching uses a different API endpoint.
+* Coaching uses different authentication context.
+* Coaching uses a different Supabase/Edge Function.
+* Coaching is correctly persisted but the web diagnostics query does not retrieve it.
+
+Do not assume which one.
+
+## Important
+
+The fact that the expected structured writer is absent from the accessible GitHub `main` branch does NOT establish that no persistence mechanism exists.
+
+Round Buddy production records prove otherwise.
+
+Look for the actual mechanism used by the currently functioning application.
+
+Also inspect deployment/environment configuration if necessary to determine where the production writer lives.
+
+## Security
+
+Once the writer is found, verify:
+
+* authenticated user identity comes from the authenticated session, not a client-supplied user ID
+* `clientRoundId` cannot associate telemetry with another user's round
+* Coaching supports `holeNumber = null`
+* telemetry failure cannot break the Coaching Session
+
+Do not make security changes unless an actual issue is found.
+
+## Deliverable
+
+Return:
+
+### Round Buddy
+
+```text
+Producer:
+Queue:
+Flush:
+Persistence:
+Database:
+Authentication:
+```
+
+### Coaching
+
+```text
+Producer:
+Queue:
+Flush:
+Persistence:
+Database:
+Authentication:
+```
+
+### First divergence
+
+State the exact file/function where the two paths diverge.
+
+Do not implement anything until this trace is complete.
+
+The goal is to reuse the proven Round Buddy persistence mechanism rather than create another telemetry architecture.

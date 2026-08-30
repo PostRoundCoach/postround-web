@@ -71,6 +71,38 @@ type VadEvent = {
   severity?: string | null
 }
 
+type VadCoachingDiagnostics = {
+  hasCoachingEvents: boolean
+  coachingSessionId: string | null
+  environment: {
+    audioInputRoute: string | null
+    audioOutputRoute: string | null
+    vadProfile: string | null
+  }
+  vadState: {
+    noiseFloor: number | null
+    adaptiveThreshold: number | null
+    speechState: string | null
+    speechStreak: number | null
+  }
+  silence: {
+    silenceTimerState: string | null
+    silenceTimerCancellations: number | null
+  }
+  meterWindows: Array<{
+    sampleWindowStart: string | null
+    sampleWindowEnd: string | null
+    sampleCount: number | null
+    minMetering: number | null
+    maxMetering: number | null
+    averageMetering: number | null
+    thresholdCrossingCount: number | null
+    silenceTimerCancellationCount: number | null
+  }>
+  routeChanges: Array<Record<string, unknown>>
+  anomalies: Array<Record<string, unknown>>
+}
+
 type VadSession = {
   id: string
   clientRoundId: string
@@ -83,6 +115,8 @@ type VadSession = {
   termination: string | null
   hasAnomaly: boolean | null
   hasFailure: boolean | null
+  coachingSessionId?: string | null
+  coachingDiagnostics?: VadCoachingDiagnostics
 }
 
 type VadSessionDetail = VadSession & {
@@ -176,6 +210,13 @@ function formatPayload(payload: unknown): string {
   } catch {
     return 'Payload could not be displayed'
   }
+}
+
+function formatDiagnosticValue(value: unknown): string {
+  if (value == null || value === '') return 'Unavailable'
+  if (typeof value === 'boolean') return value ? 'Yes' : 'No'
+  if (typeof value === 'object') return formatPayload(value)
+  return String(value)
 }
 
 function sessionSignal(session: VadSession): { label: string; variant: 'destructive' | 'secondary' } {
@@ -612,16 +653,19 @@ function UnavailablePanel({ icon: Icon, title, detail, testId }: { icon: typeof 
 }
 
 function SessionDetail({ session }: { session: VadSessionDetail }) {
+  const coaching = session.coachingDiagnostics
   return (
     <div className="space-y-5" data-testid={`detail-vad-session-${session.id}`}>
       <div className="grid gap-3 rounded-lg border border-border bg-muted/20 p-4 sm:grid-cols-2 lg:grid-cols-4">
          <DetailItem icon={Database} label="Client round ID" value={session.clientRoundId} mono />
+        {session.coachingSessionId && <DetailItem icon={Database} label="Coaching session ID" value={session.coachingSessionId} mono />}
         <DetailItem icon={CalendarClock} label="Timestamp" value={formatDateTime(session.timestamp)} />
         <DetailItem icon={Mic2} label="Feature / profile" value={`${formatFeature(session.feature)} / ${session.profile || 'Unavailable'}`} />
         <DetailItem icon={Smartphone} label="Environment / device" value={`${session.environment || 'Unavailable'} / ${session.device || 'Unavailable'}`} />
         <DetailItem icon={Clock3} label="Duration" value={formatDuration(session.durationSeconds)} />
         <DetailItem icon={Activity} label="Termination" value={session.termination || 'Unavailable'} />
       </div>
+      {coaching?.hasCoachingEvents && <CoachingDiagnostics diagnostics={coaching} />}
       <div>
         <h3 className="mb-3 text-sm font-semibold">Stored event timeline</h3>
         {session.events.length ? (
@@ -641,6 +685,103 @@ function SessionDetail({ session }: { session: VadSessionDetail }) {
             })}
           </ol>
         ) : <UnavailablePanel icon={CircleAlert} title="No stored events" detail="This session has no event records available to display." testId="empty-vad-events" />}
+      </div>
+    </div>
+  )
+}
+
+function CoachingDiagnostics({ diagnostics }: { diagnostics: VadCoachingDiagnostics }) {
+  return (
+    <section className="space-y-4 rounded-lg border border-[#1B5E35]/20 bg-[#1B5E35]/5 p-4" data-testid="coaching-vad-diagnostics">
+      <div>
+        <h3 className="text-sm font-semibold">Coaching VAD context</h3>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Structured Coaching telemetry preserved from the canonical event payload.
+        </p>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <DiagnosticGroup
+          title="Audio environment"
+          items={[
+            ['Input route', diagnostics.environment.audioInputRoute],
+            ['Output route', diagnostics.environment.audioOutputRoute],
+            ['VAD profile', diagnostics.environment.vadProfile],
+          ]}
+        />
+        <DiagnosticGroup
+          title="VAD state"
+          items={[
+            ['Noise floor', diagnostics.vadState.noiseFloor],
+            ['Adaptive threshold', diagnostics.vadState.adaptiveThreshold],
+            ['Speech state', diagnostics.vadState.speechState],
+            ['Speech streak', diagnostics.vadState.speechStreak],
+          ]}
+        />
+        <DiagnosticGroup
+          title="Silence behavior"
+          items={[
+            ['Timer state', diagnostics.silence.silenceTimerState],
+            ['Timer cancellations', diagnostics.silence.silenceTimerCancellations],
+          ]}
+        />
+      </div>
+      {diagnostics.meterWindows.length > 0 && (
+        <div data-testid="coaching-meter-windows">
+          <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Aggregated COACH_METER windows</h4>
+          <div className="grid gap-2 lg:grid-cols-2">
+            {diagnostics.meterWindows.map((window, index) => (
+              <div key={`${window.sampleWindowStart ?? 'window'}-${index}`} className="grid grid-cols-2 gap-x-4 gap-y-1 rounded-md border border-border bg-background p-3 text-xs sm:grid-cols-4">
+                <DiagnosticValue label="Samples" value={window.sampleCount} />
+                <DiagnosticValue label="Min" value={window.minMetering} />
+                <DiagnosticValue label="Max" value={window.maxMetering} />
+                <DiagnosticValue label="Average" value={window.averageMetering} />
+                <DiagnosticValue label="Threshold crossings" value={window.thresholdCrossingCount} />
+                <DiagnosticValue label="Timer cancellations" value={window.silenceTimerCancellationCount} />
+                <DiagnosticValue label="Window start" value={window.sampleWindowStart} />
+                <DiagnosticValue label="Window end" value={window.sampleWindowEnd} />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      {diagnostics.routeChanges.length > 0 && (
+        <DiagnosticRecordList title="Audio route transitions" records={diagnostics.routeChanges} testId="coaching-route-changes" />
+      )}
+      {diagnostics.anomalies.length > 0 && (
+        <DiagnosticRecordList title="VAD anomalies" records={diagnostics.anomalies} testId="coaching-anomalies" />
+      )}
+    </section>
+  )
+}
+
+function DiagnosticGroup({ title, items }: { title: string; items: Array<[string, unknown]> }) {
+  return (
+    <div className="rounded-md border border-border bg-background p-3">
+      <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{title}</h4>
+      <dl className="space-y-1.5 text-xs">
+        {items.map(([label, value]) => (
+          <div className="flex items-start justify-between gap-3" key={label}>
+            <dt className="text-muted-foreground">{label}</dt>
+            <dd className="text-right font-medium">{formatDiagnosticValue(value)}</dd>
+          </div>
+        ))}
+      </dl>
+    </div>
+  )
+}
+
+function DiagnosticValue({ label, value }: { label: string; value: unknown }) {
+  return <div><p className="text-muted-foreground">{label}</p><p className="mt-0.5 font-medium">{formatDiagnosticValue(value)}</p></div>
+}
+
+function DiagnosticRecordList({ title, records, testId }: { title: string; records: Array<Record<string, unknown>>; testId: string }) {
+  return (
+    <div data-testid={testId}>
+      <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{title}</h4>
+      <div className="space-y-2">
+        {records.map((record, index) => (
+          <pre key={index} className="overflow-auto rounded-md border border-border bg-background p-3 text-xs text-muted-foreground">{formatPayload(record)}</pre>
+        ))}
       </div>
     </div>
   )
