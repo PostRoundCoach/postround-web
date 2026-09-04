@@ -1,0 +1,456 @@
+# Step 4 — Build Creator Story Dashboard
+
+## What & Why
+
+Build the creator-facing web dashboard that closes the loop:
+
+**Golfer shares story → creator sees story → creator generates content**
+
+Steps 1–3 have already established the creator identity, story detection/permissions, and secure content-generation integration.
+
+This task should therefore focus primarily on the **creator-facing web UI** and connecting it to the backend capabilities already built.
+
+IMPORTANT:
+
+* This is a **web-side task**.
+* Do NOT rebuild or refactor the story detector.
+* Do NOT rebuild story permissions.
+* Do NOT build a new content-generation engine.
+* Do NOT recreate the Step 3 authorization logic.
+* Reuse the existing APIs and services created in Steps 1–3.
+* Do NOT modify the existing Post Round/admin content-generation experience unless absolutely necessary.
+* Keep this an MVP.
+
+---
+
+# 1. INSPECT EXISTING ARCHITECTURE FIRST
+
+Before coding, inspect the implementation from Steps 1–3.
+
+Specifically identify:
+
+* canonical `creator_profiles`
+* `creator_social_accounts`
+* `story_candidates`
+* `story_permissions`
+* the creator authorization model
+* the creator story queue API created in Step 3
+* the extended content-generation endpoint from Step 3
+* existing web routing/authentication patterns
+* existing content-generation UI/components that can be reused
+
+Do not duplicate functionality that already exists.
+
+If the Step 3 API uses a different route or response shape than anticipated here, use the actual implemented API rather than creating a parallel API.
+
+---
+
+# 2. CREATOR DASHBOARD
+
+Create a separate web route:
+
+```text
+/creator
+```
+
+This is the creator-facing dashboard.
+
+It should be accessible only to an authenticated user who controls an active creator profile.
+
+Use the existing web authentication and authorization patterns.
+
+Do not build creator self-registration.
+
+Creator profiles are admin-provisioned for the MVP.
+
+---
+
+# 3. CREATOR IDENTITY
+
+The dashboard should resolve the authenticated user's canonical creator profile.
+
+The relationship is:
+
+```text
+authenticated user
+        ↓
+creator_profiles.owner_user_id
+        ↓
+creator_profiles.id
+```
+
+Do NOT treat:
+
+* social handle
+* display name
+* email
+* client-supplied creator ID
+
+as the creator's canonical identity.
+
+Use the canonical `creator_profiles.id`.
+
+If the user is not associated with a creator profile, show an appropriate access/unavailable state.
+
+---
+
+# 4. FOLLOWER STORIES
+
+The main dashboard section should be:
+
+```text
+Follower Stories
+```
+
+It should display only stories that have been explicitly shared with this creator and remain actively permissioned.
+
+Use the existing Step 2/3 permission model.
+
+Do NOT query all stories and filter them in the browser.
+
+The backend/API must provide the authorized story queue.
+
+The dashboard should consume that authorized queue.
+
+---
+
+# 5. STORY CARD
+
+Create a simple reusable story card component.
+
+Each story should show only the information already approved for creator access.
+
+At minimum:
+
+* golfer display name, if the permissioned story context makes this available
+* story headline
+* story summary
+* relevant supporting story information
+* round date
+* course name, if available from the authorized story context
+
+Example:
+
+```text
+⭐ 6/6 Fairways
+
+Aaron hit every fairway today — his best driving
+performance in his last 10 comparable rounds.
+
+6/6 fairways
+Previous best: 5/9
+
+Sept. 4, 2026
+Waskesiu Golf Course
+
+[Generate Content] [Dismiss]
+```
+
+Do not display:
+
+* unrelated rounds
+* complete hole-by-hole data
+* coaching reports
+* private profile information
+* arbitrary round statistics
+* other stories
+
+Only display information returned by the authorized story queue.
+
+---
+
+# 6. GENERATE CONTENT
+
+Each eligible story should have a:
+
+```text
+Generate Content
+```
+
+button.
+
+When clicked:
+
+1. Send the selected `story_id` to the existing Step 3 content-generation endpoint.
+2. Let the server perform all creator/story authorization.
+3. Show a loading state while generation occurs.
+4. Display the generated content using existing content-generation UI conventions where practical.
+
+Do NOT duplicate the authorization logic in the dashboard.
+
+The client should not decide whether the creator is authorized to access the story.
+
+Step 3 remains the server-side security boundary.
+
+---
+
+# 7. PLATFORM CONTEXT
+
+If Step 3 supports platform selection, expose a simple platform selector using the platforms already supported by the existing content generator.
+
+For example:
+
+```text
+Instagram
+TikTok
+Facebook
+YouTube
+```
+
+Only show platforms actually supported by the existing generator.
+
+Use the creator's existing `creator_social_accounts` data for platform-specific context.
+
+Do not create duplicate creator identities for different platforms.
+
+Do not build social publishing.
+
+---
+
+# 8. GENERATED CONTENT
+
+After successful generation, show the resulting content to the creator.
+
+Reuse existing content-generation components/styles where practical.
+
+The creator should be able to understand:
+
+```text
+This content was generated from:
+[Story headline]
+```
+
+If the existing generator already supports:
+
+* multiple content ideas
+* regeneration
+* copying
+* viewing generated ideas
+
+reuse that functionality rather than building a second content experience.
+
+Do not redesign the existing content-generation system.
+
+---
+
+# 9. DISMISS / REVOKE
+
+Provide a simple:
+
+```text
+Dismiss
+```
+
+action on each story.
+
+This should call the existing Step 3 story-permission revocation endpoint.
+
+The dashboard should not implement its own permission state.
+
+After successful revocation:
+
+* remove the story from the visible queue
+* do not show it as available for generation
+* do not transfer it to another creator
+
+If the existing API handles revocation and status updates, use that behavior.
+
+---
+
+# 10. EMPTY STATE
+
+If the creator has no active follower stories, show a simple empty state.
+
+Example:
+
+```text
+No follower stories yet.
+
+When a Post Round golfer shares an interesting
+story with you, it will appear here.
+```
+
+Do not imply that the creator should have access to follower rounds or user data beyond explicitly shared stories.
+
+---
+
+# 11. LOADING / ERROR STATES
+
+Handle:
+
+* initial dashboard loading
+* story queue failure
+* content generation failure
+* revocation failure
+* authentication failure
+* creator authorization failure
+
+Use existing web application patterns where possible.
+
+Do not expose raw database errors or private information.
+
+If generation fails, the story should remain available so the creator can retry.
+
+If dismissal fails, do not permanently remove the story from the UI until the server confirms success.
+
+---
+
+# 12. RESPONSIVE WEB
+
+The dashboard should work on:
+
+* desktop
+* tablet
+* mobile web
+
+Prioritize a clean desktop experience, since creators may use this to prepare social content, but do not build a separate mobile app experience.
+
+Use the existing Post Round web design patterns.
+
+---
+
+# 13. SECURITY
+
+The dashboard is a client interface only.
+
+Do not rely on the UI for authorization.
+
+The backend must remain responsible for determining:
+
+```text
+authenticated user
+        ↓
+authorized creator profile
+        ↓
+active story permission
+        ↓
+story access
+```
+
+Do not expose arbitrary `story_candidates` to the browser.
+
+Do not allow a creator to change a `story_id` and access another creator's story.
+
+Do not expose follower rounds or private data outside the authorized story context.
+
+---
+
+# 14. EXISTING CONTENT GENERATION MUST REMAIN INTACT
+
+This dashboard must not break existing Post Round content generation.
+
+Existing flows that generate content without a creator story must continue to work.
+
+Do not modify existing admin/content-generation behavior unless a small compatibility change is genuinely required.
+
+If Step 3 already completed the necessary backend changes, Step 4 should simply consume them.
+
+---
+
+# 15. TESTS
+
+Add focused tests for the dashboard and its integration.
+
+At minimum verify:
+
+### Creator access
+
+An authorized creator can access `/creator`.
+
+### Non-creator access
+
+A normal Post Round user cannot access creator functionality.
+
+### Story queue
+
+The dashboard displays stories returned by the authorized creator queue.
+
+### Story isolation
+
+The UI never displays stories returned for another creator.
+
+### Generate Content
+
+Clicking Generate Content sends the correct `story_id` to the existing content-generation pathway.
+
+### Dismiss
+
+Clicking Dismiss calls the existing permission-revocation pathway and removes the story after successful confirmation.
+
+### Generation failure
+
+A failed content-generation request leaves the story available for retry.
+
+Do not duplicate all backend authorization tests from Step 3 unless needed for the UI/API integration.
+
+---
+
+# 16. SCOPE CONTROL
+
+Do NOT build:
+
+* creator self-registration
+* creator onboarding
+* creator analytics
+* follower CRM
+* follower messaging
+* social API publishing
+* Instagram/TikTok/YouTube OAuth
+* content scheduling
+* creator payments
+* affiliate tracking
+* Story Credits
+* auctions
+* bidding
+* marketplace functionality
+* creator leaderboards
+* a new AI content-generation engine
+* a new Story Detector
+
+Those are outside this MVP.
+
+---
+
+# 17. EXPECTED MVP EXPERIENCE
+
+The finished experience should be simple:
+
+```text
+Creator logs in
+      ↓
+/creator
+      ↓
+Follower Stories
+      ↓
+Creator sees an explicitly shared story
+      ↓
+Creator clicks Generate Content
+      ↓
+Existing content generator creates content
+      ↓
+Creator reviews/copies content
+```
+
+That's the entire purpose of this task.
+
+---
+
+# 18. DELIVERABLES
+
+When complete, report:
+
+1. Files changed.
+2. New `/creator` route/components.
+3. Existing components reused.
+4. How creator authentication/identity is resolved.
+5. Which Step 3 API endpoints are consumed.
+6. How story cards are populated.
+7. How Generate Content is connected.
+8. How Dismiss/revocation is connected.
+9. Tests added/updated.
+10. Test results.
+11. Any assumptions or issues discovered.
+
+Run the relevant test suite before declaring the task complete.
+
+Do not expand scope beyond the creator dashboard and its integration with the already-built Step 1–3 architecture.
