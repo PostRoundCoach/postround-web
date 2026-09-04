@@ -59,3 +59,18 @@ export interface GenerateCreatorStoryContentResponse {
   ok: true
   count: number
 }
+
+export interface GeneratedIdea {
+  id: string
+  story_id: string
+  category: string | null
+  title: string
+  hook: string
+  script: string
+  created_at: string
+}
+
+export interface FetchGeneratedCreatorStoryIdeasResponse {
+  ok: true
+  ideas: GeneratedIdea[]
+}

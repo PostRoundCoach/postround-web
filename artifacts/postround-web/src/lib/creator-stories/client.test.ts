@@ -3,6 +3,7 @@ import test from 'node:test'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import {
   CreatorStoryApiError,
+  fetchGeneratedCreatorStoryIdeas,
   fetchOwnedActiveCreatorProfile,
   fetchPermissionedCreatorStories,
   generateCreatorStoryContent,
@@ -244,6 +245,181 @@ test('a failed generation can be retried without mutating the source story', asy
       creator_id: 'creator-1',
       story_id: 'story-1',
     })
+  } finally {
+    globalThis.fetch = originalFetch
+    if (originalApiBase === undefined) {
+      delete process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL
+    } else {
+      process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL = originalApiBase
+    }
+  }
+})
+
+test('successful generation is followed by authenticated retrieval of persisted ideas', async () => {
+  const originalFetch = globalThis.fetch
+  const originalApiBase = process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL
+  process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL = 'https://api.postround.test/'
+  const requests: Array<{ url: string; method: string; body?: string }> = []
+
+  globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
+    requests.push({
+      url: String(url),
+      method: init?.method ?? 'GET',
+      body: init?.body ? String(init.body) : undefined,
+    })
+
+    if (init?.method === 'POST') {
+      return new Response(JSON.stringify({ ok: true, count: 1 }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    }
+
+    return new Response(JSON.stringify({
+      ok: true,
+      ideas: [{
+        id: 'idea-1',
+        story_id: 'story-1',
+        category: 'Round Analysis',
+        title: 'The turning point',
+        hook: 'One hole changed the entire round.',
+        script: 'Here is how the round shifted.',
+        created_at: '2026-09-04T12:00:00.000Z',
+      }],
+    }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    })
+  }) as typeof fetch
+
+  const supabase = {
+    auth: {
+      async getSession() {
+        return {
+          data: { session: { access_token: 'test-access-token' } },
+          error: null,
+        }
+      },
+    },
+  } as unknown as SupabaseClient
+
+  try {
+    const generation = await generateCreatorStoryContent(supabase, {
+      creator_id: 'creator-1',
+      story_id: 'story-1',
+    })
+    const retrieval = await fetchGeneratedCreatorStoryIdeas(supabase, 'story-1')
+
+    assert.deepEqual(generation, { ok: true, count: 1 })
+    assert.equal(retrieval.ideas[0]?.title, 'The turning point')
+    assert.equal(retrieval.ideas[0]?.hook, 'One hole changed the entire round.')
+    assert.equal(retrieval.ideas[0]?.script, 'Here is how the round shifted.')
+    assert.deepEqual(requests, [
+      {
+        url: 'https://api.postround.test/api/content/generate',
+        method: 'POST',
+        body: JSON.stringify({
+          creator_id: 'creator-1',
+          story_id: 'story-1',
+        }),
+      },
+      {
+        url: 'https://api.postround.test/api/content/ideas?story_id=story-1',
+        method: 'GET',
+        body: undefined,
+      },
+    ])
+  } finally {
+    globalThis.fetch = originalFetch
+    if (originalApiBase === undefined) {
+      delete process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL
+    } else {
+      process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL = originalApiBase
+    }
+  }
+})
+
+test('retrieval retry calls only the creator ideas endpoint and never regenerates', async () => {
+  const originalFetch = globalThis.fetch
+  const originalApiBase = process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL
+  process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL = 'https://api.postround.test'
+  const methods: string[] = []
+  const urls: string[] = []
+
+  globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
+    methods.push(init?.method ?? 'GET')
+    urls.push(String(url))
+
+    if (methods.length === 1) return new Response(null, { status: 503 })
+
+    return new Response(JSON.stringify({ ok: true, ideas: [] }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    })
+  }) as typeof fetch
+
+  const supabase = {
+    auth: {
+      async getSession() {
+        return {
+          data: { session: { access_token: 'test-access-token' } },
+          error: null,
+        }
+      },
+    },
+  } as unknown as SupabaseClient
+
+  try {
+    await assert.rejects(
+      fetchGeneratedCreatorStoryIdeas(supabase, 'story-1'),
+      CreatorStoryApiError,
+    )
+    assert.deepEqual(await fetchGeneratedCreatorStoryIdeas(supabase, 'story-1'), {
+      ok: true,
+      ideas: [],
+    })
+    assert.deepEqual(methods, ['GET', 'GET'])
+    assert.ok(urls.every((url) => url.endsWith('/api/content/ideas?story_id=story-1')))
+    assert.ok(urls.every((url) => !url.includes('/api/admin/content-ideas')))
+    assert.ok(urls.every((url) => !url.endsWith('/api/content/generate')))
+  } finally {
+    globalThis.fetch = originalFetch
+    if (originalApiBase === undefined) {
+      delete process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL
+    } else {
+      process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL = originalApiBase
+    }
+  }
+})
+
+test('rejects malformed generated ideas instead of fabricating content', async () => {
+  const originalFetch = globalThis.fetch
+  const originalApiBase = process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL
+  process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL = 'https://api.postround.test'
+  globalThis.fetch = (async () => new Response(JSON.stringify({
+    ok: true,
+    ideas: [{ id: 'idea-without-content' }],
+  }), {
+    status: 200,
+    headers: { 'Content-Type': 'application/json' },
+  })) as typeof fetch
+
+  const supabase = {
+    auth: {
+      async getSession() {
+        return {
+          data: { session: { access_token: 'test-access-token' } },
+          error: null,
+        }
+      },
+    },
+  } as unknown as SupabaseClient
+
+  try {
+    await assert.rejects(
+      fetchGeneratedCreatorStoryIdeas(supabase, 'story-1'),
+      CreatorStoryApiError,
+    )
   } finally {
     globalThis.fetch = originalFetch
     if (originalApiBase === undefined) {

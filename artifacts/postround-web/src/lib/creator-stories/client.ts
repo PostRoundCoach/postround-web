@@ -6,6 +6,8 @@ import type {
   PermissionedCreatorStoryRecord,
   GenerateCreatorStoryContentRequest,
   GenerateCreatorStoryContentResponse,
+  FetchGeneratedCreatorStoryIdeasResponse,
+  GeneratedIdea,
 } from './contracts'
 
 const CREATOR_PROFILE_SELECT = `
@@ -44,8 +46,8 @@ export class CreatorStoryIntegrationError extends Error {
 export class CreatorStoryApiError extends Error {
   readonly status: number
 
-  constructor(status: number) {
-    super('Content generation could not be completed.')
+  constructor(status: number, message = 'Content generation could not be completed.') {
+    super(message)
     this.name = 'CreatorStoryApiError'
     this.status = status
   }
@@ -58,14 +60,23 @@ export class CreatorStoryConfigurationError extends Error {
   }
 }
 
-function contentGenerationUrl(): string {
+function contentApiBase(): string {
   const apiBase = process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL?.trim()
 
   if (!apiBase) {
     throw new CreatorStoryConfigurationError()
   }
 
-  return `${apiBase.replace(/\/+$/, '')}/api/content/generate`
+  return apiBase.replace(/\/+$/, '')
+}
+
+function contentGenerationUrl(): string {
+  return `${contentApiBase()}/api/content/generate`
+}
+
+function generatedIdeasUrl(storyId: string): string {
+  const query = new URLSearchParams({ story_id: storyId })
+  return `${contentApiBase()}/api/content/ideas?${query.toString()}`
 }
 
 function asObject(value: unknown): Record<string, unknown> | null {
@@ -104,6 +115,53 @@ function stringList(
   }
 
   return []
+}
+
+function toGeneratedIdea(value: unknown): GeneratedIdea | null {
+  const idea = asObject(value)
+  if (!idea) return null
+
+  const requiredFields = [
+    'id',
+    'story_id',
+    'title',
+    'hook',
+    'script',
+    'created_at',
+  ] as const
+
+  if (requiredFields.some((field) => typeof idea[field] !== 'string')) {
+    return null
+  }
+
+  if (
+    idea.category !== undefined
+    && idea.category !== null
+    && typeof idea.category !== 'string'
+  ) {
+    return null
+  }
+
+  return {
+    id: idea.id as string,
+    story_id: idea.story_id as string,
+    category: typeof idea.category === 'string' ? idea.category : null,
+    title: idea.title as string,
+    hook: idea.hook as string,
+    script: idea.script as string,
+    created_at: idea.created_at as string,
+  }
+}
+
+async function authenticatedAccessToken(supabase: SupabaseClient): Promise<string> {
+  const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+  const accessToken = session?.access_token
+
+  if (sessionError || !accessToken) {
+    throw new CreatorStoryApiError(401)
+  }
+
+  return accessToken
 }
 
 export function toCreatorStory(record: CreatorStoryRecord): CreatorStory {
@@ -182,12 +240,7 @@ export async function generateCreatorStoryContent(
   input: GenerateCreatorStoryContentRequest,
   options: { signal?: AbortSignal } = {},
 ): Promise<GenerateCreatorStoryContentResponse> {
-  const { data: { session }, error: sessionError } = await supabase.auth.getSession()
-  const accessToken = session?.access_token
-
-  if (sessionError || !accessToken) {
-    throw new CreatorStoryApiError(401)
-  }
+  const accessToken = await authenticatedAccessToken(supabase)
 
   const response = await fetch(contentGenerationUrl(), {
     method: 'POST',
@@ -211,4 +264,42 @@ export async function generateCreatorStoryContent(
   }
 
   return { ok: true, count: result.count }
+}
+
+export async function fetchGeneratedCreatorStoryIdeas(
+  supabase: SupabaseClient,
+  storyId: string,
+  options: { signal?: AbortSignal } = {},
+): Promise<FetchGeneratedCreatorStoryIdeasResponse> {
+  const accessToken = await authenticatedAccessToken(supabase)
+  const response = await fetch(generatedIdeasUrl(storyId), {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+    signal: options.signal,
+  })
+
+  if (!response.ok) {
+    throw new CreatorStoryApiError(
+      response.status,
+      'Generated content could not be loaded.',
+    )
+  }
+
+  const payload: unknown = await response.json()
+  const result = asObject(payload)
+  if (result?.ok !== true || !Array.isArray(result.ideas)) {
+    throw new CreatorStoryApiError(500, 'Generated content could not be loaded.')
+  }
+
+  const ideas = result.ideas.map(toGeneratedIdea)
+  if (ideas.some((idea) => idea === null)) {
+    throw new CreatorStoryApiError(500, 'Generated content could not be loaded.')
+  }
+
+  return {
+    ok: true,
+    ideas: ideas as GeneratedIdea[],
+  }
 }
