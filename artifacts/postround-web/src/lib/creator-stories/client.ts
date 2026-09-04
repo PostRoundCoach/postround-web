@@ -8,6 +8,7 @@ import type {
   GenerateCreatorStoryContentResponse,
   FetchGeneratedCreatorStoryIdeasResponse,
   GeneratedIdea,
+  RevokeCreatorStoryPermissionResponse,
 } from './contracts'
 
 const CREATOR_PROFILE_SELECT = `
@@ -77,6 +78,10 @@ function contentGenerationUrl(): string {
 function generatedIdeasUrl(storyId: string): string {
   const query = new URLSearchParams({ story_id: storyId })
   return `${contentApiBase()}/api/content/ideas?${query.toString()}`
+}
+
+function revokeStoryPermissionUrl(storyId: string): string {
+  return `${contentApiBase()}/api/content/stories/${encodeURIComponent(storyId)}/permission`
 }
 
 function asObject(value: unknown): Record<string, unknown> | null {
@@ -302,4 +307,34 @@ export async function fetchGeneratedCreatorStoryIdeas(
     ok: true,
     ideas: ideas as GeneratedIdea[],
   }
+}
+
+export async function revokeCreatorStoryPermission(
+  supabase: SupabaseClient,
+  storyId: string,
+  options: { signal?: AbortSignal } = {},
+): Promise<RevokeCreatorStoryPermissionResponse> {
+  const accessToken = await authenticatedAccessToken(supabase)
+  const response = await fetch(revokeStoryPermissionUrl(storyId), {
+    method: 'PATCH',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+    signal: options.signal,
+  })
+
+  if (!response.ok) {
+    throw new CreatorStoryApiError(
+      response.status,
+      'The story could not be dismissed.',
+    )
+  }
+
+  const payload: unknown = await response.json()
+  const result = asObject(payload)
+  if (result?.ok !== true || result.story_id !== storyId) {
+    throw new CreatorStoryApiError(500, 'The story could not be dismissed.')
+  }
+
+  return { ok: true, story_id: storyId }
 }

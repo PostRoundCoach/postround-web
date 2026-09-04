@@ -8,9 +8,11 @@ import { StoryCard } from './StoryCard'
 export function StoryQueue({
   stories,
   profile,
+  onStoryDismissed,
 }: {
   stories: CreatorStory[]
   profile: CreatorProfile
+  onStoryDismissed: (storyId: string) => void
 }) {
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -64,6 +66,7 @@ export function StoryQueue({
               key={story.id}
               story={story}
               creatorId={profile.id}
+              onDismissed={onStoryDismissed}
             />
           ))}
         </div>

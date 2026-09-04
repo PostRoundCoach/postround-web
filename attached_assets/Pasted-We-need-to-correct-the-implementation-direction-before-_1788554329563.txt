@@ -1,0 +1,133 @@
+We need to correct the implementation direction before continuing.
+
+### STOP AND RESET THE CURRENT IMPLEMENTATION
+
+The previous implementation created a web-owned `/creator-data` route for story revocation.
+
+That is the wrong architectural boundary.
+
+**Do not implement or retain a Next.js `/creator-data` route for this functionality.**
+
+The authoritative Post Round API server owns `/api` and is the correct place for creator story permission mutations, just as it owns:
+
+* `POST /api/content/generate`
+* `GET /api/content/ideas`
+* creator authorization
+* story permission authorization
+
+The web project should remain a frontend client of that API.
+
+### First: revert your attempted changes
+
+Revert only the changes from this current revocation attempt, including:
+
+* `src/lib/creator-stories/contracts.ts`
+* `src/lib/creator-stories/client.ts`
+* `src/components/creator/CreatorDashboard.tsx`
+* `src/components/creator/StoryQueue.tsx`
+* `src/components/creator/StoryCard.tsx`
+* the newly created `route.ts`
+* related tests added/modified for this attempted revocation implementation
+
+Do NOT revert the previously completed Creator Dashboard generation/retrieval work.
+
+The previously completed flow must remain intact:
+
+`POST /api/content/generate`
+→ `GET /api/content/ideas?story_id=...`
+→ render generated ideas.
+
+After reverting, confirm the working tree contains no changes from this failed implementation.
+
+---
+
+# Then investigate only
+
+Do NOT write implementation code yet.
+
+We need to establish the correct API contract for **creator-side story revocation**.
+
+Known authoritative architecture:
+
+* `creator_profiles.user_id` identifies the authenticated creator.
+* `story_permissions` records follower → creator permission.
+* `story_permissions.revoked_at` exists.
+* `resolveStoryPermission` already enforces active/non-revoked permission.
+* The follower-side endpoint
+  `PATCH /api/stories/candidates/:id/status`
+  is NOT a creator revocation endpoint and must not be reused.
+* There is currently no established creator-side revocation endpoint.
+* The web dashboard must NOT directly mutate `story_permissions`.
+* The web dashboard must NOT use `/api/admin/content-ideas`.
+* The web dashboard must NOT use a Supabase service-role key.
+* Do NOT create a second authorization system in Next.js.
+
+Inspect the authoritative API project and determine:
+
+1. The best existing API route/module for creator story permission mutations.
+2. Existing authorization helpers that should be reused.
+3. The exact authorization checks required:
+
+   * authenticated user
+   * active creator profile owned by that user
+   * requested story exists
+   * active permission belongs to that creator
+   * permission is not already revoked
+4. Whether revocation should set:
+   `story_permissions.revoked_at = now()`
+   rather than deleting the permission row.
+5. The appropriate HTTP method and endpoint naming based on existing API conventions.
+6. The exact success response.
+7. The exact error responses.
+8. The tests required for the endpoint.
+
+### Important security requirement
+
+The client must NOT be able to simply supply an arbitrary `creator_id` and cause a permission to be revoked.
+
+The authoritative API should derive the creator identity from the authenticated Supabase user, or otherwise verify ownership server-side.
+
+The creator should only be able to revoke permission for a story that is actually permissioned to that creator.
+
+---
+
+# Produce a backend implementation plan
+
+After investigation, report a concise implementation plan for the **authoritative API project**, including:
+
+* proposed endpoint
+* request parameters/body
+* authentication mechanism
+* authorization logic
+* database mutation
+* response shape
+* error cases
+* tests
+* files likely to change
+
+Do not implement the endpoint in this web project.
+
+Do not create another web-owned route.
+
+Do not modify the database from the web project.
+
+Once the backend endpoint is implemented and tested in the authoritative API project, we will return to this web project and add the minimal frontend client call and UI behavior.
+
+### Web behavior we ultimately want
+
+After the API exists:
+
+**Creator clicks Dismiss/Revoke**
+→ web calls authoritative API
+→ API confirms revocation
+→ web removes the story card from the queue.
+
+If the API fails:
+
+→ keep the card visible
+→ show an error
+→ allow retry.
+
+Never remove the card optimistically.
+
+For now, however, do not implement this UI behavior. First produce the backend API plan.

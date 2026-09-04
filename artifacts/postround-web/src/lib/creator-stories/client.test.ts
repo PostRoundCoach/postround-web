@@ -7,6 +7,7 @@ import {
   fetchOwnedActiveCreatorProfile,
   fetchPermissionedCreatorStories,
   generateCreatorStoryContent,
+  revokeCreatorStoryPermission,
   toCreatorStory,
 } from './client.ts'
 
@@ -418,6 +419,138 @@ test('rejects malformed generated ideas instead of fabricating content', async (
   try {
     await assert.rejects(
       fetchGeneratedCreatorStoryIdeas(supabase, 'story-1'),
+      CreatorStoryApiError,
+    )
+  } finally {
+    globalThis.fetch = originalFetch
+    if (originalApiBase === undefined) {
+      delete process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL
+    } else {
+      process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL = originalApiBase
+    }
+  }
+})
+
+test('revokes creator story permission through the authoritative API with bearer auth', async () => {
+  const originalFetch = globalThis.fetch
+  const originalApiBase = process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL
+  process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL = 'https://api.postround.test/'
+  let request: { url: string; init?: RequestInit } | undefined
+  globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
+    request = { url: String(url), init }
+    return new Response(JSON.stringify({ ok: true, story_id: 'story/one' }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    })
+  }) as typeof fetch
+
+  const supabase = {
+    auth: {
+      async getSession() {
+        return {
+          data: { session: { access_token: 'test-access-token' } },
+          error: null,
+        }
+      },
+    },
+  } as unknown as SupabaseClient
+
+  try {
+    assert.deepEqual(await revokeCreatorStoryPermission(supabase, 'story/one'), {
+      ok: true,
+      story_id: 'story/one',
+    })
+    assert.equal(
+      request?.url,
+      'https://api.postround.test/api/content/stories/story%2Fone/permission',
+    )
+    assert.equal(request?.init?.method, 'PATCH')
+    assert.equal(request?.init?.body, undefined)
+    assert.equal(
+      (request?.init?.headers as Record<string, string>).Authorization,
+      'Bearer test-access-token',
+    )
+  } finally {
+    globalThis.fetch = originalFetch
+    if (originalApiBase === undefined) {
+      delete process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL
+    } else {
+      process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL = originalApiBase
+    }
+  }
+})
+
+test('failed revocation remains retryable and 409 is not fabricated as success', async () => {
+  const originalFetch = globalThis.fetch
+  const originalApiBase = process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL
+  process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL = 'https://api.postround.test'
+  let attempts = 0
+  globalThis.fetch = (async () => {
+    attempts += 1
+    if (attempts === 1) return new Response(null, { status: 409 })
+    return new Response(JSON.stringify({ ok: true, story_id: 'story-1' }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    })
+  }) as typeof fetch
+
+  const supabase = {
+    auth: {
+      async getSession() {
+        return {
+          data: { session: { access_token: 'test-access-token' } },
+          error: null,
+        }
+      },
+    },
+  } as unknown as SupabaseClient
+
+  try {
+    await assert.rejects(
+      revokeCreatorStoryPermission(supabase, 'story-1'),
+      (error: unknown) => error instanceof CreatorStoryApiError && error.status === 409,
+    )
+    assert.deepEqual(await revokeCreatorStoryPermission(supabase, 'story-1'), {
+      ok: true,
+      story_id: 'story-1',
+    })
+    assert.equal(attempts, 2)
+  } finally {
+    globalThis.fetch = originalFetch
+    if (originalApiBase === undefined) {
+      delete process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL
+    } else {
+      process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL = originalApiBase
+    }
+  }
+})
+
+test('revocation rejects a malformed success response', async () => {
+  const originalFetch = globalThis.fetch
+  const originalApiBase = process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL
+  process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL = 'https://api.postround.test'
+  globalThis.fetch = (async () => new Response(JSON.stringify({
+    ok: true,
+    story_id: 'different-story',
+  }), {
+    status: 200,
+    headers: { 'Content-Type': 'application/json' },
+  })) as typeof fetch
+
+  const supabase = {
+    auth: {
+      async getSession() {
+        return {
+          data: { session: { access_token: 'test-access-token' } },
+          error: null,
+        }
+      },
+    },
+  } as unknown as SupabaseClient
+
+  try {
+    await assert.rejects(
+      revokeCreatorStoryPermission(supabase, 'story-1'),
       CreatorStoryApiError,
     )
   } finally {

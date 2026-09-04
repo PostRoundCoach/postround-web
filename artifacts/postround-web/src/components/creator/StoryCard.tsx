@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Calendar, CircleCheck, Loader2, MapPin, RefreshCw, Sparkles, User } from 'lucide-react'
+import { Calendar, CircleCheck, Loader2, MapPin, RefreshCw, Sparkles, Trash2, User } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
@@ -10,15 +10,18 @@ import type { CreatorStory, GeneratedIdea } from '@/lib/creator-stories/contract
 import {
   fetchGeneratedCreatorStoryIdeas,
   generateCreatorStoryContent,
+  revokeCreatorStoryPermission,
 } from '@/lib/creator-stories/client'
 import { GeneratedIdeaCard } from './GeneratedIdeaCard'
 
 export function StoryCard({
   story,
   creatorId,
+  onDismissed,
 }: {
   story: CreatorStory
   creatorId: string
+  onDismissed: (storyId: string) => void
 }) {
   const [isGenerating, setIsGenerating] = useState(false)
   const [isFetchingIdeas, setIsFetchingIdeas] = useState(false)
@@ -26,6 +29,8 @@ export function StoryCard({
   const [generatedIdeas, setGeneratedIdeas] = useState<GeneratedIdea[] | null>(null)
   const [generationFailed, setGenerationFailed] = useState(false)
   const [retrievalFailed, setRetrievalFailed] = useState(false)
+  const [isDismissing, setIsDismissing] = useState(false)
+  const [dismissalFailed, setDismissalFailed] = useState(false)
 
   const loadGeneratedIdeas = async (
     supabase: NonNullable<ReturnType<typeof createClient>>,
@@ -83,6 +88,28 @@ export function StoryCard({
     }
 
     await loadGeneratedIdeas(supabase)
+  }
+
+  const handleDismiss = async () => {
+    if (isDismissing || isGenerating || isFetchingIdeas) return
+
+    const supabase = createClient()
+    if (!supabase) {
+      setDismissalFailed(true)
+      return
+    }
+
+    setIsDismissing(true)
+    setDismissalFailed(false)
+
+    try {
+      await revokeCreatorStoryPermission(supabase, story.id)
+      onDismissed(story.id)
+    } catch {
+      setDismissalFailed(true)
+    } finally {
+      setIsDismissing(false)
+    }
   }
 
   return (
@@ -181,6 +208,52 @@ export function StoryCard({
                 </>
               )}
             </Button>
+
+            <Button
+              type="button"
+              variant="ghost"
+              className="mt-2 w-full text-muted-foreground hover:text-destructive"
+              onClick={() => void handleDismiss()}
+              disabled={isDismissing || isGenerating || isFetchingIdeas}
+              data-testid={`button-dismiss-story-${story.id}`}
+            >
+              {isDismissing ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Dismissing…
+                </>
+              ) : (
+                <>
+                  <Trash2 className="h-4 w-4" />
+                  Dismiss
+                </>
+              )}
+            </Button>
+
+            {dismissalFailed && (
+              <Alert
+                variant="destructive"
+                className="mt-5 text-left"
+                data-testid={`status-dismiss-error-${story.id}`}
+              >
+                <AlertTitle>Story couldn’t be dismissed</AlertTitle>
+                <AlertDescription>
+                  <p>This story is still in your queue. Please try again.</p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="mt-3"
+                    onClick={() => void handleDismiss()}
+                    disabled={isDismissing}
+                    data-testid={`button-retry-dismiss-story-${story.id}`}
+                  >
+                    <RefreshCw className="h-3.5 w-3.5" />
+                    Retry dismissal
+                  </Button>
+                </AlertDescription>
+              </Alert>
+            )}
 
             {isFetchingIdeas && (
               <Alert

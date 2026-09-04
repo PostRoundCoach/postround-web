@@ -1,0 +1,195 @@
+## Task #791 — Integrate Creator Story Dismissal with the Authoritative Revocation API
+
+Task #790 is complete in the app/API project.
+
+The authoritative backend endpoint is:
+
+`PATCH /api/content/stories/:storyId/permission`
+
+Its behavior is already implemented and tested. **Do not modify or recreate the backend.**
+
+Your task is ONLY to integrate this existing endpoint into the web creator dashboard.
+
+### Objective
+
+Allow a creator to dismiss a story from their Creator Story Dashboard.
+
+The flow must be:
+
+**Creator clicks Dismiss → web calls authoritative API → successful response → remove story from current queue**
+
+A failed request must **not** remove the story.
+
+---
+
+## 1. Add the client function
+
+In the existing creator-stories client layer, add a function such as:
+
+`revokeCreatorStoryPermission(supabase, storyId)`
+
+It must:
+
+* Use the existing `NEXT_PUBLIC_POSTROUND_API_BASE_URL` configuration.
+* Get the current Supabase session using the existing project pattern.
+* Send the Supabase access token as:
+
+`Authorization: Bearer <access_token>`
+
+* Call:
+
+`PATCH /api/content/stories/${storyId}/permission`
+
+* Send no request body unless the existing client abstraction requires an empty body.
+* Validate the response rather than assuming success.
+* Expect the successful backend response:
+
+```json
+{
+  "ok": true,
+  "story_id": "..."
+}
+```
+
+Do not introduce a new auth mechanism.
+
+---
+
+## 2. Update the creator story card
+
+Add a clear creator-facing action to the existing story card.
+
+Preferred UI label:
+
+**Dismiss**
+
+If the existing UI language already uses "Revoke", use that consistently instead.
+
+The action should have appropriate loading/disabled behavior while the request is in progress.
+
+Do not add unnecessary UI complexity.
+
+---
+
+## 3. IMPORTANT — no optimistic removal
+
+This is a hard requirement.
+
+**Do NOT remove the story from the queue when the button is clicked.**
+
+The story remains visible while the API request is pending.
+
+Only after the API returns a successful response should the story be removed from the current queue.
+
+Conceptually:
+
+```text
+click
+  ↓
+loading state
+  ↓
+PATCH API
+  ↓
+success → remove story
+failure → keep story visible + show error/retry
+```
+
+---
+
+## 4. Failure and retry behavior
+
+If the API request fails:
+
+* Keep the story card visible.
+* Do not alter its data.
+* Show a concise, user-friendly error state.
+* Provide a way to retry the dismissal.
+* A retry should call the same PATCH endpoint again.
+* Do not require a page reload.
+
+If the backend returns `409`, treat it as a failed dismissal request unless the existing product contract explicitly defines it as successful/idempotent.
+
+Do not fabricate success.
+
+---
+
+## 5. Do NOT create any of the following
+
+This task is frontend integration only.
+
+**Do not create:**
+
+* A Next.js API route.
+* `/creator-data/*` routes.
+* A new proxy layer.
+* Direct writes to `story_permissions`.
+* Direct writes to Supabase for revocation.
+* Service-role credentials.
+* Browser-side service-role access.
+* New authorization logic.
+* A duplicate creator-permission system.
+* An admin endpoint.
+* Any changes to the app/API backend.
+
+The authoritative authorization and mutation logic already exists in Task #790.
+
+The web app should simply authenticate the existing user and call the authoritative API.
+
+---
+
+## 6. Preserve existing creator dashboard behavior
+
+Do not regress:
+
+* Creator authentication.
+* Creator profile loading.
+* Permissioned story queue loading.
+* Story generation.
+* Generated idea retrieval.
+* Copy hook/script functionality.
+* Loading/error/empty states.
+* Responsive layout.
+* Existing Post Round visual language.
+
+Dismissal should be an isolated addition to the existing story-card workflow.
+
+---
+
+## 7. Tests
+
+Add/update frontend tests covering at minimum:
+
+1. Dismiss action calls the correct PATCH endpoint.
+2. Supabase bearer token is included.
+3. Story remains visible while the request is pending.
+4. Successful 200 response removes the story from the queue.
+5. Failed request leaves the story visible.
+6. Failed request exposes a retry action/state.
+7. Retry calls the PATCH endpoint again.
+8. No Next.js API route or direct Supabase permission mutation is introduced.
+
+If the existing component architecture makes one of these tests better suited to the client test layer, place it there rather than forcing everything into a component test.
+
+---
+
+## 8. Validation
+
+Before declaring the task complete:
+
+* Run the relevant creator-stories/client tests.
+* Run the full web test suite if practical.
+* Run TypeScript/typecheck.
+* Run the production build.
+* Confirm the working tree only contains intentional changes.
+
+### Completion criteria
+
+The task is complete when a creator can:
+
+**Open a story → click Dismiss → see the request in progress → receive successful API response → have the story disappear from the queue.**
+
+And if the request fails:
+
+**The story remains visible → error is shown → creator can retry.**
+
+Do not expand scope beyond this integration.

@@ -49,6 +49,15 @@ export function CreatorDashboard() {
     void load()
   }, [load])
 
+  const handleStoryDismissed = useCallback((storyId: string) => {
+    setState((current) => current.kind === 'ready'
+      ? {
+          ...current,
+          stories: current.stories.filter((story) => story.id !== storyId),
+        }
+      : current)
+  }, [])
+
   if (state.kind === 'loading') {
     return (
       <CreatorShell profile={null}>
@@ -112,6 +121,7 @@ export function CreatorDashboard() {
       <StoryQueue
         stories={state.stories}
         profile={state.profile}
+        onStoryDismissed={handleStoryDismissed}
       />
     </CreatorShell>
   )

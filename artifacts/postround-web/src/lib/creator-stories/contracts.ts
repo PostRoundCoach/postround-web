@@ -74,3 +74,8 @@ export interface FetchGeneratedCreatorStoryIdeasResponse {
   ok: true
   ideas: GeneratedIdea[]
 }
+
+export interface RevokeCreatorStoryPermissionResponse {
+  ok: true
+  story_id: string
+}
