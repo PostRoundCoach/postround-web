@@ -1,0 +1,388 @@
+## Implement Creator Dashboard Story Generation + Retrieval Integration
+
+Task: finish the Creator Story Dashboard integration in the **existing Next.js web project**.
+
+### Important architecture boundary
+
+The authoritative creator/story backend is already implemented in the separate Post Round app/API project.
+
+**Task #787 is complete and merged.** Backend validation is clean:
+
+* api-server tests: 37 files / 820 tests
+* api-server typecheck: clean
+* golf-coach tests: 121 files / 3,394 tests
+* golf-coach typecheck: clean
+* api-server smoke: passing
+* E2E: 8/8 passing
+
+Do **not** recreate or modify backend functionality in this web project.
+
+Do NOT:
+
+* create a Next.js API route for these operations
+* query `content_ideas` directly from the browser
+* use a Supabase service-role key
+* use `/api/admin/content-ideas`
+* add migrations
+* modify RLS
+* modify authentication
+* modify the app/API project
+* invent an endpoint or response shape
+
+The web project is responsible only for the Creator Dashboard frontend and its API client integration.
+
+---
+
+# Authoritative API contract
+
+The web dashboard already has access to the authenticated Supabase session/token.
+
+Use the existing API base configuration:
+
+`NEXT_PUBLIC_POSTROUND_API_BASE_URL`
+
+The API calls must include the Supabase access token as:
+
+`Authorization: Bearer <access_token>`
+
+## 1. Generate creator content
+
+Existing endpoint:
+
+`POST /api/content/generate`
+
+Request body:
+
+```json
+{
+  "creator_id": "<creator profile UUID>",
+  "story_id": "<story candidate UUID>"
+}
+```
+
+Both IDs are required.
+
+Successful response:
+
+```json
+{
+  "ok": true,
+  "count": 3
+}
+```
+
+The generated ideas are persisted by the backend. The POST response does NOT contain the generated ideas themselves.
+
+## 2. Retrieve generated ideas
+
+New authoritative endpoint from Task #787:
+
+`GET /api/content/ideas?story_id=<story UUID>`
+
+The backend derives the authenticated creator from the Supabase user and verifies that the creator has permission to access the requested story.
+
+Successful response:
+
+```json
+{
+  "ok": true,
+  "ideas": [
+    {
+      "id": "uuid",
+      "story_id": "uuid",
+      "category": "Practice Tip",
+      "title": "Example title",
+      "hook": "Example hook",
+      "script": "Example script",
+      "created_at": "2026-09-04T..."
+    }
+  ]
+}
+```
+
+An authorized story with no ideas returns:
+
+```json
+{
+  "ok": true,
+  "ideas": []
+}
+```
+
+Do not expose or depend on `stats_used` or internal `status` fields.
+
+---
+
+# Existing web architecture
+
+Before changing anything, inspect the current implementation.
+
+The web project already has the Creator Dashboard work/infrastructure for:
+
+* authenticated Supabase user/session
+* creator identity/profile lookup
+* creator social accounts
+* permissioned creator story queue
+* story cards
+* existing Generate Content action
+* `src/lib/creator-stories/contracts.ts`
+* `src/lib/creator-stories/client.ts`
+* `NEXT_PUBLIC_POSTROUND_API_BASE_URL`
+* Creator Dashboard UI under `src/components/creator`
+
+Reuse the existing architecture rather than creating parallel abstractions.
+
+If the current contracts/client need small adjustments to accommodate the authoritative API response above, update them accordingly.
+
+---
+
+# Required user flow
+
+The Creator Dashboard flow should be:
+
+**Creator opens dashboard → sees permitted story → clicks Generate Content → POST `/api/content/generate` → backend generates/persists ideas → GET `/api/content/ideas?story_id=...` → render the real generated ideas.**
+
+Do not generate automatically on page load.
+
+Do not generate automatically on rerender.
+
+Generation must happen only from the existing explicit user action.
+
+---
+
+# Generation state
+
+While POST `/api/content/generate` is running:
+
+* show a clear loading state on that story
+* prevent accidental duplicate generation requests
+* keep the story visible
+* do not affect other stories
+
+If generation succeeds:
+
+1. use the returned `count` only as confirmation that generation succeeded
+2. immediately call `GET /api/content/ideas?story_id=...`
+3. render the returned ideas
+
+Do NOT fabricate ideas from the POST response.
+
+---
+
+# Retrieval state
+
+Treat generation and retrieval as two separate operations.
+
+### Generation failure
+
+If POST fails:
+
+* show a generic user-friendly error
+* preserve the story
+* allow the user to retry generation
+* do not call GET if generation did not succeed
+
+### Retrieval failure
+
+If POST succeeds but GET fails:
+
+* do NOT call POST again automatically
+* preserve the story
+* show an error indicating that the generated content could not be loaded
+* provide a **retry retrieval** action
+* retrying retrieval must call only GET
+
+This distinction is important because generation may already have succeeded on the backend.
+
+### Empty result
+
+If GET succeeds with:
+
+```json
+{ "ok": true, "ideas": [] }
+```
+
+show a clean empty state rather than fabricated content or an error.
+
+---
+
+# Generated Idea UI
+
+For each returned idea, display:
+
+* category
+* title
+* hook
+* script
+* clear attribution to the source follower story
+
+The user should be able to:
+
+* copy the hook
+* copy the script
+
+Use the existing UI primitives and Post Round visual language.
+
+Do not introduce a generic admin-dashboard aesthetic.
+
+The dashboard should feel like a creator/editorial workspace: confident, clean, trustworthy, and content-focused.
+
+---
+
+# Story attribution
+
+Generated content must remain visibly connected to the source story.
+
+For example, show a small source-story context such as:
+
+**Generated from follower story**
+
+followed by the originating story headline/summary or existing story attribution UI.
+
+Do not make generated content appear to be an unrelated AI generation.
+
+---
+
+# Existing social-account constraints
+
+If the dashboard already supports platform selection:
+
+* only allow platforms supported by the creator's existing social accounts
+* do not invent platform accounts
+* do not add social-account management functionality to this task
+
+The creator's existing social-account data is the source of truth.
+
+---
+
+# Do NOT use the admin endpoint
+
+There is an existing:
+
+`GET /api/admin/content-ideas`
+
+Do NOT use it.
+
+It is admin-only and is not the creator dashboard's data source.
+
+The creator dashboard must use:
+
+`GET /api/content/ideas?story_id=<story UUID>`
+
+---
+
+# Security requirements
+
+The browser must:
+
+* obtain the current Supabase session
+* extract the access token
+* send it as a Bearer token
+
+Do not put privileged credentials in the browser.
+
+Do not use service-role credentials.
+
+Do not allow the client to substitute another creator's identity.
+
+The backend already derives the active creator from the authenticated user for the GET endpoint.
+
+---
+
+# Testing
+
+Add/update focused frontend tests covering at minimum:
+
+1. Generate action sends:
+
+   * correct `creator_id`
+   * correct `story_id`
+
+2. Successful generation:
+
+   * POST succeeds
+   * GET is subsequently called with the same story ID
+
+3. Returned ideas:
+
+   * render category
+   * render title
+   * render hook
+   * render script
+
+4. Copy actions:
+
+   * hook copy works
+   * script copy works
+
+5. Generation failure:
+
+   * error displayed
+   * story remains visible
+   * retry is available
+
+6. Retrieval failure after successful generation:
+
+   * error displayed
+   * story remains visible
+   * retrieval retry is available
+   * retrieval retry does NOT issue another POST
+
+7. Empty result:
+
+   * `{ ok: true, ideas: [] }`
+   * clean empty state displayed
+
+8. No fabricated content:
+
+   * UI only renders ideas returned by GET
+
+9. Admin endpoint is not called.
+
+10. No automatic generation occurs merely from mounting/rendering the dashboard.
+
+---
+
+# Implementation discipline
+
+Before coding:
+
+1. Inspect the current Creator Dashboard implementation.
+2. Inspect `src/lib/creator-stories/contracts.ts`.
+3. Inspect `src/lib/creator-stories/client.ts`.
+4. Inspect existing tests.
+5. Identify exactly where the current Generate Content action is wired.
+
+Then make the smallest necessary changes.
+
+Do not rewrite the Creator Dashboard from scratch.
+
+Do not create duplicate client abstractions.
+
+Do not create mock/demo content.
+
+Do not use fake IDs.
+
+Do not use artificial delays/timers to simulate API behavior.
+
+---
+
+# Validation
+
+After implementation run:
+
+* focused Creator Dashboard tests
+* relevant client/API integration tests
+* TypeScript/typecheck
+* production build
+
+Fix any failures caused by this implementation.
+
+At the end, report:
+
+1. files changed
+2. exact API calls now used
+3. tests added/updated
+4. typecheck result
+5. production build result
+6. confirmation that no Next.js API route, migration, RLS change, service-role browser access, or admin endpoint was introduced.

@@ -1,0 +1,385 @@
+We are now ready to build the Creator Story Dashboard in this Next.js web project.
+
+IMPORTANT: This is a CROSS-PROJECT integration.
+
+The existing creator/story functionality already exists in the separate app/backend project. Do NOT recreate backend functionality, invent API endpoints, or modify the backend.
+
+The web project must integrate with the EXISTING contracts documented below.
+
+## PRODUCT
+
+Post Round Creator Dashboard.
+
+The dashboard is for a creator who has followers using Post Round. Followers can explicitly grant a compelling round story to their selected creator. The creator can review permitted stories and generate social content from them.
+
+The UI should feel like Post Round: confident, editorial, trustworthy, polished. Do not make it look like an admin template.
+
+## EXISTING CONTRACTS
+
+### 1. Active Creator Profiles
+
+There is NO API route.
+
+Use the authenticated Supabase client directly:
+
+```ts
+supabase
+  .from("creator_profiles")
+  .select(`
+    id,
+    display_name,
+    bio,
+    avatar_url,
+    status,
+    created_at,
+    updated_at,
+    creator_social_accounts(
+      id,
+      platform,
+      handle,
+      profile_url
+    )
+  `)
+  .eq("status", "active")
+  .order("display_name", { ascending: true })
+```
+
+Returned shape:
+
+```ts
+{
+  id: string;
+  display_name: string;
+  bio: string | null;
+  avatar_url: string | null;
+  status: "active";
+  created_at: string;
+  updated_at: string;
+  creator_social_accounts: {
+    id: string;
+    platform: string;
+    handle: string;
+    profile_url: string | null;
+  }[];
+}
+```
+
+Do NOT expose or request `user_id`.
+
+### 2. Creator Story Queue
+
+There is NO GET API endpoint.
+
+Use the authenticated Supabase client directly:
+
+```ts
+supabase
+  .from("story_candidates")
+  .select(`
+    id,
+    story_type,
+    headline,
+    summary,
+    story_data,
+    round_id,
+    status
+  `)
+```
+
+RLS provides the authorization boundary.
+
+The existing RLS policy only permits a creator to see stories where:
+
+* the creator owns the creator profile,
+* permission_granted = true,
+* revoked_at IS NULL.
+
+DO NOT bypass RLS.
+DO NOT use service-role credentials.
+DO NOT query arbitrary story candidates.
+
+The dashboard should rely on the authenticated user's Supabase session.
+
+### 3. Generate Content
+
+Existing API endpoint:
+
+POST `/api/content/generate`
+
+Headers:
+
+```text
+Authorization: Bearer <supabase-access-token>
+Content-Type: application/json
+```
+
+Request:
+
+```json
+{
+  "creator_id": "uuid",
+  "story_id": "uuid"
+}
+```
+
+Both fields are required together.
+
+Success:
+
+```json
+{
+  "ok": true,
+  "count": 3
+}
+```
+
+The generated ContentIdea records are persisted to `content_ideas`.
+
+The creator must:
+
+* own creator_id,
+* have an active creator profile,
+* have ai_coaching feature access,
+* have active permission for story_id,
+* have story status of offered or shared.
+
+The web client must not attempt to reproduce these authorization checks. The backend remains authoritative.
+
+Errors include:
+
+* 400 invalid creator/story combination
+* 401 authentication failure
+* 403 creator authorization failure
+* 403 story permission failure
+* 403 entitlement failure
+* 500 generation failure
+* 500 parse failure
+* 500 save failure
+
+### 4. Story Detection / Permission Grant
+
+These already exist in the app and are NOT dashboard functionality.
+
+Do not recreate them in the web project.
+
+Existing endpoints for reference:
+
+POST `/api/stories/detect`
+
+```json
+{
+  "round_id": "uuid"
+}
+```
+
+POST `/api/stories/permission`
+
+```json
+{
+  "story_id": "uuid",
+  "creator_id": "uuid"
+}
+```
+
+These are follower-side workflows.
+
+### 5. Story Dismissal / Revocation
+
+IMPORTANT:
+
+There is currently NO creator-side revocation endpoint.
+
+Do NOT invent one.
+
+The existing:
+
+PATCH `/api/stories/candidates/:id/status`
+
+is follower-side only and can set:
+
+* `kept_private`
+* `expired`
+
+A creator cannot use it.
+
+Therefore the dashboard must NOT present a creator "Revoke" action that calls this endpoint.
+
+If dismissal is required by the current UI specification, surface this as an integration limitation rather than implementing an incorrect authorization flow.
+
+## CONTENT IDEAS — IMPORTANT UNKNOWN
+
+POST `/api/content/generate` returns only:
+
+```json
+{
+  "ok": true,
+  "count": number
+}
+```
+
+It does NOT return the generated ideas.
+
+The existing `/api/admin/content-ideas` endpoint is admin-only and MUST NOT be used by the creator dashboard.
+
+Therefore:
+
+**DO NOT invent a creator content-ideas endpoint.**
+**DO NOT use the admin endpoint.**
+**DO NOT use service-role Supabase access from the browser.**
+
+If there is no existing creator-authorized read mechanism for `content_ideas`, isolate that as a clearly documented integration blocker.
+
+The dashboard may still implement the generation request and display the confirmed generation count, but must not pretend it has the generated ideas unless an existing authorized read path is discovered in this web project.
+
+## WEB FILE STRUCTURE
+
+Create/use:
+
+`src/lib/creator-stories/contracts.ts`
+
+`src/lib/creator-stories/client.ts`
+
+These are the web integration layer.
+
+`contracts.ts` should contain the exact TypeScript contracts for the existing data.
+
+`client.ts` should contain functions for the existing operations that the web dashboard actually needs.
+
+Do not put backend authorization logic into the web client.
+
+Do not use mock data.
+
+Do not use fake timers.
+
+Do not return fake/generated placeholder content.
+
+## DASHBOARD UI
+
+Build:
+
+`src/components/creator/CreatorDashboard.tsx`
+
+and supporting components under:
+
+`src/components/creator/`
+
+Suggested components:
+
+* CreatorShell
+* StoryQueue
+* StoryCard
+* GeneratedIdeaCard, ONLY if actual generated ideas can be retrieved through an authorized existing mechanism
+* appropriate loading/error/empty states
+
+Use existing shared UI primitives already present in this repository.
+
+Do NOT create duplicate Button, Dialog, Select, Avatar, Card, Toast, etc. primitives.
+
+Reuse the existing Post Round visual language and shared components.
+
+## STORY CARD
+
+Each permitted story should show, where available:
+
+* headline
+* summary
+* round date
+* course
+* golfer display name
+* relevant supporting facts
+* source story attribution
+
+The story data may be contained inside `story_data`. Parse it safely and defensively.
+
+Do not fabricate missing fields.
+
+A story should be visibly identified as coming from a Post Round golfer/follower story.
+
+## GENERATION UX
+
+Each permitted story should allow the creator to generate content.
+
+On generation:
+
+* show loading state
+* prevent duplicate clicks
+* call existing `/api/content/generate`
+* display success using the returned count
+* display safe generic error on failure
+* preserve the story card if generation fails
+
+Do not expose backend error details to users.
+
+If generated ideas cannot be retrieved through an existing authorized mechanism, say that generation succeeded and how many ideas were created, but do not render fake ideas.
+
+## PLATFORM CONTEXT
+
+Creator social accounts are available from `creator_profiles.creator_social_accounts`.
+
+Only show/select platforms actually associated with the creator.
+
+Do not invent social accounts or platforms.
+
+## STATES
+
+Implement:
+
+* loading
+* empty story queue
+* authenticated creator with stories
+* generation in progress
+* generation success
+* generation failure
+* unavailable/unsupported content retrieval
+
+Use stable test IDs for important interactions.
+
+## SECURITY
+
+This is critical:
+
+* Browser uses the authenticated Supabase session.
+* Never expose a service-role key.
+* Never bypass RLS.
+* Never allow a creator_id supplied by the UI to override backend ownership checks.
+* Backend authorization remains authoritative.
+* Never use the admin content endpoint for creator content.
+* Never expose stories outside the RLS-permitted set.
+
+## ROUTING
+
+Build only the creator dashboard presentation/integration components unless an existing route structure clearly requires a minimal route hookup.
+
+Do NOT modify middleware, backend API routes, database migrations, or admin functionality.
+
+## ACCEPTANCE CRITERIA
+
+1. Active creators can be read through the authenticated Supabase client.
+2. Creator social accounts are available from the nested profile response.
+3. The creator's permitted story queue comes directly from `story_candidates` through authenticated Supabase + RLS.
+4. No arbitrary story candidate can be loaded.
+5. A permitted story can trigger the existing `/api/content/generate`.
+6. `creator_id` and `story_id` are both sent.
+7. Generation errors are handled safely.
+8. Failed generation does not remove the story.
+9. The admin content endpoint is NOT used.
+10. No creator-side revocation is falsely implemented.
+11. No mocks, fake data, or fake generated ideas.
+12. Existing shared UI primitives are reused.
+13. Existing backend/database code is untouched.
+14. TypeScript and existing tests pass, aside from any pre-existing unrelated failures.
+15. At the end, report exactly which files were changed and whether any content-idea retrieval limitation remains.
+
+## SOURCE-OF-TRUTH RULE
+
+The following contracts are authoritative. If something is not specified here, inspect the current web repository for an existing contract.
+
+If it still cannot be established:
+
+**STOP AND REPORT THE UNKNOWN.**
+
+Do not invent an API.
+
+Do not create backend functionality.
+
+Do not guess a response shape.

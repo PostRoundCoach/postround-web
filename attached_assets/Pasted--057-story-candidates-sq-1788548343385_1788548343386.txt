@@ -1,0 +1,145 @@
+-- =====================================================================
+-- 057_story_candidates.sql
+-- Story Candidates + Story Permissions
+--
+-- Creates:
+--   story_candidates   — deterministic story candidate rows created server-side
+--                        after a round is saved; never client-insertable.
+--   story_permissions  — controls which creator (if any) holds an active
+--                        permission to use a player's story candidate.
+--
+-- RLS:
+--   story_candidates:  users can SELECT/UPDATE their own rows only;
+--                      creators can SELECT a row only when a non-revoked
+--                      story_permissions row links it to them;
+--                      no authenticated client can INSERT (server-only).
+--   story_permissions: users can SELECT/UPDATE their own rows only;
+--                      creators can SELECT their own permission rows;
+--                      no client INSERT (server-only).
+-- =====================================================================
+
+-- ── 1. story_candidates ───────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS public.story_candidates (
+  id                 uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
+  round_id           uuid        NOT NULL REFERENCES public.rounds(id) ON DELETE CASCADE,
+  user_id            uuid        NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  story_type         text        NOT NULL,
+  significance_score integer     NOT NULL CHECK (significance_score BETWEEN 0 AND 100),
+  headline           text        NOT NULL,
+  summary            text        NOT NULL,
+  story_data         jsonb       NOT NULL DEFAULT '{}',
+  status             text        NOT NULL DEFAULT 'candidate'
+                                   CHECK (status IN ('candidate', 'offered', 'shared', 'kept_private', 'expired')),
+  created_at         timestamptz NOT NULL DEFAULT now(),
+  updated_at         timestamptz NOT NULL DEFAULT now(),
+
+  -- One candidate per round (idempotent upsert on round_id)
+  UNIQUE (round_id)
+);
+
+ALTER TABLE public.story_candidates ENABLE ROW LEVEL SECURITY;
+
+-- Users can read their own story candidates.
+CREATE POLICY "Users can view own story candidates"
+  ON public.story_candidates
+  FOR SELECT
+  TO authenticated
+  USING (user_id = auth.uid());
+
+-- Users can update their own story candidates via RLS (row-level ownership).
+-- Column-level grants below restrict this to the status column only, so
+-- clients cannot alter server-generated narrative fields (headline, summary,
+-- story_data, significance_score).  The service-role client bypasses both
+-- RLS and column grants as a superuser, allowing full server-side writes.
+CREATE POLICY "Users can update own story candidates"
+  ON public.story_candidates
+  FOR UPDATE
+  TO authenticated
+  USING (user_id = auth.uid())
+  WITH CHECK (user_id = auth.uid());
+
+-- Restrict authenticated clients to updating only the status column.
+-- This prevents clients from forging or modifying server-generated narrative
+-- content, which could then be exposed through creator permissions.
+-- The service-role key (used by the API server) is a superuser and bypasses
+-- these restrictions for full server-side write capability.
+REVOKE UPDATE ON public.story_candidates FROM authenticated;
+GRANT  UPDATE (status) ON public.story_candidates TO authenticated;
+
+-- No INSERT policy for authenticated role — story_candidates are created
+-- exclusively by the API server using the service-role key (bypasses RLS).
+
+-- ── 2. story_permissions ──────────────────────────────────────────────
+-- MUST be created before the creator-read policy on story_candidates
+-- that references this table via a subquery.
+
+CREATE TABLE IF NOT EXISTS public.story_permissions (
+  id                uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
+  story_id          uuid        NOT NULL REFERENCES public.story_candidates(id) ON DELETE CASCADE,
+  user_id           uuid        NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  creator_id        uuid        NOT NULL
+                                  REFERENCES public.creator_profiles(id) ON DELETE CASCADE,
+  permission_granted boolean     NOT NULL DEFAULT false,
+  granted_at        timestamptz,
+  revoked_at        timestamptz,
+  created_at        timestamptz NOT NULL DEFAULT now(),
+  updated_at        timestamptz NOT NULL DEFAULT now()
+);
+
+ALTER TABLE public.story_permissions ENABLE ROW LEVEL SECURITY;
+
+-- Unique partial index: only one active creator permission per story at a time.
+CREATE UNIQUE INDEX IF NOT EXISTS story_permissions_one_active_creator
+  ON public.story_permissions (story_id)
+  WHERE permission_granted = true AND revoked_at IS NULL;
+
+-- Users can read their own story permission records.
+CREATE POLICY "Users can view own story permissions"
+  ON public.story_permissions
+  FOR SELECT
+  TO authenticated
+  USING (user_id = auth.uid());
+
+-- Users can update their own story permission records (e.g. revoking).
+CREATE POLICY "Users can update own story permissions"
+  ON public.story_permissions
+  FOR UPDATE
+  TO authenticated
+  USING (user_id = auth.uid())
+  WITH CHECK (user_id = auth.uid());
+
+-- Creators can view permission rows that reference their creator_profile.
+CREATE POLICY "Creators can view their own permissions"
+  ON public.story_permissions
+  FOR SELECT
+  TO authenticated
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.creator_profiles cp
+      WHERE cp.id = creator_id AND cp.user_id = auth.uid()
+    )
+  );
+
+-- No INSERT policy for authenticated role — story_permissions are created
+-- server-side only.
+
+-- ── 3. Creator read policy on story_candidates ────────────────────────
+-- Added AFTER story_permissions exists so the FK reference resolves.
+-- Creators can SELECT a story_candidates row only when a non-revoked
+-- story_permissions row links it to them.
+CREATE POLICY "Creators can view permitted story candidates"
+  ON public.story_candidates
+  FOR SELECT
+  TO authenticated
+  USING (
+    EXISTS (
+      SELECT 1
+      FROM public.story_permissions sp
+      JOIN public.creator_profiles cp ON cp.id = sp.creator_id
+      WHERE sp.story_id         = story_candidates.id
+        AND cp.user_id          = auth.uid()
+        AND sp.permission_granted = true
+        AND sp.revoked_at IS NULL
+    )
+  );

@@ -6,7 +6,7 @@
     "dev": "next dev -p $PORT -H 0.0.0.0",
     "build": "next build",
     "start": "next start -p $PORT -H 0.0.0.0",
-    "test": "node --experimental-strip-types --test src/lib/vad-telemetry/*.test.ts",
+    "test": "node --experimental-strip-types --test src/lib/vad-telemetry/*.test.ts src/lib/creator-stories/*.test.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {

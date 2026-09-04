@@ -1,0 +1,40 @@
+Build Creator Identity + Favourite Creator Foundation
+
+Add 056_creator_identity.sql to root supabase/migrations/ (canonical path)
+Creates creator_profiles and creator_social_accounts tables with RLS
+Adds profiles.favorite_creator_id nullable FK column
+Rebuilds profiles UPDATE RLS policy retaining all frozen fields (role,
+subscription_plan, subscription_status, stripe_customer_id,
+stripe_subscription_id, current_period_end, subscription_currency)
+while allowing favorite_creator_id to be freely updated by the row owner
+Adds CreatorProfile and CreatorSocialAccount TypeScript types to supabase.ts
+Adds fetchActiveCreators() helper in lib/creatorService.ts
+Builds CreatorPickerModal with search, inline error handling (modal stays
+open on save failure with retryable error banner)
+Replaces Handicap Index user-input edit row in profile.tsx with Favourite
+Golf Creator row backed by the creator picker modal
+All 3357 unit/integration tests pass; code review approved
+
+Story Detector — engine, DB schema, and API
+
+Migration 057_story_candidates.sql in canonical supabase/migrations/: story_candidates + story_permissions tables; story_permissions created BEFORE the creator-read policy on story_candidates that references it; REVOKE UPDATE / GRANT UPDATE(status) restricts authenticated clients to status-only mutations preventing forgery of server-generated narrative fields; unique partial index on story_permissions(story_id) WHERE permission_granted AND revoked_at IS NULL
+golfTypes.ts: local Round/Hole type mirror avoiding cross-artifact TypeScript rootDir violations
+storyConfig.ts: centralized thresholds and base scores
+storyDetector.ts: 10 story-type detectors plus generic personal-best catch-all (fairway accuracy, scrambling rate, zero-penalty record); detectNoBogeys requires complete score/par coverage across ALL holes (partial-data regression fixed)
+POST /api/stories/detect: auth, ownership, round.status=completed enforcement, history load, idempotent upsert; on no-candidate re-run, expires any existing non-shared candidate so stale narratives cannot persist after round edits
+790 tests passing: all story types, null-stat handling, scope comparability, partial no-bogeys regression, first-round user, tie-breaking, threshold gate, idempotency, stale-candidate expiry, shared-candidate preservation, ownership/RLS invariants
+
+Integrate permissioned follower stories with existing content generator
+
+Add 059_content_ideas_story_id.sql in canonical supabase/migrations/ with nullable story_id FK
+Register migrations 055-059 in order in run-supabase-migrations.ts (fixes fresh-DB deploy)
+New creatorAuth.ts: resolveCreatorOwnership with typed CreatorAuthError
+New storyPermissionCheck.ts: resolveStoryPermission with typed StoryPermissionError
+Extend POST /api/content/generate with creator-story pathway (creator_id + story_id)
+Creator pathway uses same getFeatureAccess entitlement gate as standard flow
+buildCreatorStoryPrompt uses only permissioned story facts + creator identity (no follower data)
+Logs CREATOR_CONTENT_AUTHORIZED, CREATOR_CONTENT_DENIED, CREATOR_CONTENT_GENERATED
+Standard round-owner pathway unchanged
+9 Vitest tests in routes/tests/content-creator.test.ts (8 required + entitlement denial)
+ContentIdea type added to golf-coach/lib/supabase.ts with nullable story_id
+All 820 tests pass

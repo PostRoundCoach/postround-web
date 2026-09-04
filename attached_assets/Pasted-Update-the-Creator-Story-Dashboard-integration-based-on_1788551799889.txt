@@ -1,0 +1,74 @@
+Update the Creator Story Dashboard integration based on the authoritative app-side runtime investigation.
+
+The previous review rejection identified that `/api/content/generate` does not exist as a Next.js route in the web workspace. The app-side investigation confirms this is intentional: the authoritative endpoint lives on the separate deployed API server.
+
+Do NOT create a Next.js API route or proxy.
+
+## Authoritative API architecture
+
+The production API base is:
+
+`https://${EXPO_PUBLIC_DOMAIN}`
+
+The authoritative endpoint is:
+
+`POST https://${EXPO_PUBLIC_DOMAIN}/api/content/generate`
+
+The mobile app calls this API directly.
+
+Authentication is via the authenticated Supabase access token:
+
+`Authorization: Bearer <Supabase access token>`
+
+The API server's `requireAuth` middleware validates that JWT.
+
+## Required web implementation
+
+Update the creator-story client so `generateCreatorContent()` calls the authoritative API server rather than the relative Next.js path:
+
+`/api/content/generate`
+
+Use the web project's existing environment/configuration conventions where possible. Do not hardcode an actual deployment hostname into source code.
+
+If the web project does not currently have an API base environment variable, introduce the smallest appropriate configuration needed for this existing cross-project API dependency, following the project's established environment-variable conventions.
+
+The request must remain:
+
+`POST <API_BASE>/api/content/generate`
+
+with:
+
+`Authorization: Bearer <Supabase access token>`
+
+and body:
+
+`{ creator_id, story_id }`
+
+The expected response remains exactly:
+
+`{ ok: true, count: number }`
+
+Do not invent a generated-idea response payload.
+
+## Important constraints
+
+* Do NOT create `/api/content/generate` in Next.js.
+* Do NOT create a proxy unless the existing deployment architecture specifically requires one.
+* Do NOT use `/api/admin/content-ideas`.
+* Do NOT use a Supabase service-role key in browser code.
+* Do NOT add creator-side dismissal/revocation.
+* Do NOT invent generated-idea retrieval.
+* Do NOT modify the authoritative backend in this task.
+
+## Validation
+
+After the change:
+
+1. Confirm the generated request is going to the configured API base, not the Next.js origin.
+2. Confirm the Supabase bearer token is attached.
+3. Run typecheck.
+4. Run the focused tests.
+5. Add/update a focused test that verifies the generated request URL is constructed from the configured API base and includes the expected Authorization header.
+6. If a true running integration test against the deployed API is practical in this workspace, use it; otherwise do not fake one with a mock and call it an end-to-end test.
+
+Keep the change tightly scoped to the Creator Dashboard API integration.
