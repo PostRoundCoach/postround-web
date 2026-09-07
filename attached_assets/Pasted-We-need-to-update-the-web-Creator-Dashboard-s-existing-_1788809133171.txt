@@ -1,0 +1,763 @@
+We need to update the web Creator Dashboard's existing **"Generate Content"** button.
+
+## Context
+
+The creator dashboard is now successfully receiving and displaying qualifying player rounds.
+
+The current **Generate Content** button is not working.
+
+This is the point where we are pivoting the content engine from generic AI-generated content into a **Creator Story Engine**.
+
+IMPORTANT PRODUCT MODEL:
+
+* The creator is NOT necessarily the player who played the round.
+* The creator is reviewing a player's round and looking for interesting stories/content opportunities.
+* Generated stories must therefore NEVER incorrectly write from the creator's/player's first-person perspective.
+* The engine should identify the story opportunity and provide the creator with the evidence/material needed to create content about the player and their round.
+
+This is a **web Creator Dashboard/content-engine change**.
+
+Do NOT modify the mobile Post Round scorecard or Round Buddy UX.
+
+Do NOT disrupt the existing working pipeline that gets qualifying rounds onto the creator dashboard.
+
+---
+
+# IMPORTANT: SCORECARD ARCHITECTURE
+
+The web Creator Dashboard is a **separate project/codebase** from the Post Round mobile application.
+
+The web project does **NOT** have access to the mobile application's Round Buddy scorecard React Native component.
+
+Therefore:
+
+### DO NOT:
+
+* attempt to import the mobile Round Buddy scorecard component
+* assume the web project can reuse the mobile UI component
+* create a dependency on the mobile project
+* ask for the mobile component to be shared just to render this scorecard
+
+### INSTEAD:
+
+The web project already has access to the underlying round/hole data.
+
+Use that actual database data to **assemble a compact web scorecard specifically for the Creator Dashboard**.
+
+The web scorecard should reproduce the useful information hierarchy of the Round Buddy scorecard, but it is a **new web representation assembled from the existing data**.
+
+It should be completely data-driven.
+
+It must NEVER use AI-generated values.
+
+---
+
+# Web Scorecard Requirements
+
+For every Story Candidate where scorecard evidence is relevant, render a compact scorecard sub-card **inside the main Story Candidate card**.
+
+The compact scorecard should show the available information for each hole.
+
+At minimum, structure each hole around:
+
+* Hole
+* Yards
+* Par
+* Score
+* Fairway — hit/miss
+* Green — hit/miss
+* Playable annotation
+* Chips
+* Putts
+* Sand shots
+* Penalties
+
+Use the actual fields available in the existing database.
+
+If a particular field does not exist for a hole, do NOT invent a value.
+
+Simply omit it or show an appropriate neutral/blank state.
+
+For example:
+
+**Hole | Yds | Par | Score | FW | GIR | Playable | Chips | Putts | Sand | Pen**
+
+The scorecard should remain compact and easy to scan.
+
+Do not build a giant dashboard table.
+
+The goal is a **compact scorecard sub-card inside each Story Candidate** that gives the creator enough context to understand the story.
+
+### Important:
+
+The scorecard itself is factual evidence.
+
+The AI can interpret the scorecard, but the AI must never create or modify the displayed scorecard values.
+
+The web scorecard must be assembled directly from the stored round/hole data.
+
+---
+
+# New Generate Content behavior
+
+When the creator clicks:
+
+**Generate Content**
+
+the system should analyze the selected player's round and generate a set of **Story Candidates**.
+
+Conceptual flow:
+
+Round
+→ Analyze story opportunities
+→ Generate Story Candidates
+→ Creator reviews/selects a story
+→ Later: generate finished social content
+
+For this implementation, focus on successfully generating and displaying the **Story Candidates**.
+
+Do NOT attempt to redesign the entire creator content-generation system yet.
+
+---
+
+# Story Archetypes
+
+Start with exactly these six archetypes:
+
+### 1. Achievement
+
+Something notable happened.
+
+Examples:
+
+* All fairways found
+* Multiple birdies
+* Eagle
+* Personal best
+* Exceptional putting
+* Unusual scoring accomplishment
+* Strong performance in a specific area
+
+### 2. Drama
+
+The round changed direction.
+
+Examples:
+
+* Strong comeback
+* Difficult stretch followed by recovery
+* Birdie streak
+* Blow-up hole followed by recovery
+* Front nine vs. back nine contrast
+* Late-round turnaround
+
+### 3. Surprise
+
+Something about the round was unexpected.
+
+Examples:
+
+* Great score despite poor driving
+* Excellent score despite missed greens
+* Strong putting offset by poor approach
+* Very low score after a poor start
+* Unexpectedly strong/weak statistical category
+
+### 4. Failure / Disaster
+
+Something went badly and could make compelling or relatable content.
+
+Examples:
+
+* Blow-up hole
+* Triple/quadruple
+* Penalty sequence
+* Multiple consecutive bogeys
+* Major scoring collapse
+* Particularly memorable bad hole
+
+Do not make this insulting or overly negative. The goal is an interesting creator story, not criticism of the player.
+
+### 5. Insight
+
+Something meaningful can be learned from the round.
+
+Examples:
+
+* A specific part of the game strongly influenced the score
+* Course management issue
+* Putting was/wasn't the real problem
+* Driving accuracy mattered more than distance
+* A particular hole exposed a recurring weakness
+
+### 6. Progress
+
+Evidence that the player is improving.
+
+This may require historical player-round data if available.
+
+Examples:
+
+* Better score than recent rounds
+* Improved fairway percentage
+* Improved putting
+* More birdies
+* Better back-nine performance
+* New personal best
+* Positive trend across recent rounds
+
+If historical data is not available, do not fabricate progress. Simply omit the archetype if there is insufficient evidence.
+
+---
+
+# Story Evidence Package
+
+Each generated Story Candidate should contain an evidence package.
+
+The engine should combine information from THREE primary sources:
+
+## 1. Scorecard
+
+Use the actual player's round/hole data as the objective/statistical foundation.
+
+Look for:
+
+* Total score
+* Score relative to par
+* Hole-by-hole scoring
+* Birdies
+* Eagles
+* Pars
+* Bogeys
+* Doubles/triples/other blow-ups
+* Fairways
+* Greens
+* Putts
+* Penalties
+* Chips
+* Sand shots
+* Playable/miss annotations
+* Front/back-nine differences
+* Streaks
+* Notable individual holes
+* Other available round statistics
+
+Only use fields that actually exist in the database.
+
+Never invent missing statistics.
+
+The web scorecard displayed to the creator must be assembled directly from these same underlying values.
+
+## 2. Round Buddy highlights
+
+If Round Buddy transcript/audio-derived transcript records are available for this round, analyze them for **notable moments**.
+
+Look for:
+
+* Memorable shot descriptions
+* Excitement
+* Frustration
+* Funny moments
+* Surprising outcomes
+* Player reactions
+* Memorable holes
+* Self-deprecating comments
+* Confidence
+* Emotional turning points
+* Interesting comments about what happened on a hole
+
+Do NOT include every transcript.
+
+Identify only the most relevant/high-value transcript highlights.
+
+A transcript highlight should be tied to a specific hole or event whenever possible.
+
+The purpose is to add the **human story behind the scorecard**.
+
+Do not fabricate transcript content or quotes.
+
+Only use actual stored transcript text.
+
+IMPORTANT:
+
+The web project may not have access to the mobile Round Buddy scorecard UI, but that does NOT prevent the Story Engine from using any Round Buddy transcript/data that is already available to the backend/database.
+
+If Round Buddy transcript data is not available to the web project, continue using the scorecard rather than failing.
+
+## 3. Performance/round analysis
+
+Use existing round analysis/coaching data if it is already available.
+
+Use it to identify meaningful insights.
+
+Do not rebuild the coaching system.
+
+---
+
+# Story Candidate structure
+
+Use the existing story candidate infrastructure where possible.
+
+Do not create duplicate tables if an appropriate existing table/schema already exists.
+
+Each Story Candidate should conceptually contain:
+
+* story type / archetype
+* title
+* hook
+* short story summary
+* why this is interesting
+* scorecard evidence
+* Round Buddy highlight(s), when available
+* supporting statistics
+* relevant holes
+* confidence/strength score
+* round ID
+* player ID
+* creator ID/context as appropriate
+* suggested content format if useful
+
+Use the existing database conventions and naming patterns.
+
+Before adding migrations or new fields, inspect the existing:
+
+* `story_candidates`
+* `story_permissions`
+* `content_ideas`
+
+and reuse them wherever possible.
+
+---
+
+# Story Candidate UI
+
+The creator should see something like:
+
+**Achievement — Perfect off the Tee**
+
+> The player found every fairway, making driving accuracy the standout story of the round.
+
+**Why it's interesting**
+
+> A perfect fairway-finding performance gives the creator a clear, simple performance story.
+
+### Round Scorecard
+
+Render a compact web scorecard assembled from the actual round/hole database data.
+
+For example:
+
+| Hole |    Yds | Par |  Score | FW | GIR | Playable | Chips | Putts | Sand | Pen |
+| ---- | -----: | --: | -----: | -- | --- | -------- | ----: | ----: | ---: | --: |
+| 1    | actual |   4 | actual | ✓  | ✓   | —        |     0 |     2 |    0 |   0 |
+| 2    | actual |   4 | actual | ✓  | ✗   | playable |     1 |     2 |    0 |   0 |
+| 3    | actual |   3 | actual | —  | ✓   | —        |     0 |     1 |    0 |   0 |
+
+**Important:** those are layout examples only.
+
+Populate the scorecard with the player's actual stored values.
+
+Do not hard-code example values.
+
+### Scorecard evidence
+
+> 6/6 fairways
+
+### Round Buddy highlight
+
+> "[actual relevant transcript excerpt, if available]"
+
+### Relevant holes
+
+> 1, 3, 5, 7, 8, 9
+
+### Create Content
+
+The compact scorecard must be part of the **main Story Candidate card**, not a separate page or detached dashboard section.
+
+---
+
+# Compact Scorecard Design
+
+Make the scorecard visually compact enough that it doesn't overwhelm the story.
+
+Prioritize:
+
+1. Hole
+2. Yards
+3. Par
+4. Score
+5. Fairway
+6. Green
+7. Playable annotation
+8. Chips
+9. Putts
+10. Sand
+11. Penalties
+
+Use compact visual indicators where appropriate:
+
+* ✓ / ✕ for fairway
+* ✓ / ✕ for green
+* small numeric values for chips/putts/sand/penalties
+* concise playable/miss annotation
+* clear score highlighting for notable holes if consistent with the existing dashboard styling
+
+Do not use an image generated by AI.
+
+Do not turn the scorecard into an image.
+
+It should be an actual HTML/web component rendered from database data.
+
+The scorecard should remain responsive and usable on narrower screens.
+
+---
+
+# Important distinction: story vs finished content
+
+The first result should NOT simply be a finished Instagram caption.
+
+The engine should first say:
+
+**Story Candidate**
+
+**Achievement — Perfect off the tee**
+
+> The player found all 6 fairways, making driving accuracy the standout performance of the round.
+
+**Why it's interesting**
+
+> A perfect fairway-finding performance gives the creator a clear, simple performance story.
+
+**Scorecard**
+
+[compact web scorecard assembled from actual round/hole data]
+
+**Scorecard evidence**
+
+> 6/6 fairways
+
+**Round Buddy highlight**
+
+> "[actual relevant transcript excerpt, if available]"
+
+**Relevant holes**
+
+> [actual holes]
+
+Then the creator can eventually choose:
+
+**Create Content**
+
+That second step will be handled separately.
+
+---
+
+# Creator perspective
+
+This is extremely important.
+
+The generated story should be written from the perspective of a creator reviewing/documenting the player's round.
+
+BAD:
+
+> "I hit every fairway today."
+
+BAD:
+
+> "I finally figured out my driver."
+
+GOOD:
+
+> "The player found every fairway today, giving us a pretty compelling accuracy story."
+
+GOOD:
+
+> "This round's standout stat was 6/6 fairways."
+
+GOOD:
+
+> "After a rough start, the player turned the round around with a strong finish."
+
+Do not make assumptions about the creator's relationship to the player.
+
+---
+
+# Generate Content button
+
+The existing Generate Content button should now:
+
+1. Identify the selected/current round.
+2. Verify the creator has access/permission to use the round.
+3. Gather the available round and hole/scorecard data.
+4. Gather relevant Round Buddy transcript data/highlights where available.
+5. Gather existing performance/round analysis where available.
+6. Run the Story Engine.
+7. Store the resulting Story Candidates using the existing infrastructure.
+8. Display the generated Story Candidates on the Creator Dashboard.
+9. Assemble and render the compact web scorecard inside each applicable Story Candidate card.
+10. Handle loading, success, empty-result, and error states.
+
+Do NOT silently fail.
+
+If generation fails, surface a useful error in the UI and log enough diagnostic information to identify whether the failure occurred during:
+
+* round lookup
+* permission check
+* scorecard/round data retrieval
+* Round Buddy transcript retrieval
+* AI generation
+* database insert
+* dashboard refresh
+* scorecard rendering
+
+---
+
+# Ranking
+
+Do not generate six stories just because there are six archetypes.
+
+Generate the strongest opportunities based on the actual round.
+
+For example, a round might produce:
+
+1. Achievement — 6/6 fairways
+2. Drama — strong recovery on back nine
+3. Surprise — excellent putting despite low GIR
+4. Failure/Disaster — one triple on hole 14
+
+If there is no legitimate Insight or Progress story, do not manufacture one.
+
+The engine should prefer **fewer strong stories over many weak stories**.
+
+Target approximately 2–5 strong candidates.
+
+---
+
+# Round Buddy transcript handling
+
+This is important enough to treat as a first-class input when available.
+
+If Round Buddy transcripts exist:
+
+* retrieve the relevant transcripts for the selected round
+* associate them with holes where possible
+* identify notable moments
+* attach the strongest relevant excerpts/highlights to Story Candidates
+
+If no transcripts exist:
+
+* Story generation should still work using round/scorecard data.
+* Do not fail the entire generation process because Round Buddy data is unavailable.
+
+Do not fabricate transcript content.
+
+Do not manufacture quotes.
+
+Only use actual stored transcript text.
+
+---
+
+# Existing infrastructure
+
+Before changing code:
+
+1. Inspect the existing Creator Dashboard implementation.
+2. Find the current Generate Content button/action.
+3. Trace what it currently calls.
+4. Inspect existing:
+
+   * `story_candidates`
+   * `story_permissions`
+   * `content_ideas`
+   * rounds table/schema
+   * holes table/schema
+   * all scorecard-related round/hole fields available to the web project
+   * Round Buddy transcript storage, if accessible
+   * existing AI/content-generation routes
+5. Reuse existing APIs, services, schemas, and patterns where appropriate.
+
+IMPORTANT:
+
+Do NOT assume the web project can access the mobile application's Round Buddy scorecard component.
+
+Instead, inspect the actual database schema/data available to this web project and build the compact scorecard from that data.
+
+The web scorecard is a **web-specific presentation layer over the existing round/hole data**.
+
+Do not create duplicate scorecard data.
+
+Do not modify the mobile scorecard.
+
+Do not create a parallel round data source.
+
+Do not break the existing qualifying-round → creator-dashboard pipeline.
+
+---
+
+# Data integrity
+
+The following rules are mandatory:
+
+### Never fabricate scorecard data.
+
+If the database says a player made 5 putts, show 5.
+
+If the database has no sand-shot value, do not invent 0.
+
+### Never fabricate transcript quotes.
+
+Only display actual stored transcript text.
+
+### Never fabricate holes.
+
+Relevant holes must come from actual round data.
+
+### Never fabricate progress.
+
+Only generate Progress stories when historical evidence supports them.
+
+### Never allow the AI to populate factual scorecard fields.
+
+The scorecard is assembled programmatically from the database.
+
+---
+
+# Acceptance criteria
+
+The implementation is complete when:
+
+### A. Existing dashboard pipeline still works
+
+A qualifying player round continues to appear on the creator dashboard.
+
+### B. Generate Content works
+
+Clicking Generate Content successfully initiates Story Engine generation.
+
+### C. Story Candidates are generated
+
+A real qualifying round produces 2–5 legitimate story candidates when sufficient evidence exists.
+
+### D. Scorecard evidence is included
+
+Candidates use actual round/hole data.
+
+### E. Compact web scorecard is visible
+
+Each applicable Story Candidate contains a compact web scorecard assembled directly from the underlying round/hole data.
+
+The scorecard includes the available:
+
+* Hole
+* Yards
+* Par
+* Score
+* Fairway hit/miss
+* Green hit/miss
+* Playable annotation
+* Chips
+* Putts
+* Sand shots
+* Penalties
+
+### F. Scorecard is accurate
+
+The displayed values exactly correspond to the underlying database values.
+
+### G. Round Buddy evidence is included
+
+When relevant Round Buddy transcript data exists, the strongest relevant highlights are included in appropriate candidates.
+
+### H. No fabricated evidence
+
+The system never invents:
+
+* statistics
+* transcript quotes
+* holes
+* player achievements
+* scorecard values
+
+### I. Creator/player distinction is maintained
+
+Generated story candidates refer to the player/round rather than incorrectly assuming the creator played the round.
+
+### J. Existing permissions are respected
+
+Only authorized creator-accessible round data is used.
+
+### K. Errors are diagnosable
+
+Generation failures produce useful UI feedback and server-side diagnostic logging.
+
+### L. Existing plumbing is preserved
+
+Do not break the currently working round → creator dashboard pipeline.
+
+---
+
+# Testing
+
+After implementation:
+
+1. Use the existing qualifying test round already appearing on the creator dashboard.
+2. Click Generate Content.
+3. Confirm the request reaches the correct backend route.
+4. Confirm the backend retrieves the correct round.
+5. Confirm the underlying hole/scorecard data is available.
+6. Confirm the web scorecard is assembled from the actual database data.
+7. Confirm the scorecard displays:
+
+   * hole
+   * yards
+   * par
+   * score
+   * fairway
+   * green
+   * playable annotation
+   * chips
+   * putts
+   * sand
+   * penalties
+     where those values exist.
+8. Confirm Round Buddy transcripts are queried when available.
+9. Confirm Story Candidates are inserted.
+10. Confirm the dashboard refreshes/displays them.
+11. Confirm the generated candidates accurately reference the player's actual round.
+12. Confirm at least one candidate includes actual scorecard evidence.
+13. Confirm the scorecard values match the underlying round data.
+14. If relevant Round Buddy transcripts exist, confirm at least one appropriate candidate includes a genuine Round Buddy highlight.
+15. Test the no-transcript case and confirm generation still succeeds.
+16. Test an error case and confirm it produces a visible error rather than appearing to do nothing.
+17. Test the scorecard on a narrower browser width to ensure the compact representation remains usable.
+
+Do not stop at "the API returns 200."
+
+Verify the complete flow:
+
+**Generate Content button**
+→ backend
+→ round retrieval
+→ hole/scorecard data retrieval
+→ Round Buddy retrieval where available
+→ Story Engine
+→ Story Candidates
+→ database
+→ Creator Dashboard
+→ Story Candidate card
+→ web-assembled compact scorecard visible inside card
+
+At the end, report:
+
+* files changed
+* routes/services changed
+* components created/reused/changed
+* database changes, if any
+* how the Generate Content flow now works
+* exactly which database fields are being used to assemble the scorecard
+* how the scorecard is rendered
+* how Round Buddy transcript data is accessed, if available
+* what was tested
+* any remaining limitations
+* whether the existing round → creator dashboard pipeline remained intact

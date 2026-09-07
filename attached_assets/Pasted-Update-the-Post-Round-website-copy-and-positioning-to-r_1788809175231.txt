@@ -1,0 +1,320 @@
+Update the Post Round website copy and positioning to reflect the current product accurately.
+
+## Core brand positioning
+
+The product name is:
+
+**POST ROUND**
+
+Primary positioning:
+
+**Play. Learn. Share.**
+
+Post Round helps golfers capture their rounds while they play, understand their game afterward, and share the story of their rounds.
+
+This is no longer just an AI golf coaching product. The social/story-sharing experience is now a **current product feature** and should be presented that way throughout the website.
+
+---
+
+# 1. Hero
+
+Use:
+
+**POST ROUND**
+
+**Play. Learn. Share.**
+
+Headline:
+
+**Your golf round is more than a score.**
+
+Supporting copy:
+
+**Post Round helps you capture your round as you play, learn from it afterward, and share the story with the people who care.**
+
+Do not position the product around talking to an AI coach in the car or reconstructing the round after getting home.
+
+---
+
+# 2. The Story of a Round
+
+Headline:
+
+**The story of a round**
+
+Copy:
+
+**The card keeps the score. You experience everything else.**
+
+Post Round captures your round while you're playing, combining the structure of your scorecard with the moments, thoughts, decisions, and context that make every round different.
+
+Then Post Round helps you learn from that round — and gives you a way to share the story.
+
+---
+
+# 3. PLAY section
+
+Headline:
+
+**Capture the round as it happens.**
+
+Copy:
+
+**Post Round is designed to capture your round while you're on the course.**
+
+Show the two current ways to capture a round:
+
+### Keep the score
+
+Use the scorecard to record your round hole by hole.
+
+### Play with Round Buddy
+
+Talk naturally about what happened after each hole. Tell Round Buddy about your shots, misses, putts, decisions, or anything else that matters — then give it your score.
+
+**Round Buddy keeps track of the round while you play.**
+
+Supporting line:
+
+**Capture the score. Capture the context. Capture the round.**
+
+---
+
+# 4. ROUND BUDDY section
+
+Make this a prominent product feature.
+
+Headline:
+
+**Your round, in your own words.**
+
+Copy:
+
+**Round Buddy is your on-course playing companion.**
+
+After each hole, tell Round Buddy naturally what happened and finish with your score. It keeps track of the round while you play, giving you a record that includes more than numbers.
+
+Feature points:
+
+* Remember the moments
+* Keep track of your score
+* Capture the human context
+* Preserve the story of the round
+
+Do not describe Round Buddy primarily as an after-round notes tool.
+
+---
+
+# 5. LEARN section
+
+Headline:
+
+**See your game more clearly.**
+
+Copy:
+
+**Once the round is over, Post Round turns what you captured into something useful.**
+
+Your scorecard and round context give the AI a much richer picture of what actually happened.
+
+Use this section to describe:
+
+* AI coaching
+* Round analysis
+* Patterns and tendencies
+* Practice recommendations
+* Player DNA
+* Learning across multiple rounds
+
+The emphasis should be:
+
+**Play → capture → learn**
+
+rather than:
+
+**Finish → get in the car → talk to your coach**
+
+Remove references to "the drive home", "get in the car", or similar positioning.
+
+---
+
+# 6. PLAYER DNA
+
+Headline:
+
+**Your game has patterns.**
+
+Copy:
+
+**Player DNA builds a living picture of how you play.**
+
+Instead of looking at one round in isolation, Post Round can help identify recurring patterns across your rounds — from scoring tendencies to the situations that consistently help or hurt your game.
+
+Keep this positioned as a core learning/coaching feature.
+
+---
+
+# 7. SHARE section — IMPORTANT: THIS IS A CURRENT FEATURE
+
+This section must NOT say that social sharing is coming soon, future functionality, planned, or "in development."
+
+Treat sharing your round/story as a **current Post Round feature**.
+
+Headline:
+
+**Every round has a story worth sharing.**
+
+Copy:
+
+**Your score tells people what happened. Your story tells them why it mattered.**
+
+Post Round lets you share the story of your round, giving other people more than just a final score.
+
+The shared story can bring together the round's scorecard and meaningful moments from the round, including context captured through Round Buddy.
+
+Use language around:
+
+* Share your round
+* Share the story behind the score
+* Share meaningful moments
+* Share your own words
+* Give people context, not just numbers
+
+The key concept is:
+
+**Score + context + your own words = the story of your round**
+
+---
+
+# 8. Social / Creator Story Sharing
+
+Present this as an existing part of the Post Round ecosystem.
+
+Headline:
+
+**Share your game with the people you follow.**
+
+Copy:
+
+**A great round isn't just something you record. It's something you can share.**
+
+Post Round makes it possible to turn a round into a story that other people can follow and understand.
+
+Where appropriate, describe creator/social sharing as part of the current experience.
+
+A shared round can include:
+
+1. The player's scorecard
+2. Selected moments from the round
+3. Round Buddy context
+4. The player's own words
+
+The goal is to let someone understand **the story behind the score**, rather than simply seeing a number.
+
+Do not describe this as a future creator feature.
+
+---
+
+# 9. Update navigation
+
+The main navigation should reflect the actual current product:
+
+* How It Works
+* Round Buddy
+* AI Coaching
+* Player DNA
+* Share Your Round
+
+"Share Your Round" should be treated as an active feature, not a roadmap item.
+
+---
+
+# 10. Remove future-feature language
+
+Search the entire website for language suggesting social/story sharing is future functionality.
+
+Remove or rewrite phrases such as:
+
+* "coming soon"
+* "in development"
+* "one day"
+* "future"
+* "eventually"
+* "will let you"
+* "coming later"
+* "we're building"
+
+when they refer to the ability to share rounds/stories.
+
+The website should communicate that **sharing is part of Post Round today.**
+
+---
+
+# 11. Important distinction
+
+Do not overclaim functionality.
+
+Only describe specific sharing mechanics that are actually implemented in the existing application.
+
+If the current implementation supports sharing a round/story but has limitations around exactly how creators receive or view the content, describe the capability accurately without inventing UI or workflow details.
+
+The positioning should be:
+
+**Social story sharing is live.**
+
+The implementation details should remain grounded in the existing codebase.
+
+---
+
+# 12. Overall narrative
+
+The entire website should now tell one simple story:
+
+### PLAY
+
+Capture your round while you're playing.
+
+### LEARN
+
+Understand what happened and what you can improve.
+
+### SHARE
+
+Share the story behind the score.
+
+The product loop is:
+
+**Play → Learn → Share → Play again**
+
+This should feel like the central identity of Post Round.
+
+---
+
+# 13. Technical constraints
+
+This is primarily a website copy/content/positioning update.
+
+Do NOT modify:
+
+* Supabase schema
+* story_candidates
+* story_permissions
+* creator dashboard plumbing
+* Round Buddy backend
+* round capture logic
+* scorecard logic
+* API routes
+* authentication
+* database migrations
+* VAD implementation
+* application business logic
+
+Do not change working product functionality just to accommodate the copy.
+
+Only update website content, labels, headings, supporting copy, and visual messaging necessary to accurately communicate the current Post Round product.
+
+Before making changes, inspect the existing website implementation and preserve its current structure and styling wherever possible.
+
+The final website should make Post Round feel like:
+
+**A golf product built around the complete round — playing it, learning from it, and sharing its story.**
