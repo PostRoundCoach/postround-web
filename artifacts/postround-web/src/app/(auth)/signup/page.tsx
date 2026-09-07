@@ -93,7 +93,7 @@ export default function SignUpPage() {
               Create your account
             </h2>
             <p className="text-sm text-muted-foreground text-center">
-              Start building your Player DNA today — no password needed
+              Keep your rounds and reflections together — no password needed
             </p>
           </div>
 

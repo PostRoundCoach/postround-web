@@ -72,7 +72,7 @@ export default function LoginPage() {
           Welcome back
         </h2>
         <p className="text-sm text-muted-foreground text-center">
-          Sign in to your Post Round Coach account
+          Sign in to your Post Round account
         </p>
       </div>
 

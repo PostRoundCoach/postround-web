@@ -25,21 +25,21 @@ export default function TermsPage() {
             <section className="space-y-4">
               <h2 className="text-2xl font-semibold text-foreground">Acceptance of Terms</h2>
               <p>
-                By accessing and using Post Round Coach, you accept and agree to be bound by the terms and provision of this agreement.
+                By accessing and using Post Round, you accept and agree to be bound by the terms and provision of this agreement.
               </p>
             </section>
 
             <section className="space-y-4">
               <h2 className="text-2xl font-semibold text-foreground">Use License</h2>
               <p>
-                Permission is granted to use Post Round Coach for personal, non-commercial golf improvement purposes. This license shall automatically terminate if you violate any of these restrictions.
+                Permission is granted to use Post Round for personal, non-commercial purposes. This license shall automatically terminate if you violate any of these restrictions.
               </p>
             </section>
 
             <section className="space-y-4">
               <h2 className="text-2xl font-semibold text-foreground">Service Description</h2>
               <p>
-                Post Round Coach provides AI-powered golf coaching insights based on your post-round conversations. While we strive for accuracy, all coaching advice is for informational purposes only.
+                Post Round helps golfers capture round context and may provide AI-powered learning and coaching insights based on information they choose to share. Any coaching information is for informational purposes only.
               </p>
             </section>
 
@@ -53,7 +53,7 @@ export default function TermsPage() {
             <section className="space-y-4">
               <h2 className="text-2xl font-semibold text-foreground">Limitation of Liability</h2>
               <p>
-                Post Round Coach shall not be liable for any indirect, incidental, special, consequential, or punitive damages resulting from your use of the service.
+                Post Round shall not be liable for any indirect, incidental, special, consequential, or punitive damages resulting from your use of the service.
               </p>
             </section>
 

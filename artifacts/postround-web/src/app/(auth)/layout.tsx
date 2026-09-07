@@ -12,10 +12,10 @@ export default function AuthLayout({
           {/* Brand Header */}
           <div className="text-center mb-8">
             <h1 className="font-serif text-3xl font-bold text-white mb-1">
-              POST ROUND COACH
+              POST ROUND
             </h1>
             <p className="text-[#D4AF37] text-sm font-medium tracking-wide">
-              AI GOLF COACH
+              PLAY. LEARN. SHARE.
             </p>
           </div>
 

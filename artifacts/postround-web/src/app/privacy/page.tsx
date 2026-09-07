@@ -25,21 +25,21 @@ export default function PrivacyPage() {
             <section className="space-y-4">
               <h2 className="text-2xl font-semibold text-foreground">Overview</h2>
               <p>
-                Post Round Coach is committed to protecting your privacy. This Privacy Policy explains how we collect, use, and safeguard your information when you use our service.
+                Post Round is committed to protecting your privacy. This Privacy Policy explains how we collect, use, and safeguard your information when you use our service.
               </p>
             </section>
 
             <section className="space-y-4">
               <h2 className="text-2xl font-semibold text-foreground">Information We Collect</h2>
               <p>
-                We collect information you provide directly to us, including your name, email address, and the details of your golf rounds that you share through our coaching conversations.
+                We collect information you provide directly to us, including your name, email address, and the details of your golf rounds that you choose to share with the service.
               </p>
             </section>
 
             <section className="space-y-4">
               <h2 className="text-2xl font-semibold text-foreground">How We Use Your Information</h2>
               <p>
-                We use your information to provide personalized coaching insights, build your Player DNA profile, and improve our service. We do not sell your personal information to third parties.
+                We use your information to provide and improve Post Round, including organizing your round context and supporting personalized learning features. We do not sell your personal information to third parties.
               </p>
             </section>
 

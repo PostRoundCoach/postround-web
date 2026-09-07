@@ -70,9 +70,9 @@ export function EmailCaptureModal({ open, onOpenChange }: EmailCaptureModalProps
         {!submitted ? (
           <>
             <DialogHeader>
-              <DialogTitle className="text-2xl font-serif">Add me to Launch Waiting List</DialogTitle>
+              <DialogTitle className="text-2xl font-serif">Join the Launch Waitlist</DialogTitle>
               <DialogDescription>
-                Get early access to Post Round Coach and transform your drive home into the most productive part of your golf game.
+                Be among the first to experience Post Round and a better way to remember, reflect on, and learn from your rounds.
               </DialogDescription>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4 pt-4">
@@ -103,7 +103,7 @@ export function EmailCaptureModal({ open, onOpenChange }: EmailCaptureModalProps
                 <p className="text-sm text-red-500">{error}</p>
               )}
               <Button type="submit" variant="gold" size="lg" className="w-full" disabled={loading}>
-                {loading ? 'Joining...' : 'Get Early Access'}
+                {loading ? 'Joining...' : 'Join the Launch Waitlist'}
               </Button>
             </form>
           </>

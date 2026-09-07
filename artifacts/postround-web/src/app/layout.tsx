@@ -15,11 +15,11 @@ const dmSans = DM_Sans({
 })
 
 export const metadata: Metadata = {
-  title: 'Post Round Coach — Your AI Golf Coach',
-  description: 'Your AI golf coach after every round. Understand your game, identify your patterns, and build your Player DNA.',
+  title: 'Post Round — Play. Learn. Share.',
+  description: 'Your golf round is more than a score. Capture the story, learn from your game, and follow what Post Round is building next.',
   openGraph: {
-    title: 'Post Round Coach',
-    description: 'Your AI golf coach after every round.',
+    title: 'Post Round — Play. Learn. Share.',
+    description: 'Your golf round is more than a score.',
     type: 'website',
   },
 }

@@ -5,7 +5,7 @@ import { Toaster } from '@/components/ui/sonner'
 import { createClient } from '@/lib/supabase/server'
 
 export const metadata: Metadata = {
-  title: 'Creator Studio — Post Round Coach',
+  title: 'Creator Studio — Post Round',
   description: 'Review follower-approved golf stories and generate social content.',
   robots: { index: false, follow: false },
 }
