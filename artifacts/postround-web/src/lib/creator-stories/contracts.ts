@@ -99,6 +99,26 @@ export interface GenerateStoryCandidatesResponse {
   candidates: StoryCandidate[]
 }
 
+export type StoryDraftFormat = 'caption' | 'short_video_script' | 'carousel_outline'
+
+export interface GenerateStoryDraftRequest {
+  story_id: string
+  candidate_id: string
+  format: StoryDraftFormat
+}
+
+export interface StoryDraft {
+  story_id: string
+  candidate_id: string
+  format: StoryDraftFormat
+  content: string
+}
+
+export interface GenerateStoryDraftResponse {
+  ok: true
+  draft: StoryDraft
+}
+
 export interface FetchStoryCandidatesResponse {
   ok: true
   candidates: StoryCandidate[]

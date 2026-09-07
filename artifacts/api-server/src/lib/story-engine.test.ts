@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { generateStoryCandidates, type RoundEvidence } from "./story-engine.ts";
+import { generateStoryCandidates, generateStoryDraft, type RoundEvidence } from "./story-engine.ts";
 import {
   authorizeCreatorStory,
   CreatorContentError,
@@ -63,6 +63,19 @@ test("missing optional analysis and scorecard values do not invent evidence", ()
   });
   assert.ok(candidates.every((candidate) => candidate.scorecard[0]?.yards === null));
   assert.ok(!candidates.some((candidate) => candidate.archetype === "Progress"));
+});
+
+test("draft formats use only the selected persisted candidate fields", () => {
+  const candidate = generateStoryCandidates(base)[0]!;
+  for (const format of ["caption", "short_video_script", "carousel_outline"] as const) {
+    const draft = generateStoryDraft(candidate, format);
+    assert.equal(draft.story_id, candidate.story_id);
+    assert.equal(draft.candidate_id, candidate.id);
+    assert.equal(draft.format, format);
+    assert.ok(draft.content.includes(candidate.hook));
+    assert.ok(draft.content.includes(candidate.summary));
+    assert.ok(!draft.content.includes("shot shape"));
+  }
 });
 
 const requestContext: SupabaseRequestContext = {

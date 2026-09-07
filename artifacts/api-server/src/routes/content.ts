@@ -1,9 +1,9 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import {
   authenticateSupabaseBearer, authorizeCreatorStory, CreatorContentError, fetchPersistedCandidates,
-  loadRoundEvidence, persistCandidates, revokeStoryPermission,
+  fetchPersistedCandidate, loadRoundEvidence, persistCandidates, revokeStoryPermission,
 } from "../lib/creator-content-data";
-import { generateStoryCandidates } from "../lib/story-engine";
+import { generateStoryCandidates, generateStoryDraft, STORY_DRAFT_FORMATS, type StoryDraftFormat } from "../lib/story-engine";
 
 const router: IRouter = Router();
 const storyId = (value: unknown): string | null => typeof value === "string" && /^[0-9a-f-]{36}$/i.test(value) ? value : null;
@@ -71,6 +71,31 @@ router.get("/content/ideas", async (req, res): Promise<void> => {
     const ideas = await fetchPersistedCandidates(access.context, access.creatorId, id);
     req.log.info({ stage: "refresh", storyId: id, candidateCount: ideas.length }, "Refreshed persisted story candidates");
     res.json({ ok: true, ideas });
+  } catch (error) { failure(req, res, error, stage); }
+});
+
+router.post("/content/draft", async (req, res): Promise<void> => {
+  const id = storyId(req.body?.story_id);
+  const candidateId = storyId(req.body?.candidate_id);
+  const format = req.body?.format;
+  const allowedKeys = new Set(["story_id", "candidate_id", "format"]);
+  if (!id || !candidateId || !STORY_DRAFT_FORMATS.includes(format as StoryDraftFormat)
+    || Object.keys(req.body ?? {}).some((key) => !allowedKeys.has(key))) {
+    res.status(400).json({ error: "Body must contain valid story_id, candidate_id, and supported format." });
+    return;
+  }
+  let stage = "authorization";
+  try {
+    const access = await authorized(req, id);
+    stage = "candidate_lookup";
+    const candidate = await fetchPersistedCandidate(access.context, access.creatorId, id, candidateId);
+    stage = "draft_generation";
+    const draft = generateStoryDraft(candidate, format as StoryDraftFormat);
+    req.log.info(
+      { stage, storyId: id, candidateId, format },
+      "Generated creator-editable draft from persisted candidate",
+    );
+    res.json({ ok: true, draft });
   } catch (error) { failure(req, res, error, stage); }
 });
 

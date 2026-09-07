@@ -42,6 +42,16 @@ export interface StoryCandidate {
   scorecard: ScorecardHole[];
 }
 
+export const STORY_DRAFT_FORMATS = ["caption", "short_video_script", "carousel_outline"] as const;
+export type StoryDraftFormat = (typeof STORY_DRAFT_FORMATS)[number];
+
+export interface StoryDraft {
+  candidate_id: string;
+  story_id: string;
+  format: StoryDraftFormat;
+  content: string;
+}
+
 export interface RoundEvidence {
   storyId: string;
   ownerId: string;
@@ -214,4 +224,38 @@ export function generateStoryCandidates(evidence: RoundEvidence): StoryCandidate
     .sort((a, b) => b.score - a.score || a.id.localeCompare(b.id))
     .slice(0, 5)
     .map(({ score: _score, ...candidate }) => candidate);
+}
+
+/**
+ * Expands one persisted candidate without introducing facts beyond its stored
+ * player-safe language and supporting evidence.
+ */
+export function generateStoryDraft(candidate: StoryCandidate, format: StoryDraftFormat): StoryDraft {
+  const evidence = candidate.supporting_evidence.map((item) => `• ${item}`).join("\n");
+  let content: string;
+
+  if (format === "caption") {
+    content = `${candidate.hook}\n\n${candidate.summary}\n\n${candidate.why_interesting}`;
+  } else if (format === "short_video_script") {
+    content = [
+      `OPEN\n${candidate.hook}`,
+      `STORY\n${candidate.summary}`,
+      `WHY IT STANDS OUT\n${candidate.why_interesting}`,
+      `ON-SCREEN EVIDENCE\n${evidence}`,
+    ].join("\n\n");
+  } else {
+    content = [
+      `Slide 1 — Hook\n${candidate.hook}`,
+      `Slide 2 — The story\n${candidate.summary}`,
+      ...candidate.supporting_evidence.map((item, index) => `Slide ${index + 3} — Evidence\n${item}`),
+      `Slide ${candidate.supporting_evidence.length + 3} — Why it matters\n${candidate.why_interesting}`,
+    ].join("\n\n");
+  }
+
+  return {
+    candidate_id: candidate.id,
+    story_id: candidate.story_id,
+    format,
+    content,
+  };
 }

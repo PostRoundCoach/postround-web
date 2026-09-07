@@ -6,6 +6,8 @@ import type {
   PermissionedCreatorStoryRecord,
   GenerateStoryCandidatesRequest,
   GenerateStoryCandidatesResponse,
+  GenerateStoryDraftRequest,
+  GenerateStoryDraftResponse,
   FetchStoryCandidatesResponse,
   RevokeCreatorStoryPermissionResponse,
   ScorecardHole,
@@ -82,6 +84,10 @@ function contentGenerationUrl(): string {
 function generatedIdeasUrl(storyId: string): string {
   const query = new URLSearchParams({ story_id: storyId })
   return `${contentApiBase()}/api/content/ideas?${query.toString()}`
+}
+
+function storyDraftUrl(): string {
+  return `${contentApiBase()}/api/content/draft`
 }
 
 function revokeStoryPermissionUrl(storyId: string): string {
@@ -345,6 +351,44 @@ export async function fetchStoryCandidates(
   return {
     ok: true,
     candidates: candidates as StoryCandidate[],
+  }
+}
+
+export async function generateStoryDraft(
+  supabase: SupabaseClient,
+  input: GenerateStoryDraftRequest,
+  options: { signal?: AbortSignal } = {},
+): Promise<GenerateStoryDraftResponse> {
+  const accessToken = await authenticatedAccessToken(supabase)
+  const response = await fetch(storyDraftUrl(), {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(input),
+    signal: options.signal,
+  })
+  if (!response.ok) throw await apiFailure(response, 'The draft could not be generated.')
+
+  const payload: unknown = await response.json()
+  const result = asObject(payload)
+  const draft = asObject(result?.draft)
+  if (result?.ok !== true
+    || draft?.story_id !== input.story_id
+    || draft.candidate_id !== input.candidate_id
+    || draft.format !== input.format
+    || typeof draft.content !== 'string') {
+    throw new CreatorStoryApiError(500, 'The draft could not be generated.')
+  }
+  return {
+    ok: true,
+    draft: {
+      story_id: draft.story_id as string,
+      candidate_id: draft.candidate_id as string,
+      format: draft.format as GenerateStoryDraftResponse['draft']['format'],
+      content: draft.content,
+    },
   }
 }
 

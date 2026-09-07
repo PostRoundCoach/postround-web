@@ -326,6 +326,18 @@ export async function fetchPersistedCandidates(
   }).sort((a, b) => b.confidence - a.confidence || a.id.localeCompare(b.id));
 }
 
+export async function fetchPersistedCandidate(
+  context: SupabaseRequestContext,
+  creatorId: string,
+  storyId: string,
+  candidateId: string,
+): Promise<StoryCandidate> {
+  const candidates = await fetchPersistedCandidates(context, creatorId, storyId);
+  const candidate = candidates.find((item) => item.id === candidateId);
+  if (!candidate) throw new CreatorContentError(404, "The selected persisted story candidate was not found.");
+  return candidate;
+}
+
 export async function revokeStoryPermission(
   context: SupabaseRequestContext,
   creatorId: string,
