@@ -1,0 +1,444 @@
+Update the Post Round website copy and positioning to reflect the product's new strategic direction.
+
+## IMPORTANT SCOPE
+
+This task is primarily a **website marketing/copy update**.
+
+Do **NOT** modify the creator dashboard, story pipeline, Supabase schema, story candidate/permission logic, round-capture plumbing, Round Buddy backend, or other product infrastructure as part of this task.
+
+The creator dashboard work is continuing separately.
+
+Do not refactor backend systems simply because the website now talks more about creators or sharing.
+
+---
+
+# STRATEGIC POSITIONING
+
+The product is now branded simply as:
+
+**Post Round**
+
+Do not use "Post Round Coach" as the primary product name.
+
+The core product positioning is:
+
+# Play. Learn. Share.
+
+Post Round is not primarily a "drive home AI coach."
+
+The previous website positioned the product around the idea of getting in the car after a round and talking through the round with an AI coach. We are deliberately moving away from making the drive home the central product promise because voice interaction in a moving/noisy vehicle is not reliable enough to make that a core marketing claim.
+
+The AI coaching feature remains important.
+
+However, the broader product story is now:
+
+### PLAY
+
+Capture the round naturally through:
+
+* Scorecard
+* Round Buddy
+* Player observations
+* What actually happened on the course
+
+### LEARN
+
+Use AI coaching to:
+
+* Understand the round
+* Identify patterns
+* Understand why strokes were lost
+* Build Player DNA over time
+* Improve future performance
+
+### SHARE
+
+Turn meaningful rounds into stories:
+
+* Share rounds with favourite creators
+* Give creators more than just a score
+* Eventually allow creators to see the scorecard plus selected Round Buddy moments/transcripts
+* Use the golfer's own words to provide context behind the round
+
+The key conceptual shift is:
+
+**The round itself is the foundation of the product.**
+
+The scorecard tells us what happened.
+
+The player's own words provide context.
+
+AI helps the player understand it.
+
+Sharing turns meaningful rounds into stories.
+
+---
+
+# BRAND VOICE
+
+The copy should feel:
+
+* Modern
+* Golf-native
+* Confident
+* Human
+* Slightly emotional without being cheesy
+* Simple and clear
+* Focused on the experience of playing golf
+
+Avoid:
+
+* Overly technical language
+* Excessive AI hype
+* Making AI the entire product
+* Making the car/drive home the central experience
+* Claims that imply guaranteed handicap improvement
+* Claims about functionality that does not currently exist
+
+The product should feel like something golfers would actually want to use, not an analytics platform disguised as a golf app.
+
+---
+
+# HERO SECTION
+
+Replace the current hero positioning:
+
+"POST ROUND COACH
+Your AI golf coach after every round."
+
+with:
+
+**POST ROUND**
+
+## Play. Learn. Share.
+
+**Your golf round is more than a score.**
+
+Post Round captures what happened, helps you understand your game, and turns your rounds into something worth remembering — and sharing.
+
+Primary CTA:
+
+**Join the Launch Waitlist**
+
+---
+
+# HERO IMAGE
+
+The current hero image is a golfer sitting in a car at dusk.
+
+Replace it if practical with an image that communicates the **round itself**, rather than driving home.
+
+Good visual directions:
+
+* Golfer on course
+* Golfer walking between holes
+* A genuine post-round moment
+* Scorecard + golf context
+* Golfer reflecting on a round
+
+Do not use imagery that reinforces "AI coach in the car" as the primary product experience.
+
+---
+
+# SECTION: EVERY ROUND HAS A STORY
+
+Use:
+
+## Every round has a story.
+
+The birdie you didn't expect.
+
+The hole that got away from you.
+
+The approach you flushed.
+
+The three-putt that drove you crazy.
+
+The shot you keep thinking about after the round.
+
+Post Round brings together your scorecard, your own words, and what happened during the round to create a clearer picture of your game.
+
+**Play your round. Capture the moments. Learn from what happened.**
+
+---
+
+# SECTION: PLAY
+
+## Your round, captured naturally.
+
+You shouldn't have to spend your round filling out forms.
+
+With Round Buddy, simply tap in when you start a hole and tap out when you're finished. Talk naturally about what happened — your shots, your misses, your putts, the good, the bad and everything in between.
+
+Round Buddy keeps track of the story while you play.
+
+Feature cards:
+
+### Scorecard
+
+Record the numbers that matter — score, shots, putts and more.
+
+### Round Buddy
+
+Capture the context behind the numbers in your own words.
+
+### Your Round
+
+Everything comes together in one place, creating a complete picture of what actually happened.
+
+---
+
+# NEW / EXPANDED ROUND BUDDY SECTION
+
+Create a dedicated Round Buddy section/page if the current website architecture supports it.
+
+## ROUND BUDDY
+
+### Your round has a story. Don't lose it.
+
+A scorecard can tell you that you made a 7.
+
+It can't tell you that you hit a perfect drive, caught your approach thin, got frustrated, then tried to force a recovery shot.
+
+**That's where Round Buddy comes in.**
+
+Round Buddy lets you talk naturally about your round as you play. It captures the moments and observations that numbers alone can't.
+
+Because those moments are captured in **your own words**, they become part of the story of your round.
+
+### The score tells us what happened.
+
+### Your words tell us why it mattered.
+
+---
+
+## From shots to stories.
+
+Round Buddy captures the context behind your scorecard.
+
+Use short example quotes such as:
+
+**"That was my best drive of the day."**
+
+**"I had no idea the greens were going to be this fast."**
+
+**"I completely lost my swing on that hole."**
+
+**"That's the first birdie I've made in three rounds."**
+
+Then explain:
+
+Those moments give Post Round something a traditional scorecard never could:
+
+**your perspective.**
+
+IMPORTANT:
+
+Do not imply that Round Buddy currently provides a creator with every transcript from every hole.
+
+The eventual creator experience is intended to surface selected/representative Round Buddy moments, not dump an entire round transcript on a creator.
+
+---
+
+# SECTION: LEARN
+
+## Understand the game you're actually playing.
+
+Post Round brings your rounds together to identify the patterns hiding beneath your scores.
+
+Not just *what* happened.
+
+**Why it happened.**
+
+Your AI coach looks across your rounds to identify recurring tendencies, opportunities and areas to improve.
+
+Feature cards:
+
+### Pattern Recognition
+
+Discover the situations where you consistently play your best — and where your game tends to unravel.
+
+### Scoring Insights
+
+Understand where you're losing strokes and connect those numbers to what actually happened on the course.
+
+### Mental Tendencies
+
+Recognize patterns in decision-making, confidence, aggression and how you respond when a round gets difficult.
+
+### Player DNA
+
+Your Player DNA evolves with every round, building a living picture of how you play golf.
+
+**The more you play, the more Post Round understands.**
+
+---
+
+# SECTION: COACHING
+
+Reframe the existing coaching section.
+
+Do NOT make the driving experience the core workflow.
+
+Instead emphasize that coaching happens after the round and can be consumed in whatever format the product supports.
+
+## A coach that knows your game.
+
+### Stop looking at rounds in isolation.
+
+One round can be an anomaly.
+
+Five rounds start to reveal patterns.
+
+Post Round connects the dots across your rounds so you can see what your scorecard alone can't.
+
+**You don't just get another post-round report.**
+
+You build a deeper understanding of your game over time.
+
+Do not claim that users must get into their car and have a 5–10 minute voice conversation.
+
+Do not make "the drive home" a required step.
+
+---
+
+# NEW SECTION: SHARE
+
+Add a dedicated Share section.
+
+## Your best rounds deserve more than a score.
+
+Some rounds are worth remembering.
+
+Some are worth talking about.
+
+And some are worth sharing.
+
+Post Round is building a new way for golfers and creators to connect around the game they love.
+
+Share your round with your favourite creator — giving them more than a score.
+
+The eventual creator experience will allow creators to see the round's structured information, including the scorecard, along with selected moments from Round Buddy that provide context in the player's own words.
+
+Because 82 isn't just an 82.
+
+**It's the story of how you got there.**
+
+IMPORTANT:
+
+This section should describe the product direction without falsely implying that every aspect of the creator experience is already live.
+
+Use language such as "building," "designed to," or "will" where appropriate for functionality that is not yet publicly available.
+
+---
+
+# SECTION: PLAY. LEARN. SHARE.
+
+Create a simple three-step section:
+
+### 01 — Play
+
+Play your round and capture what happens with your scorecard and Round Buddy.
+
+### 02 — Learn
+
+Get AI-powered coaching that connects the dots between your rounds and reveals the patterns in your game.
+
+### 03 — Share
+
+Turn your memorable rounds into stories you can share with the people and creators you follow.
+
+---
+
+# FINAL CTA
+
+Replace the existing Player DNA-focused CTA with:
+
+## Your game. Your story.
+
+Every golfer has a story behind the score.
+
+Post Round helps you capture it, understand it, and eventually share it.
+
+**Join the Launch Waitlist**
+
+Keep:
+
+* No credit card required
+* 5-minute setup
+* Cancel anytime
+
+Only keep these claims if they accurately reflect the current product.
+
+---
+
+# FOOTER
+
+Use:
+
+## POST ROUND
+
+**Your golf round is more than a score.**
+
+**Play. Learn. Share.**
+
+Product:
+
+* How It Works
+* Round Buddy
+* AI Coaching
+* Player DNA
+* Share Your Round
+
+Legal:
+
+* Privacy Policy
+* Terms of Service
+
+---
+
+# REMOVE / DE-EMPHASIZE
+
+Remove or substantially rewrite any copy that makes these the core product promise:
+
+* "The drive home is where the round gets replayed"
+* "Get in the car"
+* "Twenty minutes in the car"
+* "Talk to your coach on the drive home"
+* "5–10 minute drive-home conversation"
+* "No manual entry" if the current product requires scorecard interaction
+* Any implication that voice coaching in a moving vehicle is the defining Post Round experience
+
+The drive home can still be referenced as a familiar moment of reflection if useful, but it should not be positioned as the primary workflow or reason to use Post Round.
+
+---
+
+# IMPORTANT PRODUCT ARCHITECTURE NOTE
+
+The website positioning is changing, but the underlying product architecture should NOT be changed as part of this task.
+
+The current creator dashboard/plumbing work remains the priority separately:
+
+qualifying round
+→ story candidate
+→ story permission
+→ creator association
+→ creator dashboard
+→ scorecard
+→ selected Round Buddy transcript/context
+
+This website task should not modify or interrupt that pipeline.
+
+The new branding simply reflects where the product is going:
+
+**Play → Learn → Share**
+
+Round Buddy supplies context.
+
+The scorecard supplies structure.
+
+AI coaching supplies learning.
+
+Creators/social sharing supply the emerging sharing layer.
+
+Implement the website copy and presentation changes cleanly while preserving all existing working functionality.
