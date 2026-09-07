@@ -15,7 +15,12 @@ run = "pnpm --filter @workspace/postround-web run dev"
 
 [services.production]
 build = [ "pnpm", "--filter", "@workspace/postround-web", "run", "build" ]
-run = "pnpm --filter @workspace/postround-web run start"
+serve = "static"
+publicDir = "artifacts/postround-web/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
 
 [services.env]
 PORT = "18644"
