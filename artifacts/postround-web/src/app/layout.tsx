@@ -16,10 +16,10 @@ const dmSans = DM_Sans({
 
 export const metadata: Metadata = {
   title: 'Post Round — Play. Learn. Share.',
-  description: 'Your golf round is more than a score. Capture the story, learn from your game, and follow what Post Round is building next.',
+  description: 'Capture your golf round while you play, learn from every score and story, and share the moments that made it yours.',
   openGraph: {
     title: 'Post Round — Play. Learn. Share.',
-    description: 'Your golf round is more than a score.',
+    description: 'Capture your round. Learn from your game. Share your story.',
     type: 'website',
   },
 }

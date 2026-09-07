@@ -8,7 +8,7 @@ export function Footer() {
           <div>
             <h3 className="font-serif text-xl mb-3 text-[#D4AF37]">Post Round</h3>
             <p className="text-sm text-muted-foreground max-w-xs">
-              Your game. Your story. Play the round, learn from it, and follow what comes next.
+              Your game. Your story. Capture the round, learn from it, and share what mattered.
             </p>
           </div>
           
@@ -16,9 +16,10 @@ export function Footer() {
             <h4 className="font-semibold mb-3">Product</h4>
             <ul className="space-y-2 text-sm text-muted-foreground">
               <li><Link href="/#round-buddy" className="hover:text-foreground transition-colors">Round Buddy</Link></li>
-              <li><Link href="/#learn" className="hover:text-foreground transition-colors">AI Coaching</Link></li>
+              <li><Link href="/#how-it-works" className="hover:text-foreground transition-colors">How It Works</Link></li>
+              <li><Link href="/#ai-coaching" className="hover:text-foreground transition-colors">AI Coaching</Link></li>
               <li><Link href="/#player-dna" className="hover:text-foreground transition-colors">Player DNA</Link></li>
-              <li><Link href="/#share" className="hover:text-foreground transition-colors">Share Your Round</Link></li>
+              <li><Link href="/#share-your-round" className="hover:text-foreground transition-colors">Share Your Round</Link></li>
             </ul>
           </div>
           
