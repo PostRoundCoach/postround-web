@@ -65,7 +65,6 @@ export function StoryQueue({
             <StoryCard
               key={story.id}
               story={story}
-              creatorId={profile.id}
               onDismissed={onStoryDismissed}
             />
           ))}

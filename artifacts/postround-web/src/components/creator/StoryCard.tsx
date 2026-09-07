@@ -1,52 +1,60 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Calendar, CircleCheck, Loader2, MapPin, RefreshCw, Sparkles, Trash2, User } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { createClient } from '@/lib/supabase/client'
-import type { CreatorStory, GeneratedIdea } from '@/lib/creator-stories/contracts'
+import type { CreatorStory, StoryCandidate } from '@/lib/creator-stories/contracts'
 import {
-  fetchGeneratedCreatorStoryIdeas,
-  generateCreatorStoryContent,
+  CreatorStoryApiError,
+  fetchStoryCandidates,
+  generateStoryCandidates,
   revokeCreatorStoryPermission,
 } from '@/lib/creator-stories/client'
-import { GeneratedIdeaCard } from './GeneratedIdeaCard'
+import { StoryCandidateCard } from './StoryCandidateCard'
 
 export function StoryCard({
   story,
-  creatorId,
   onDismissed,
 }: {
   story: CreatorStory
-  creatorId: string
   onDismissed: (storyId: string) => void
 }) {
   const [isGenerating, setIsGenerating] = useState(false)
   const [isFetchingIdeas, setIsFetchingIdeas] = useState(false)
   const [generatedCount, setGeneratedCount] = useState<number | null>(null)
-  const [generatedIdeas, setGeneratedIdeas] = useState<GeneratedIdea[] | null>(null)
+  const [candidates, setCandidates] = useState<StoryCandidate[] | null>(null)
   const [generationFailed, setGenerationFailed] = useState(false)
+  const [generationFailureStage, setGenerationFailureStage] = useState<string | null>(null)
   const [retrievalFailed, setRetrievalFailed] = useState(false)
   const [isDismissing, setIsDismissing] = useState(false)
   const [dismissalFailed, setDismissalFailed] = useState(false)
 
-  const loadGeneratedIdeas = async (
+  const loadCandidates = async (
     supabase: NonNullable<ReturnType<typeof createClient>>,
   ) => {
     setIsFetchingIdeas(true)
     setRetrievalFailed(false)
 
     try {
-      const result = await fetchGeneratedCreatorStoryIdeas(supabase, story.id)
-      setGeneratedIdeas(result.ideas)
+      const result = await fetchStoryCandidates(supabase, story.id)
+      setCandidates(result.candidates)
     } catch {
       setRetrievalFailed(true)
     } finally {
       setIsFetchingIdeas(false)
     }
   }
+
+  useEffect(() => {
+    const supabase = createClient()
+    if (!supabase) return
+    void loadCandidates(supabase)
+    // The story ID is stable for the lifetime of this card.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [story.id])
 
   const handleGenerate = async () => {
     if (isGenerating || isFetchingIdeas) return
@@ -59,20 +67,22 @@ export function StoryCard({
 
     setIsGenerating(true)
     setGenerationFailed(false)
+    setGenerationFailureStage(null)
     setRetrievalFailed(false)
     setGeneratedCount(null)
-    setGeneratedIdeas(null)
+    setCandidates(null)
 
     try {
-      const result = await generateCreatorStoryContent(supabase, {
-        creator_id: creatorId,
-        story_id: story.id,
-      })
+      const result = await generateStoryCandidates(supabase, { story_id: story.id })
       setGeneratedCount(result.count)
+      // The server may return candidates immediately, but persisted candidates
+      // remain authoritative after a reload or another creator session.
+      setCandidates(result.candidates)
       setIsGenerating(false)
-      await loadGeneratedIdeas(supabase)
-    } catch {
+      await loadCandidates(supabase)
+    } catch (error) {
       setGenerationFailed(true)
+      setGenerationFailureStage(error instanceof CreatorStoryApiError ? error.stage : null)
     } finally {
       setIsGenerating(false)
     }
@@ -87,7 +97,7 @@ export function StoryCard({
       return
     }
 
-    await loadGeneratedIdeas(supabase)
+    await loadCandidates(supabase)
   }
 
   const handleDismiss = async () => {
@@ -185,9 +195,9 @@ export function StoryCard({
             <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
               <Sparkles className="h-6 w-6 text-primary" />
             </div>
-            <h3 className="font-serif text-xl font-bold">Create social content</h3>
+            <h3 className="font-serif text-xl font-bold">Find the story in this round</h3>
             <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-              Generate content ideas from this approved follower story.
+              Generate evidence-backed angles about this player’s round for your audience.
             </p>
 
             <Button
@@ -204,7 +214,7 @@ export function StoryCard({
               ) : (
                 <>
                   <Sparkles className="h-4 w-4" />
-                  Generate content
+                  Generate story candidates
                 </>
               )}
             </Button>
@@ -261,9 +271,9 @@ export function StoryCard({
                 data-testid={`status-ideas-loading-${story.id}`}
               >
                 <Loader2 className="h-4 w-4 animate-spin" />
-                <AlertTitle>Loading your ideas</AlertTitle>
+                <AlertTitle>Retrieving saved story candidates</AlertTitle>
                 <AlertDescription>
-                  Generation completed. Retrieving the saved content now.
+                  Generation completed. Retrieving the saved candidates now.
                 </AlertDescription>
               </Alert>
             )}
@@ -274,10 +284,10 @@ export function StoryCard({
                 data-testid={`status-generation-success-${story.id}`}
               >
                 <CircleCheck className="h-4 w-4" />
-                <AlertTitle>Content generated</AlertTitle>
+                <AlertTitle>Story candidates generated</AlertTitle>
                 <AlertDescription>
-                  {generatedCount} idea{generatedCount === 1 ? '' : 's'} created from
-                  “{story.headline}”.
+                  {generatedCount} candidate{generatedCount === 1 ? '' : 's'} found for
+                  this player’s round.
                 </AlertDescription>
               </Alert>
             )}
@@ -288,8 +298,11 @@ export function StoryCard({
                 className="mt-5 text-left"
                 data-testid={`status-generation-error-${story.id}`}
               >
-                <AlertTitle>Generation didn’t complete</AlertTitle>
+                <AlertTitle>Candidate generation didn’t complete</AlertTitle>
                 <AlertDescription>
+                  {generationFailureStage
+                    ? `The ${generationFailureStage.replaceAll('_', ' ')} stage failed. `
+                    : ''}
                   Please try again. This story remains available in your queue.
                 </AlertDescription>
               </Alert>
@@ -304,7 +317,7 @@ export function StoryCard({
                 <AlertTitle>Ideas couldn’t be loaded</AlertTitle>
                 <AlertDescription>
                   <p>
-                    Generation completed, but the saved ideas could not be retrieved.
+                    Generation completed, but the saved candidates could not be retrieved.
                     This story remains available.
                   </p>
                   <Button
@@ -317,7 +330,7 @@ export function StoryCard({
                     data-testid={`button-retry-ideas-${story.id}`}
                   >
                     <RefreshCw className="h-3.5 w-3.5" />
-                    Retry loading ideas
+                    Retry retrieval
                   </Button>
                 </AlertDescription>
               </Alert>
@@ -326,32 +339,32 @@ export function StoryCard({
         </div>
       </div>
 
-      {generatedIdeas !== null && !isFetchingIdeas && !retrievalFailed && (
+      {candidates !== null && !isFetchingIdeas && !retrievalFailed && (
         <div
           className="border-t border-border bg-muted/10 p-6 sm:p-8"
-          data-testid={`section-generated-ideas-${story.id}`}
+          data-testid={`section-story-candidates-${story.id}`}
         >
           <div className="mb-5">
             <p className="text-xs font-bold uppercase tracking-[0.18em] text-primary">
-              Generated from this follower story
+              Evidence-backed candidate angles
             </p>
             <h3 className="mt-2 font-serif text-2xl font-bold">{story.headline}</h3>
           </div>
 
-          {generatedIdeas.length === 0 ? (
+          {candidates.length === 0 ? (
             <div
               className="rounded-xl border border-dashed border-border bg-background px-5 py-8 text-center"
-              data-testid={`status-ideas-empty-${story.id}`}
+              data-testid={`status-candidates-empty-${story.id}`}
             >
-              <p className="font-medium">No generated ideas are available yet.</p>
+              <p className="font-medium">No supported story candidates were found.</p>
               <p className="mt-1 text-sm text-muted-foreground">
-                You can generate content from this story again when you’re ready.
+                There is no publish-ready content here—try again if more round evidence becomes available.
               </p>
             </div>
           ) : (
             <div className="grid gap-4 lg:grid-cols-2">
-              {generatedIdeas.map((idea) => (
-                <GeneratedIdeaCard key={idea.id} idea={idea} />
+              {candidates.map((candidate) => (
+                <StoryCandidateCard key={candidate.id} candidate={candidate} />
               ))}
             </div>
           )}

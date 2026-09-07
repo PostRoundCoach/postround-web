@@ -4,11 +4,14 @@ import type {
   CreatorStory,
   CreatorStoryRecord,
   PermissionedCreatorStoryRecord,
-  GenerateCreatorStoryContentRequest,
-  GenerateCreatorStoryContentResponse,
-  FetchGeneratedCreatorStoryIdeasResponse,
-  GeneratedIdea,
+  GenerateStoryCandidatesRequest,
+  GenerateStoryCandidatesResponse,
+  FetchStoryCandidatesResponse,
   RevokeCreatorStoryPermissionResponse,
+  ScorecardHole,
+  StoryCandidate,
+  StoryCandidateEvidence,
+  StoryTranscriptHighlight,
 } from './contracts'
 
 const CREATOR_PROFILE_SELECT = `
@@ -46,11 +49,17 @@ export class CreatorStoryIntegrationError extends Error {
 
 export class CreatorStoryApiError extends Error {
   readonly status: number
+  readonly stage: string | null
 
-  constructor(status: number, message = 'Content generation could not be completed.') {
+  constructor(
+    status: number,
+    message = 'Content generation could not be completed.',
+    stage: string | null = null,
+  ) {
     super(message)
     this.name = 'CreatorStoryApiError'
     this.status = status
+    this.stage = stage
   }
 }
 
@@ -63,12 +72,7 @@ export class CreatorStoryConfigurationError extends Error {
 
 function contentApiBase(): string {
   const apiBase = process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL?.trim()
-
-  if (!apiBase) {
-    throw new CreatorStoryConfigurationError()
-  }
-
-  return apiBase.replace(/\/+$/, '')
+  return apiBase ? apiBase.replace(/\/+$/, '') : ''
 }
 
 function contentGenerationUrl(): string {
@@ -122,39 +126,62 @@ function stringList(
   return []
 }
 
-function toGeneratedIdea(value: unknown): GeneratedIdea | null {
-  const idea = asObject(value)
-  if (!idea) return null
+const ARCHETYPES = new Set([
+  'Achievement', 'Drama', 'Surprise', 'Failure / Disaster', 'Insight', 'Progress',
+])
 
-  const requiredFields = [
-    'id',
-    'story_id',
-    'title',
-    'hook',
-    'script',
-    'created_at',
-  ] as const
+function isOptionalStoredNumber(value: unknown): value is number | null | undefined {
+  return value === undefined || value === null || typeof value === 'number'
+}
 
-  if (requiredFields.some((field) => typeof idea[field] !== 'string')) {
+function toScorecardHole(value: unknown): ScorecardHole | null {
+  const row = asObject(value)
+  if (!row || typeof row.hole !== 'number') return null
+  const numberFields = ['yards', 'par', 'score', 'chips', 'putts', 'penalties']
+  const stringFields = ['fairway', 'green']
+  const booleanFields = ['playable', 'sand']
+  if (numberFields.some((field) => !isOptionalStoredNumber(row[field]))
+    || stringFields.some((field) => row[field] !== undefined && row[field] !== null && typeof row[field] !== 'string')
+    || booleanFields.some((field) => row[field] !== undefined && row[field] !== null && typeof row[field] !== 'boolean')) {
     return null
   }
+  return row as unknown as ScorecardHole
+}
 
-  if (
-    idea.category !== undefined
-    && idea.category !== null
-    && typeof idea.category !== 'string'
-  ) {
+function toStoryCandidate(value: unknown): StoryCandidate | null {
+  const candidate = asObject(value)
+  if (!candidate) return null
+  const strings = ['id', 'story_id', 'archetype', 'title', 'hook', 'summary', 'why_interesting'] as const
+  if (strings.some((field) => typeof candidate[field] !== 'string')
+    || !ARCHETYPES.has(candidate.archetype as string)
+    || typeof candidate.confidence !== 'number'
+    || !Array.isArray(candidate.supporting_evidence)
+    || !Array.isArray(candidate.relevant_holes)
+    || !Array.isArray(candidate.scorecard)
+    || (candidate.suggested_format !== null && candidate.suggested_format !== undefined && typeof candidate.suggested_format !== 'string')) {
     return null
   }
-
+  const evidence = candidate.supporting_evidence
+  if (!Array.isArray(evidence) || !evidence.every((item) => typeof item === 'string')) return null
+  const transcriptHighlights = candidate.transcript_highlights === undefined
+    ? []
+    : candidate.transcript_highlights
+  if (!Array.isArray(transcriptHighlights)) return null
+  const highlights = transcriptHighlights.map((item): StoryTranscriptHighlight | null => {
+    return typeof item === 'string' ? { excerpt: item } : null
+  })
+  const scorecard = candidate.scorecard.map(toScorecardHole)
+  if (!candidate.relevant_holes.every((hole) => typeof hole === 'number')
+    || highlights.some((item) => item === null)
+    || scorecard.some((item) => item === null)) return null
   return {
-    id: idea.id as string,
-    story_id: idea.story_id as string,
-    category: typeof idea.category === 'string' ? idea.category : null,
-    title: idea.title as string,
-    hook: idea.hook as string,
-    script: idea.script as string,
-    created_at: idea.created_at as string,
+    id: candidate.id as string, story_id: candidate.story_id as string,
+    archetype: candidate.archetype as StoryCandidate['archetype'],
+    title: candidate.title as string, hook: candidate.hook as string,
+    summary: candidate.summary as string, why_interesting: candidate.why_interesting as string,
+    evidence: (evidence as string[]).map((detail) => ({ label: 'Stored evidence', detail })), relevant_holes: candidate.relevant_holes as number[],
+    confidence: candidate.confidence, suggested_format: candidate.suggested_format as string | null ?? null,
+    transcript_highlights: highlights as StoryTranscriptHighlight[], scorecard: scorecard as ScorecardHole[],
   }
 }
 
@@ -167,6 +194,20 @@ async function authenticatedAccessToken(supabase: SupabaseClient): Promise<strin
   }
 
   return accessToken
+}
+
+async function apiFailure(response: Response, fallback: string): Promise<CreatorStoryApiError> {
+  let message = fallback
+  let stage: string | null = null
+  try {
+    const payload: unknown = await response.json()
+    const value = asObject(payload)
+    if (typeof value?.error === 'string' && value.error.trim()) message = value.error
+    if (typeof value?.stage === 'string' && value.stage.trim()) stage = value.stage
+  } catch {
+    // A non-JSON upstream failure still retains its HTTP status and safe fallback.
+  }
+  return new CreatorStoryApiError(response.status, message, stage)
 }
 
 export function toCreatorStory(record: CreatorStoryRecord): CreatorStory {
@@ -240,11 +281,11 @@ export async function fetchPermissionedCreatorStories(
   })
 }
 
-export async function generateCreatorStoryContent(
+export async function generateStoryCandidates(
   supabase: SupabaseClient,
-  input: GenerateCreatorStoryContentRequest,
+  input: GenerateStoryCandidatesRequest,
   options: { signal?: AbortSignal } = {},
-): Promise<GenerateCreatorStoryContentResponse> {
+): Promise<GenerateStoryCandidatesResponse> {
   const accessToken = await authenticatedAccessToken(supabase)
 
   const response = await fetch(contentGenerationUrl(), {
@@ -258,24 +299,25 @@ export async function generateCreatorStoryContent(
   })
 
   if (!response.ok) {
-    throw new CreatorStoryApiError(response.status)
+    throw await apiFailure(response, 'Content generation could not be completed.')
   }
 
   const payload: unknown = await response.json()
   const result = asObject(payload)
 
-  if (result?.ok !== true || typeof result.count !== 'number') {
+  if (result?.ok !== true || typeof result.count !== 'number' || !Array.isArray(result.candidates)) {
     throw new CreatorStoryApiError(500)
   }
-
-  return { ok: true, count: result.count }
+  const candidates = result.candidates.map(toStoryCandidate)
+  if (candidates.some((candidate) => candidate === null)) throw new CreatorStoryApiError(500)
+  return { ok: true, count: result.count, candidates: candidates as StoryCandidate[] }
 }
 
-export async function fetchGeneratedCreatorStoryIdeas(
+export async function fetchStoryCandidates(
   supabase: SupabaseClient,
   storyId: string,
   options: { signal?: AbortSignal } = {},
-): Promise<FetchGeneratedCreatorStoryIdeasResponse> {
+): Promise<FetchStoryCandidatesResponse> {
   const accessToken = await authenticatedAccessToken(supabase)
   const response = await fetch(generatedIdeasUrl(storyId), {
     method: 'GET',
@@ -286,10 +328,7 @@ export async function fetchGeneratedCreatorStoryIdeas(
   })
 
   if (!response.ok) {
-    throw new CreatorStoryApiError(
-      response.status,
-      'Generated content could not be loaded.',
-    )
+    throw await apiFailure(response, 'Generated content could not be loaded.')
   }
 
   const payload: unknown = await response.json()
@@ -298,14 +337,14 @@ export async function fetchGeneratedCreatorStoryIdeas(
     throw new CreatorStoryApiError(500, 'Generated content could not be loaded.')
   }
 
-  const ideas = result.ideas.map(toGeneratedIdea)
-  if (ideas.some((idea) => idea === null)) {
+  const candidates = result.ideas.map(toStoryCandidate)
+  if (candidates.some((candidate) => candidate === null)) {
     throw new CreatorStoryApiError(500, 'Generated content could not be loaded.')
   }
 
   return {
     ok: true,
-    ideas: ideas as GeneratedIdea[],
+    candidates: candidates as StoryCandidate[],
   }
 }
 
@@ -324,10 +363,7 @@ export async function revokeCreatorStoryPermission(
   })
 
   if (!response.ok) {
-    throw new CreatorStoryApiError(
-      response.status,
-      'The story could not be dismissed.',
-    )
+    throw await apiFailure(response, 'The story could not be dismissed.')
   }
 
   const payload: unknown = await response.json()

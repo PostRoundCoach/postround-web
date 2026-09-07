@@ -50,29 +50,58 @@ export interface CreatorStory {
   supportingFacts: string[]
 }
 
-export interface GenerateCreatorStoryContentRequest {
-  creator_id: string
+export interface GenerateStoryCandidatesRequest {
   story_id: string
 }
 
-export interface GenerateCreatorStoryContentResponse {
-  ok: true
-  count: number
+export interface ScorecardHole {
+  hole: number
+  yards?: number | null
+  par?: number | null
+  score?: number | null
+  fairway?: string | null
+  green?: string | null
+  playable?: boolean | null
+  chips?: number | null
+  putts?: number | null
+  sand?: boolean | null
+  penalties?: number | null
 }
 
-export interface GeneratedIdea {
+export interface StoryTranscriptHighlight {
+  excerpt: string
+}
+
+export interface StoryCandidateEvidence {
+  label: string
+  detail: string
+}
+
+export interface StoryCandidate {
   id: string
   story_id: string
-  category: string | null
+  archetype: 'Achievement' | 'Drama' | 'Surprise' | 'Failure / Disaster' | 'Insight' | 'Progress'
   title: string
   hook: string
-  script: string
-  created_at: string
+  summary: string
+  why_interesting: string
+  evidence: StoryCandidateEvidence[]
+  relevant_holes: number[]
+  confidence: number
+  suggested_format: string | null
+  transcript_highlights: StoryTranscriptHighlight[]
+  scorecard: ScorecardHole[]
 }
 
-export interface FetchGeneratedCreatorStoryIdeasResponse {
+export interface GenerateStoryCandidatesResponse {
   ok: true
-  ideas: GeneratedIdea[]
+  count: number
+  candidates: StoryCandidate[]
+}
+
+export interface FetchStoryCandidatesResponse {
+  ok: true
+  candidates: StoryCandidate[]
 }
 
 export interface RevokeCreatorStoryPermissionResponse {
