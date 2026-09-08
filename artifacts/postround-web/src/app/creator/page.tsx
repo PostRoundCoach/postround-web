@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import { CreatorDashboard } from '@/components/creator/CreatorDashboard'
 import { Toaster } from '@/components/ui/sonner'
 import { createClient } from '@/lib/supabase/server'
+import { fetchOwnedActiveCreatorProfile } from '@/lib/creator-stories/client'
 
 export const metadata: Metadata = {
   title: 'Creator Studio — Post Round',
@@ -28,6 +29,11 @@ export default async function CreatorPage() {
 
   if (!user) {
     redirect('/login')
+  }
+
+  const profile = await fetchOwnedActiveCreatorProfile(supabase)
+  if (!profile) {
+    redirect('/dashboard/profile')
   }
 
   return (

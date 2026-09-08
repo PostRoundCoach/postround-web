@@ -5,13 +5,6 @@ import { usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { User } from '@supabase/supabase-js'
 import { 
-  LayoutDashboard, 
-  TrendingUp, 
-  FileText, 
-  Dna, 
-  UserCircle, 
-  CreditCard, 
-  Settings, 
   Menu,
   Shield,
 } from 'lucide-react'
@@ -19,23 +12,25 @@ import { cn } from '@/lib/utils'
 import { SignOutButton } from '@/components/auth/SignOutButton'
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
+import { getDashboardNavItems } from './navigation'
 
 interface DashboardShellProps {
   children: React.ReactNode
   user: User
+  hasCreatorProfile: boolean
 }
 
-const navItems = [
-  { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-  { href: '/dashboard/rounds', icon: TrendingUp, label: 'My Rounds' },
-  { href: '/dashboard/coaching', icon: FileText, label: 'Coaching Reports' },
-  { href: '/dashboard/player-dna', icon: Dna, label: 'Player DNA' },
-  { href: '/dashboard/profile', icon: UserCircle, label: 'Profile' },
-  { href: '/dashboard/billing', icon: CreditCard, label: 'Billing' },
-  { href: '/dashboard/settings', icon: Settings, label: 'Settings' },
-]
+function Sidebar({
+  pathname,
+  isAdmin,
+  hasCreatorProfile,
+}: {
+  pathname: string
+  isAdmin: boolean
+  hasCreatorProfile: boolean
+}) {
+  const navItems = getDashboardNavItems(hasCreatorProfile)
 
-function Sidebar({ pathname, isAdmin }: { pathname: string; isAdmin: boolean }) {
   return (
     <div className="flex flex-col h-full bg-[#0D1B12] border-r border-border">
       {/* Sidebar Header */}
@@ -104,7 +99,7 @@ function Sidebar({ pathname, isAdmin }: { pathname: string; isAdmin: boolean }) 
   )
 }
 
-export function DashboardShell({ children, user }: DashboardShellProps) {
+export function DashboardShell({ children, user, hasCreatorProfile }: DashboardShellProps) {
   const pathname = usePathname()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const isAdmin = user.app_metadata?.role === 'admin'
@@ -113,7 +108,11 @@ export function DashboardShell({ children, user }: DashboardShellProps) {
     <div className="min-h-[100dvh] flex">
       {/* Desktop Sidebar */}
       <aside className="hidden lg:block w-64 fixed left-0 top-0 bottom-0">
-        <Sidebar pathname={pathname} isAdmin={isAdmin} />
+        <Sidebar
+          pathname={pathname}
+          isAdmin={isAdmin}
+          hasCreatorProfile={hasCreatorProfile}
+        />
       </aside>
 
       {/* Main Content */}
@@ -129,7 +128,11 @@ export function DashboardShell({ children, user }: DashboardShellProps) {
                   </Button>
                 </SheetTrigger>
                 <SheetContent side="left" className="w-64 p-0">
-                  <Sidebar pathname={pathname} isAdmin={isAdmin} />
+                  <Sidebar
+                    pathname={pathname}
+                    isAdmin={isAdmin}
+                    hasCreatorProfile={hasCreatorProfile}
+                  />
                 </SheetContent>
               </Sheet>
               
