@@ -1,0 +1,308 @@
+Update the Post Round website navigation so that authenticated creators can easily access their Creator Dashboard from the left-hand sidebar and can navigate back from the Creator Dashboard to their profile or appropriate landing page.
+
+## Objective
+
+When a user logs into the website:
+
+1. Determine whether the authenticated user is a creator.
+2. If they are a creator, display a **Creator Dashboard** link in the existing left-hand sidebar.
+3. If they are not a creator, do not display the link.
+4. Clicking **Creator Dashboard** takes the creator to their own existing creator dashboard.
+5. Add a clear **Back to Profile** or equivalent back-navigation control within the Creator Dashboard that returns the creator to their own profile/landing page.
+6. Preserve all existing navigation, authentication, creator functionality, story functionality, and styling.
+
+This should be a focused navigation/UX change. Do not create duplicate creator infrastructure.
+
+---
+
+## 1. Inspect the existing implementation first
+
+Before making changes, identify:
+
+* How the currently authenticated user is obtained.
+* How the application currently determines whether a user is a creator.
+* The existing creator dashboard route/page.
+* The existing creator profile/landing-page route.
+* Existing route guards or authorization logic.
+* The component that controls the left-hand sidebar.
+* Any existing back-button/navigation patterns used elsewhere in the application.
+
+Reuse the existing implementation wherever possible.
+
+Do NOT introduce a new creator role system if creator identification already exists.
+
+---
+
+## 2. Add Creator Dashboard to the left sidebar
+
+Modify the existing left-hand sidebar/navigation component.
+
+For an authenticated creator, display:
+
+**Creator Dashboard**
+
+Use the existing sidebar's:
+
+* Typography
+* Spacing
+* Icons
+* Hover behavior
+* Active-state styling
+* Responsive behavior
+
+Do not redesign the sidebar.
+
+For ordinary players, the navigation should remain unchanged and **Creator Dashboard should not appear**.
+
+Conceptually:
+
+```text
+Normal player:
+
+Home
+Rounds
+...
+Profile
+
+
+Creator:
+
+Home
+Rounds
+...
+Creator Dashboard
+Profile
+```
+
+Place the item in the most logical existing location based on the current navigation structure.
+
+---
+
+## 3. Navigate to the creator's own dashboard
+
+The sidebar link must use the existing creator dashboard route.
+
+Do not hard-code a creator ID.
+
+The dashboard should resolve the currently authenticated creator using the application's existing authentication/creator infrastructure.
+
+If the existing route is something like:
+
+```text
+/creator-dashboard
+```
+
+use that.
+
+If the existing implementation uses a creator-specific route such as:
+
+```text
+/creator/:creatorId
+```
+
+derive the ID from the authenticated creator rather than hard-coding it.
+
+Inspect the actual codebase and use the route that already exists.
+
+---
+
+## 4. Add back navigation from Creator Dashboard
+
+Add a clear navigation control on the Creator Dashboard allowing the creator to return to their normal profile/landing page.
+
+Preferred label:
+
+**← Back to Profile**
+
+or, if the existing site terminology/design makes another label more appropriate:
+
+**← Back**
+
+The destination must be the creator's **own existing profile or creator landing page**, not the generic application home page unless that is currently the creator's intended landing page.
+
+Before implementing, inspect the existing routing structure and determine the correct destination.
+
+For example:
+
+```text
+Profile
+   ↓
+Creator Dashboard
+   ↓
+← Back to Profile
+```
+
+The back control should be positioned somewhere intuitive, preferably near the top of the dashboard/page header.
+
+Use the application's existing button/link styling.
+
+Do not introduce a new profile page just to support this navigation.
+
+---
+
+## 5. Important navigation behavior
+
+The intended experience is:
+
+```text
+Creator logs in
+       ↓
+Creator sees "Creator Dashboard" in sidebar
+       ↓
+Clicks Creator Dashboard
+       ↓
+Creator Dashboard
+       ↓
+Clicks "← Back to Profile"
+       ↓
+Their own Profile / creator landing page
+```
+
+The creator should always return to their own authenticated profile.
+
+Do not send them to another creator's profile.
+
+---
+
+## 6. Authorization/security
+
+Sidebar visibility is only a UX feature.
+
+The Creator Dashboard itself must continue to enforce existing authorization.
+
+A non-creator must not gain dashboard access simply by manually entering the dashboard URL.
+
+Likewise, a creator must not be able to access another creator's dashboard simply by modifying a creator ID in the URL.
+
+Do not weaken existing Supabase/authentication/RLS/authorization protections.
+
+Reuse existing security mechanisms.
+
+---
+
+## 7. Loading state
+
+If creator status is loaded asynchronously, use the application's existing authentication/loading mechanism.
+
+Avoid briefly showing the Creator Dashboard link to a normal player while creator status is being determined.
+
+Do not introduce unnecessary loading UI if the existing application already handles this correctly.
+
+---
+
+## 8. Active navigation state
+
+When the creator is inside the Creator Dashboard, the sidebar item should receive the same active styling used by the other navigation items.
+
+If the dashboard contains nested routes, treat those as part of the Creator Dashboard where appropriate.
+
+For example:
+
+```text
+/creator-dashboard
+/creator-dashboard/stories
+/creator-dashboard/settings
+```
+
+should maintain the Creator Dashboard active state if those routes exist.
+
+---
+
+## 9. Responsive behavior
+
+Preserve all existing responsive behavior.
+
+The new sidebar item and dashboard back button must work correctly on:
+
+* Desktop
+* Tablet
+* Mobile
+* Collapsed sidebar layouts, if applicable
+
+Do not redesign the existing navigation.
+
+---
+
+## 10. Do not change
+
+Do NOT modify:
+
+* Creator/story generation logic
+* Story approval logic
+* Creator permissions
+* Authentication
+* Supabase schema unless absolutely necessary
+* Existing dashboard functionality
+* Existing profile functionality
+* Existing player navigation
+* Existing sidebar styling
+* Existing creator authorization
+* Existing routes unless required to connect the already-existing functionality
+
+This task is specifically about improving navigation between the existing authenticated creator experience, profile/landing page, and Creator Dashboard.
+
+---
+
+## 11. Acceptance criteria
+
+### Normal player
+
+Log in as a normal player.
+
+Verify:
+
+* Existing sidebar appears normally.
+* Creator Dashboard is NOT visible.
+* Existing navigation continues to work.
+* No creator functionality is exposed.
+
+### Creator
+
+Log in as a creator.
+
+Verify:
+
+* Existing sidebar appears normally.
+* Creator Dashboard is visible.
+* Clicking it opens the existing Creator Dashboard.
+* The dashboard belongs to the authenticated creator.
+* Creator Dashboard has the correct active sidebar state.
+* A clear "Back to Profile" or equivalent control is visible.
+* Clicking it returns to the creator's own existing profile/landing page.
+
+### Security
+
+Verify:
+
+* A non-creator cannot access the Creator Dashboard simply by manually entering its URL.
+* A creator cannot access another creator's dashboard by changing a URL parameter.
+* Existing authorization remains intact.
+
+---
+
+## 12. Development approach
+
+First inspect the existing codebase and briefly identify:
+
+1. Which component controls the sidebar.
+2. How creator status is currently determined.
+3. The existing Creator Dashboard route.
+4. The existing creator profile/landing-page route.
+5. What authorization protects the Creator Dashboard.
+6. Any existing navigation/back-button patterns that should be reused.
+
+Then implement the **smallest clean change necessary**.
+
+After implementation, run the relevant tests, type checks, lint checks, and/or build checks.
+
+Report:
+
+* Files changed
+* How creator detection works
+* Dashboard route used
+* Profile/landing route used for the back button
+* How the dashboard remains protected
+* Tests/checks run
+* Any issues that remain
+
+Do not create duplicate creator logic, duplicate dashboard pages, or duplicate profile pages.
