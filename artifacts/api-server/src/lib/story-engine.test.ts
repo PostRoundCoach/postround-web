@@ -7,6 +7,8 @@ import {
   fetchPersistedCandidates,
   loadRoundEvidence,
   persistCandidates,
+  requestStoryApproval,
+  dismissCreatorStory,
   type SupabaseRequestContext,
 } from "./creator-content-data.ts";
 
@@ -249,4 +251,86 @@ test("creator-scoped persistence cannot erase another permitted creator's candid
     (await fetchPersistedCandidates(context, creatorB, base.storyId)).map((item) => item.id),
     generatedB.map((item) => item.id),
   );
+});
+
+test("approval requests reuse the active pending permission and never approve it", async () => {
+  const methods: string[] = [];
+  const context: SupabaseRequestContext = {
+    ...requestContext,
+    proxy: async (_path, init) => {
+      methods.push(init?.method ?? "GET");
+      if (!init?.method) {
+        return Response.json([{
+          id: "99999999-9999-4999-8999-999999999999",
+          story_id: base.storyId,
+          user_id: "dddddddd-dddd-dddd-dddd-dddddddddddd",
+          permission_granted: true,
+          granted_at: null,
+          revoked_at: null,
+        }]);
+      }
+      assert.equal(init.method, "PATCH");
+      assert.ok(String(init.body).includes('"updated_at"'));
+      return Response.json([{
+        id: "99999999-9999-4999-8999-999999999999",
+        story_id: base.storyId,
+        user_id: "dddddddd-dddd-dddd-dddd-dddddddddddd",
+        permission_granted: true,
+        granted_at: null,
+        revoked_at: null,
+      }]);
+    },
+  };
+
+  assert.equal(
+    await requestStoryApproval(context, base.ownerId, base.storyId),
+    "pending",
+  );
+  assert.deepEqual(methods, ["GET", "PATCH"]);
+});
+
+test("an approved permission stays approved without a duplicate request mutation", async () => {
+  const methods: string[] = [];
+  const context: SupabaseRequestContext = {
+    ...requestContext,
+    proxy: async (_path, init) => {
+      methods.push(init?.method ?? "GET");
+      return Response.json([{
+        id: "99999999-9999-4999-8999-999999999999",
+        story_id: base.storyId,
+        user_id: "dddddddd-dddd-dddd-dddd-dddddddddddd",
+        permission_granted: true,
+        granted_at: "2026-09-08T20:00:00Z",
+        revoked_at: null,
+      }]);
+    },
+  };
+
+  assert.equal(
+    await requestStoryApproval(context, base.ownerId, base.storyId),
+    "approved",
+  );
+  assert.deepEqual(methods, ["GET"]);
+});
+
+test("dismissal updates only the resolved creator permission row", async () => {
+  const permissionId = "99999999-9999-4999-8999-999999999999";
+  let requestedPath = "";
+  const context: SupabaseRequestContext = {
+    ...requestContext,
+    proxy: async (path, init) => {
+      requestedPath = path;
+      assert.equal(init?.method, "PATCH");
+      assert.ok(String(init?.body).includes('"permission_granted":false'));
+      return Response.json([{ story_id: base.storyId }]);
+    },
+  };
+
+  assert.equal(
+    await dismissCreatorStory(context, base.ownerId, base.storyId, permissionId),
+    true,
+  );
+  assert.ok(requestedPath.includes(`id=eq.${permissionId}`));
+  assert.ok(requestedPath.includes(`creator_id=eq.${base.ownerId}`));
+  assert.ok(requestedPath.includes(`story_id=eq.${base.storyId}`));
 });

@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea'
 import { createClient } from '@/lib/supabase/client'
 import { generateStoryDraft } from '@/lib/creator-stories/client'
-import type { ScorecardHole, StoryCandidate, StoryDraftFormat } from '@/lib/creator-stories/contracts'
+import type { ScorecardHole, StoryCandidate, StoryDraftFormat, StoryPermissionStatus } from '@/lib/creator-stories/contracts'
 import { archetypeLabel, SCORECARD_COLUMNS, scorecardValue } from './storyCandidateRendering'
 
 function Scorecard({ rows, candidateId }: { rows: ScorecardHole[]; candidateId: string }) {
@@ -35,7 +35,13 @@ function Scorecard({ rows, candidateId }: { rows: ScorecardHole[]; candidateId: 
   )
 }
 
-export function StoryCandidateCard({ candidate }: { candidate: StoryCandidate }) {
+export function StoryCandidateCard({
+  candidate,
+  permissionStatus,
+}: {
+  candidate: StoryCandidate
+  permissionStatus: StoryPermissionStatus
+}) {
   const [format, setFormat] = useState<StoryDraftFormat>('caption')
   const [draft, setDraft] = useState<string | null>(null)
   const [isGenerating, setIsGenerating] = useState(false)
@@ -97,10 +103,15 @@ export function StoryCandidateCard({ candidate }: { candidate: StoryCandidate })
                 <SelectItem value="carousel_outline">Carousel outline</SelectItem>
               </SelectContent>
             </Select>
-            <Button type="button" onClick={() => void handleGenerateDraft()} disabled={isGenerating} data-testid={`button-generate-draft-${candidate.id}`}>
+            <Button type="button" onClick={() => void handleGenerateDraft()} disabled={isGenerating || permissionStatus !== 'approved'} data-testid={`button-generate-draft-${candidate.id}`}>
               {isGenerating ? 'Creating draft…' : draft === null ? 'Create draft' : 'Regenerate draft'}
             </Button>
           </div>
+          {permissionStatus !== 'approved' && (
+            <p className="mt-3 text-xs font-medium text-muted-foreground">
+              Draft creation unlocks after the player approves this Story.
+            </p>
+          )}
           {error && <p className="mt-3 text-sm text-destructive" role="alert">{error}</p>}
           {draft !== null && (
             <div className="mt-4">

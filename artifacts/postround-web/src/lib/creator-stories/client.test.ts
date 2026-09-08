@@ -7,7 +7,8 @@ import {
   fetchOwnedActiveCreatorProfile,
   fetchPermissionedCreatorStories,
   generateStoryCandidates,
-  revokeCreatorStoryPermission,
+  dismissCreatorStory,
+  requestStoryApproval,
   toCreatorStory,
 } from './client.ts'
 
@@ -59,6 +60,7 @@ test('projects only approved story fields and safely parses optional story data'
     course: 'Waskesiu Golf Course',
     golferDisplayName: 'Aaron',
     supportingFacts: ['6/6 fairways'],
+    permissionStatus: 'pending',
   })
   assert.equal('round_id' in story, false)
   assert.equal('private_notes' in story, false)
@@ -149,6 +151,7 @@ test('builds the queue only from active permissions for the resolved creator', a
       return Promise.resolve({
         data: [{
           story_id: 'shared-story',
+          granted_at: '2026-09-08T20:00:00Z',
           story_candidates: permissionedStory,
         }],
         error: null,
@@ -166,6 +169,7 @@ test('builds the queue only from active permissions for the resolved creator', a
 
   assert.equal(stories.length, 1)
   assert.equal(stories[0]?.id, 'shared-story')
+  assert.equal(stories[0]?.permissionStatus, 'approved')
   assert.deepEqual(filters, [
     ['creator_id', 'creator-1'],
     ['permission_granted', true],
@@ -181,7 +185,12 @@ test('sends only the story ID and bearer identity to the Story Engine', async ()
   let request: { url: string; init?: RequestInit } | undefined
   globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
     request = { url: String(url), init }
-    return new Response(JSON.stringify({ ok: true, count: 1, candidates: [candidate] }), {
+    return new Response(JSON.stringify({
+      ok: true,
+      count: 1,
+      candidates: [candidate],
+      permission_status: 'pending',
+    }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' },
     })
@@ -201,7 +210,12 @@ test('sends only the story ID and bearer identity to the Story Engine', async ()
   try {
     const result = await generateStoryCandidates(supabase, { story_id: 'story-1' })
 
-    assert.deepEqual(result, { ok: true, count: 1, candidates: [parsedCandidate] })
+    assert.deepEqual(result, {
+      ok: true,
+      count: 1,
+      candidates: [parsedCandidate],
+      permission_status: 'pending',
+    })
     assert.equal(
       request?.url,
       'https://api.postround.test/api/content/generate',
@@ -232,7 +246,12 @@ test('a failed generation can be retried without mutating the source story', asy
   globalThis.fetch = (async () => {
     attempts += 1
     if (attempts === 1) return new Response(null, { status: 500 })
-    return new Response(JSON.stringify({ ok: true, count: 1, candidates: [candidate] }), {
+    return new Response(JSON.stringify({
+      ok: true,
+      count: 1,
+      candidates: [candidate],
+      permission_status: 'pending',
+    }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' },
     })
@@ -259,6 +278,7 @@ test('a failed generation can be retried without mutating the source story', asy
       ok: true,
       count: 1,
       candidates: [parsedCandidate],
+      permission_status: 'pending',
     })
     assert.deepEqual(request, {
       story_id: 'story-1',
@@ -320,7 +340,12 @@ test('successful generation is followed by authenticated retrieval of persisted 
     })
 
     if (init?.method === 'POST') {
-        return new Response(JSON.stringify({ ok: true, count: 1, candidates: [candidate] }), {
+        return new Response(JSON.stringify({
+          ok: true,
+          count: 1,
+          candidates: [candidate],
+          permission_status: 'pending',
+        }), {
         status: 200,
         headers: { 'Content-Type': 'application/json' },
       })
@@ -329,6 +354,7 @@ test('successful generation is followed by authenticated retrieval of persisted 
     return new Response(JSON.stringify({
       ok: true,
       ideas: [candidate],
+      permission_status: 'pending',
     }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' },
@@ -350,7 +376,12 @@ test('successful generation is followed by authenticated retrieval of persisted 
     const generation = await generateStoryCandidates(supabase, { story_id: 'story-1' })
     const retrieval = await fetchStoryCandidates(supabase, 'story-1')
 
-    assert.deepEqual(generation, { ok: true, count: 1, candidates: [parsedCandidate] })
+    assert.deepEqual(generation, {
+      ok: true,
+      count: 1,
+      candidates: [parsedCandidate],
+      permission_status: 'pending',
+    })
     assert.equal(retrieval.candidates[0]?.title, 'The turning point')
     assert.equal(retrieval.candidates[0]?.hook, 'One hole changed the entire round.')
     assert.deepEqual(requests, [
@@ -390,7 +421,11 @@ test('retrieval retry calls only the creator ideas endpoint and never regenerate
 
     if (methods.length === 1) return new Response(null, { status: 503 })
 
-    return new Response(JSON.stringify({ ok: true, ideas: [] }), {
+    return new Response(JSON.stringify({
+      ok: true,
+      ideas: [],
+      permission_status: 'pending',
+    }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' },
     })
@@ -415,6 +450,7 @@ test('retrieval retry calls only the creator ideas endpoint and never regenerate
     assert.deepEqual(await fetchStoryCandidates(supabase, 'story-1'), {
       ok: true,
       candidates: [],
+      permission_status: 'pending',
     })
     assert.deepEqual(methods, ['GET', 'GET'])
     assert.ok(urls.every((url) => url.endsWith('/api/content/ideas?story_id=story-1')))
@@ -468,7 +504,7 @@ test('rejects malformed generated ideas instead of fabricating content', async (
   }
 })
 
-test('revokes creator story permission through the authoritative API with bearer auth', async () => {
+test('dismisses only the creator queue row through the authoritative API with bearer auth', async () => {
   const originalFetch = globalThis.fetch
   const originalApiBase = process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL
   process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL = 'https://api.postround.test/'
@@ -493,13 +529,13 @@ test('revokes creator story permission through the authoritative API with bearer
   } as unknown as SupabaseClient
 
   try {
-    assert.deepEqual(await revokeCreatorStoryPermission(supabase, 'story/one'), {
+    assert.deepEqual(await dismissCreatorStory(supabase, 'story/one'), {
       ok: true,
       story_id: 'story/one',
     })
     assert.equal(
       request?.url,
-      'https://api.postround.test/api/content/stories/story%2Fone/permission',
+      'https://api.postround.test/api/content/stories/story%2Fone/dismissal',
     )
     assert.equal(request?.init?.method, 'PATCH')
     assert.equal(request?.init?.body, undefined)
@@ -544,10 +580,10 @@ test('failed revocation remains retryable and 409 is not fabricated as success',
 
   try {
     await assert.rejects(
-      revokeCreatorStoryPermission(supabase, 'story-1'),
+      dismissCreatorStory(supabase, 'story-1'),
       (error: unknown) => error instanceof CreatorStoryApiError && error.status === 409,
     )
-    assert.deepEqual(await revokeCreatorStoryPermission(supabase, 'story-1'), {
+    assert.deepEqual(await dismissCreatorStory(supabase, 'story-1'), {
       ok: true,
       story_id: 'story-1',
     })
@@ -587,7 +623,7 @@ test('revocation rejects a malformed success response', async () => {
 
   try {
     await assert.rejects(
-      revokeCreatorStoryPermission(supabase, 'story-1'),
+      dismissCreatorStory(supabase, 'story-1'),
       CreatorStoryApiError,
     )
   } finally {
@@ -597,5 +633,42 @@ test('revocation rejects a malformed success response', async () => {
     } else {
       process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL = originalApiBase
     }
+  }
+})
+
+test('requests approval idempotently without claiming player approval', async () => {
+  const originalFetch = globalThis.fetch
+  const originalApiBase = process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL
+  process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL = 'https://api.postround.test'
+  const requests: Array<{ url: string; init?: RequestInit }> = []
+  globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
+    requests.push({ url: String(url), init })
+    return Response.json({
+      ok: true,
+      story_id: 'story-1',
+      permission_status: 'pending',
+    })
+  }) as typeof fetch
+  const supabase = {
+    auth: {
+      async getSession() {
+        return { data: { session: { access_token: 'test-access-token' } }, error: null }
+      },
+    },
+  } as unknown as SupabaseClient
+
+  try {
+    assert.deepEqual(await requestStoryApproval(supabase, 'story-1'), {
+      ok: true,
+      story_id: 'story-1',
+      permission_status: 'pending',
+    })
+    assert.equal(requests[0]?.url, 'https://api.postround.test/api/content/stories/story-1/approval-request')
+    assert.equal(requests[0]?.init?.method, 'POST')
+    assert.equal(requests[0]?.init?.body, '{}')
+  } finally {
+    globalThis.fetch = originalFetch
+    if (originalApiBase === undefined) delete process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL
+    else process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL = originalApiBase
   }
 })

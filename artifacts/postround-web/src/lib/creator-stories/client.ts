@@ -9,7 +9,8 @@ import type {
   GenerateStoryDraftRequest,
   GenerateStoryDraftResponse,
   FetchStoryCandidatesResponse,
-  RevokeCreatorStoryPermissionResponse,
+  DismissCreatorStoryResponse,
+  RequestStoryApprovalResponse,
   ScorecardHole,
   StoryCandidate,
   StoryCandidateEvidence,
@@ -91,7 +92,11 @@ function storyDraftUrl(): string {
 }
 
 function revokeStoryPermissionUrl(storyId: string): string {
-  return `${contentApiBase()}/api/content/stories/${encodeURIComponent(storyId)}/permission`
+  return `${contentApiBase()}/api/content/stories/${encodeURIComponent(storyId)}/dismissal`
+}
+
+function requestStoryApprovalUrl(storyId: string): string {
+  return `${contentApiBase()}/api/content/stories/${encodeURIComponent(storyId)}/approval-request`
 }
 
 function asObject(value: unknown): Record<string, unknown> | null {
@@ -216,7 +221,10 @@ async function apiFailure(response: Response, fallback: string): Promise<Creator
   return new CreatorStoryApiError(response.status, message, stage)
 }
 
-export function toCreatorStory(record: CreatorStoryRecord): CreatorStory {
+export function toCreatorStory(
+  record: CreatorStoryRecord,
+  permissionStatus: CreatorStory['permissionStatus'] = 'pending',
+): CreatorStory {
   const storyData = asObject(record.story_data)
 
   return {
@@ -237,6 +245,7 @@ export function toCreatorStory(record: CreatorStoryRecord): CreatorStory {
       'supportingFacts',
       'facts',
     ]),
+    permissionStatus,
   }
 }
 
@@ -267,6 +276,7 @@ export async function fetchPermissionedCreatorStories(
     .from('story_permissions')
     .select(`
       story_id,
+      granted_at,
       story_candidates!inner(
         ${CREATOR_STORY_SELECT}
       )
@@ -283,7 +293,8 @@ export async function fetchPermissionedCreatorStories(
       ? permission.story_candidates
       : [permission.story_candidates]
 
-    return related.filter(Boolean).map(toCreatorStory)
+    return related.filter(Boolean).map((story) =>
+      toCreatorStory(story, permission.granted_at ? 'approved' : 'pending'))
   })
 }
 
@@ -311,12 +322,20 @@ export async function generateStoryCandidates(
   const payload: unknown = await response.json()
   const result = asObject(payload)
 
-  if (result?.ok !== true || typeof result.count !== 'number' || !Array.isArray(result.candidates)) {
+  if (result?.ok !== true
+    || typeof result.count !== 'number'
+    || !Array.isArray(result.candidates)
+    || (result.permission_status !== 'pending' && result.permission_status !== 'approved')) {
     throw new CreatorStoryApiError(500)
   }
   const candidates = result.candidates.map(toStoryCandidate)
   if (candidates.some((candidate) => candidate === null)) throw new CreatorStoryApiError(500)
-  return { ok: true, count: result.count, candidates: candidates as StoryCandidate[] }
+  return {
+    ok: true,
+    count: result.count,
+    candidates: candidates as StoryCandidate[],
+    permission_status: result.permission_status,
+  }
 }
 
 export async function fetchStoryCandidates(
@@ -339,7 +358,9 @@ export async function fetchStoryCandidates(
 
   const payload: unknown = await response.json()
   const result = asObject(payload)
-  if (result?.ok !== true || !Array.isArray(result.ideas)) {
+  if (result?.ok !== true
+    || !Array.isArray(result.ideas)
+    || (result.permission_status !== 'pending' && result.permission_status !== 'approved')) {
     throw new CreatorStoryApiError(500, 'Generated content could not be loaded.')
   }
 
@@ -351,6 +372,7 @@ export async function fetchStoryCandidates(
   return {
     ok: true,
     candidates: candidates as StoryCandidate[],
+    permission_status: result.permission_status,
   }
 }
 
@@ -392,11 +414,11 @@ export async function generateStoryDraft(
   }
 }
 
-export async function revokeCreatorStoryPermission(
+export async function dismissCreatorStory(
   supabase: SupabaseClient,
   storyId: string,
   options: { signal?: AbortSignal } = {},
-): Promise<RevokeCreatorStoryPermissionResponse> {
+): Promise<DismissCreatorStoryResponse> {
   const accessToken = await authenticatedAccessToken(supabase)
   const response = await fetch(revokeStoryPermissionUrl(storyId), {
     method: 'PATCH',
@@ -417,4 +439,35 @@ export async function revokeCreatorStoryPermission(
   }
 
   return { ok: true, story_id: storyId }
+}
+
+export async function requestStoryApproval(
+  supabase: SupabaseClient,
+  storyId: string,
+  options: { signal?: AbortSignal } = {},
+): Promise<RequestStoryApprovalResponse> {
+  const accessToken = await authenticatedAccessToken(supabase)
+  const response = await fetch(requestStoryApprovalUrl(storyId), {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: '{}',
+    signal: options.signal,
+  })
+  if (!response.ok) throw await apiFailure(response, 'Approval could not be requested.')
+
+  const payload: unknown = await response.json()
+  const result = asObject(payload)
+  if (result?.ok !== true
+    || result.story_id !== storyId
+    || (result.permission_status !== 'pending' && result.permission_status !== 'approved')) {
+    throw new CreatorStoryApiError(500, 'Approval could not be requested.')
+  }
+  return {
+    ok: true,
+    story_id: storyId,
+    permission_status: result.permission_status,
+  }
 }

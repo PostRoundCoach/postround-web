@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Calendar, CircleCheck, Loader2, MapPin, RefreshCw, Sparkles, Trash2, User } from 'lucide-react'
+import { Calendar, CircleCheck, Clock3, Loader2, MapPin, RefreshCw, Send, Sparkles, Trash2, User } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
@@ -11,7 +11,8 @@ import {
   CreatorStoryApiError,
   fetchStoryCandidates,
   generateStoryCandidates,
-  revokeCreatorStoryPermission,
+  dismissCreatorStory,
+  requestStoryApproval,
 } from '@/lib/creator-stories/client'
 import { StoryCandidateCard } from './StoryCandidateCard'
 
@@ -31,6 +32,9 @@ export function StoryCard({
   const [retrievalFailed, setRetrievalFailed] = useState(false)
   const [isDismissing, setIsDismissing] = useState(false)
   const [dismissalFailed, setDismissalFailed] = useState(false)
+  const [permissionStatus, setPermissionStatus] = useState(story.permissionStatus)
+  const [isRequestingApproval, setIsRequestingApproval] = useState(false)
+  const [approvalRequestFailed, setApprovalRequestFailed] = useState(false)
 
   const loadCandidates = async (
     supabase: NonNullable<ReturnType<typeof createClient>>,
@@ -41,6 +45,7 @@ export function StoryCard({
     try {
       const result = await fetchStoryCandidates(supabase, story.id)
       setCandidates(result.candidates)
+      setPermissionStatus(result.permission_status)
     } catch {
       setRetrievalFailed(true)
     } finally {
@@ -78,6 +83,7 @@ export function StoryCard({
       // The server may return candidates immediately, but persisted candidates
       // remain authoritative after a reload or another creator session.
       setCandidates(result.candidates)
+      setPermissionStatus(result.permission_status)
       setIsGenerating(false)
       await loadCandidates(supabase)
     } catch (error) {
@@ -113,12 +119,31 @@ export function StoryCard({
     setDismissalFailed(false)
 
     try {
-      await revokeCreatorStoryPermission(supabase, story.id)
+      await dismissCreatorStory(supabase, story.id)
       onDismissed(story.id)
     } catch {
       setDismissalFailed(true)
     } finally {
       setIsDismissing(false)
+    }
+  }
+
+  const handleRequestApproval = async () => {
+    if (isRequestingApproval || permissionStatus === 'approved') return
+    const supabase = createClient()
+    if (!supabase) {
+      setApprovalRequestFailed(true)
+      return
+    }
+    setIsRequestingApproval(true)
+    setApprovalRequestFailed(false)
+    try {
+      const result = await requestStoryApproval(supabase, story.id)
+      setPermissionStatus(result.permission_status)
+    } catch {
+      setApprovalRequestFailed(true)
+    } finally {
+      setIsRequestingApproval(false)
     }
   }
 
@@ -349,6 +374,40 @@ export function StoryCard({
               Evidence-backed candidate angles
             </p>
             <h3 className="mt-2 font-serif text-2xl font-bold">{story.headline}</h3>
+            <div className="mt-4 flex flex-col gap-3 rounded-xl border border-border bg-background p-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-start gap-3">
+                {permissionStatus === 'approved'
+                  ? <CircleCheck className="mt-0.5 h-5 w-5 text-primary" />
+                  : <Clock3 className="mt-0.5 h-5 w-5 text-muted-foreground" />}
+                <div>
+                  <p className="font-semibold">
+                    {permissionStatus === 'approved' ? 'Approved by player' : 'Player approval required'}
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    {permissionStatus === 'approved'
+                      ? 'You can now create an editable draft for use.'
+                      : 'You can preview candidates, but cannot create or use a draft until the player approves.'}
+                  </p>
+                </div>
+              </div>
+              {permissionStatus !== 'approved' && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => void handleRequestApproval()}
+                  disabled={isRequestingApproval}
+                  data-testid={`button-request-approval-${story.id}`}
+                >
+                  {isRequestingApproval ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                  {isRequestingApproval ? 'Requesting…' : 'Request approval'}
+                </Button>
+              )}
+            </div>
+            {approvalRequestFailed && (
+              <p className="mt-2 text-sm text-destructive" role="alert">
+                Approval could not be requested. Please try again.
+              </p>
+            )}
           </div>
 
           {candidates.length === 0 ? (
@@ -364,7 +423,11 @@ export function StoryCard({
           ) : (
             <div className="grid gap-4 lg:grid-cols-2">
               {candidates.map((candidate) => (
-                <StoryCandidateCard key={candidate.id} candidate={candidate} />
+                <StoryCandidateCard
+                  key={candidate.id}
+                  candidate={candidate}
+                  permissionStatus={permissionStatus}
+                />
               ))}
             </div>
           )}

@@ -17,7 +17,11 @@ export interface AuthorizedStory {
   roundId: string;
   playerId: string;
   playerName: string | null;
+  permissionId: string;
+  permissionStatus: StoryPermissionStatus;
 }
+
+export type StoryPermissionStatus = "pending" | "approved";
 
 export interface SupabaseRequestContext {
   userId: string;
@@ -127,7 +131,14 @@ export async function authenticateSupabaseBearer(
 }
 
 type CreatorRow = { id: string };
-type PermissionRow = { story_id: string };
+type PermissionRow = {
+  id: string;
+  story_id: string;
+  user_id: string;
+  permission_granted: boolean;
+  granted_at: string | null;
+  revoked_at: string | null;
+};
 type StoryRow = {
   round_id: string;
   user_id: string;
@@ -147,15 +158,18 @@ export async function authorizeCreatorStory(
   if (!creator) throw new CreatorContentError(403, "This account does not control an active creator profile.");
   const permissions = await rest<PermissionRow[]>(
     context,
-    `story_permissions?select=story_id&creator_id=eq.${encodeURIComponent(creator.id)}&story_id=eq.${encodeURIComponent(storyId)}&permission_granted=eq.true&revoked_at=is.null&limit=1`,
+    `story_permissions?select=id,story_id,user_id,permission_granted,granted_at,revoked_at&creator_id=eq.${encodeURIComponent(creator.id)}&story_id=eq.${encodeURIComponent(storyId)}&permission_granted=eq.true&revoked_at=is.null&limit=1`,
   );
-  if (!permissions[0]) throw new CreatorContentError(403, "This creator is not permitted to access the story.");
+  const permission = permissions[0];
+  if (!permission) throw new CreatorContentError(403, "This creator is not permitted to access the story.");
   const stories = await rest<StoryRow[]>(
     context,
     `story_candidates?select=round_id,user_id,status,story_data&id=eq.${encodeURIComponent(storyId)}&status=in.(offered,shared)&limit=1`,
   );
   const story = stories[0];
-  if (!story) throw new CreatorContentError(403, "This creator is not permitted to access the story.");
+  if (!story || story.user_id !== permission.user_id) {
+    throw new CreatorContentError(403, "This creator is not permitted to access the story.");
+  }
   const data = story.story_data;
   const playerName = data && typeof data.golfer_display_name === "string"
     ? data.golfer_display_name
@@ -167,6 +181,8 @@ export async function authorizeCreatorStory(
     roundId: story.round_id,
     playerId: story.user_id,
     playerName,
+    permissionId: permission.id,
+    permissionStatus: permission.granted_at ? "approved" : "pending",
   };
 }
 
@@ -338,14 +354,43 @@ export async function fetchPersistedCandidate(
   return candidate;
 }
 
-export async function revokeStoryPermission(
+export async function requestStoryApproval(
   context: SupabaseRequestContext,
   creatorId: string,
   storyId: string,
+): Promise<StoryPermissionStatus> {
+  const rows = await rest<PermissionRow[]>(
+    context,
+    `story_permissions?select=id,story_id,user_id,permission_granted,granted_at,revoked_at&creator_id=eq.${encodeURIComponent(creatorId)}&story_id=eq.${encodeURIComponent(storyId)}&permission_granted=eq.true&revoked_at=is.null&limit=1`,
+  );
+  const permission = rows[0];
+  if (!permission) throw new CreatorContentError(404, "The active story permission was not found.");
+  if (permission.granted_at) return "approved";
+
+  const requested = await rest<PermissionRow[]>(
+    context,
+    `story_permissions?id=eq.${encodeURIComponent(permission.id)}&select=id,story_id,user_id,permission_granted,granted_at,revoked_at&creator_id=eq.${encodeURIComponent(creatorId)}&story_id=eq.${encodeURIComponent(storyId)}&permission_granted=eq.true&granted_at=is.null&revoked_at=is.null`,
+    {
+      method: "PATCH",
+      headers: { Prefer: "return=representation" },
+      body: JSON.stringify({ updated_at: new Date().toISOString() }),
+    },
+  );
+  if (requested.length !== 1) {
+    throw new CreatorContentError(409, "The approval request was not persisted.");
+  }
+  return "pending";
+}
+
+export async function dismissCreatorStory(
+  context: SupabaseRequestContext,
+  creatorId: string,
+  storyId: string,
+  permissionId: string,
 ): Promise<boolean> {
   const rows = await rest<Array<{ story_id: string }>>(
     context,
-    `story_permissions?select=story_id&creator_id=eq.${encodeURIComponent(creatorId)}&story_id=eq.${encodeURIComponent(storyId)}&permission_granted=eq.true&revoked_at=is.null`,
+    `story_permissions?id=eq.${encodeURIComponent(permissionId)}&select=story_id&creator_id=eq.${encodeURIComponent(creatorId)}&story_id=eq.${encodeURIComponent(storyId)}&permission_granted=eq.true&revoked_at=is.null`,
     {
       method: "PATCH",
       headers: { Prefer: "return=representation" },

@@ -13,6 +13,26 @@ const users = {
   },
 }
 
+const storyId = '20000000-0000-4000-8000-000000000001'
+const creatorId = '10000000-0000-4000-8000-000000000002'
+const story = {
+  id: storyId,
+  story_id: storyId,
+  story_type: 'round_recap',
+  headline: 'A comeback worth sharing',
+  summary: 'A fixture story shared with the creator.',
+  story_data: {
+    round_date: '2026-01-02',
+    course_name: 'Fixture Golf Club',
+    golfer_display_name: 'Fixture Golfer',
+    supporting_facts: ['Recovered on the back nine'],
+  },
+  round_id: '30000000-0000-4000-8000-000000000001',
+  status: 'shared',
+}
+let dismissed = false
+let approved = false
+
 function encode(value) {
   return Buffer.from(JSON.stringify(value)).toString('base64url')
 }
@@ -114,6 +134,7 @@ const server = http.createServer((request, response) => {
           status: 'active',
           avatar_url: null,
           bio: null,
+          creator_social_accounts: [],
           created_at: '2026-01-01T00:00:00.000Z',
           updated_at: '2026-01-01T00:00:00.000Z',
         }
@@ -135,7 +156,12 @@ const server = http.createServer((request, response) => {
   }
 
   if (request.method === 'GET' && url.pathname === '/rest/v1/story_permissions') {
-    return send(response, 200, [])
+    if (dismissed) return send(response, 200, [])
+    return send(response, 200, [{
+      story_id: storyId,
+      granted_at: approved ? '2026-01-03T00:00:00.000Z' : null,
+      story_candidates: story,
+    }])
   }
 
   send(response, 404, { message: `Unhandled fixture route: ${request.method} ${url.pathname}` })

@@ -35,8 +35,11 @@ export interface CreatorStoryRecord {
 
 export interface PermissionedCreatorStoryRecord {
   story_id: string
+  granted_at: string | null
   story_candidates: CreatorStoryRecord | CreatorStoryRecord[]
 }
+
+export type StoryPermissionStatus = 'pending' | 'approved'
 
 export interface CreatorStory {
   id: string
@@ -48,6 +51,7 @@ export interface CreatorStory {
   course: string | null
   golferDisplayName: string | null
   supportingFacts: string[]
+  permissionStatus: StoryPermissionStatus
 }
 
 export interface GenerateStoryCandidatesRequest {
@@ -97,6 +101,7 @@ export interface GenerateStoryCandidatesResponse {
   ok: true
   count: number
   candidates: StoryCandidate[]
+  permission_status: StoryPermissionStatus
 }
 
 export type StoryDraftFormat = 'caption' | 'short_video_script' | 'carousel_outline'
@@ -122,9 +127,16 @@ export interface GenerateStoryDraftResponse {
 export interface FetchStoryCandidatesResponse {
   ok: true
   candidates: StoryCandidate[]
+  permission_status: StoryPermissionStatus
 }
 
-export interface RevokeCreatorStoryPermissionResponse {
+export interface DismissCreatorStoryResponse {
   ok: true
   story_id: string
+}
+
+export interface RequestStoryApprovalResponse {
+  ok: true
+  story_id: string
+  permission_status: StoryPermissionStatus
 }
