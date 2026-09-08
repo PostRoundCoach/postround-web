@@ -1,0 +1,368 @@
+We now have two qualified Stories successfully reaching the Creator Dashboard. The remaining broken piece is the **Generate Content** workflow.
+
+Please inspect the existing implementation end-to-end and wire the Creator Dashboard so the intended Story workflow works without breaking the existing Story qualification, persistence, player approval UI, or handicap functionality.
+
+## Existing intended workflow
+
+The intended workflow is:
+
+1. A qualifying Story is created from a player's round.
+2. The qualified Story appears in the Creator Dashboard.
+3. The creator clicks **Generate Content**.
+4. The system generates the creator-facing content from the Story/context.
+5. The creator can review the generated content.
+6. The creator clicks **Request Approval** / equivalent action.
+7. The player receives the approval request in the Post Round app.
+8. The player approves the Story for creator use.
+9. The corresponding `story_permissions` record changes to `approved`.
+10. Once approved, the Story/content becomes available to the creator for use/publishing.
+11. The creator should NOT be able to publish/use the Story before player approval.
+
+### Important
+
+Do NOT redesign this workflow.
+
+Do NOT bypass player approval.
+
+Do NOT automatically change `story_permissions` to `approved` when the creator generates content.
+
+Generation and approval are two separate states/actions.
+
+The creator may generate content, but the player must explicitly approve it before the creator can use/publish it.
+
+---
+
+# Task 1 — Trace the existing implementation
+
+Before changing code, inspect the existing web project and identify:
+
+* Creator Dashboard route/component
+* Qualified Story query
+* Story data model/schema
+* `story_permissions` schema and existing status values
+* Existing player Story approval workflow
+* Existing Story generation API/server route, if one already exists
+* Existing OpenAI/content-generation implementation, if one already exists
+* Any existing API functions/hooks used by the Creator Dashboard
+* Existing authentication/creator recognition logic
+* Existing publish/use actions
+
+Do not create duplicate APIs or duplicate data models if the necessary functionality already exists.
+
+The Generate Content button currently does not work, so determine whether:
+
+* the button has no handler,
+* it calls a missing route,
+* it calls the wrong route,
+* the route expects a different payload,
+* authorization is failing,
+* the Story data being passed is incomplete,
+* the generated content response is not being handled,
+* or another existing integration is broken.
+
+Fix the actual underlying issue.
+
+---
+
+# Task 2 — Wire Generate Content
+
+The Creator Dashboard's **Generate Content** button must become functional.
+
+When clicked:
+
+* identify the selected qualified Story,
+* retrieve all required Story/context information,
+* call the existing content-generation mechanism if one exists,
+* otherwise implement the smallest appropriate server-side generation endpoint using the project's existing architecture,
+* generate creator-ready content based on the Story and its available context,
+* return the generated content to the Creator Dashboard,
+* display the generated content to the creator.
+
+The generation should happen server-side.
+
+Do not expose API keys or other secrets to the browser.
+
+Add appropriate loading/error states.
+
+For example:
+
+**Generate Content**
+
+→ loading state:
+
+**Generating…**
+
+→ success:
+
+Display the generated content with an appropriate action such as:
+
+**Request Approval**
+
+Do not make the creator wait without feedback.
+
+---
+
+# Task 3 — Separate generation from permission approval
+
+This distinction is critical.
+
+Generation means:
+
+> "The creator has created a draft of content from this Story."
+
+Approval means:
+
+> "The player has explicitly authorized the creator to use this Story/content."
+
+Generating content must NOT automatically approve anything.
+
+The `story_permissions` status should remain whatever its current pending/requested state is until the player approves it.
+
+Use the existing `story_permissions` workflow if possible.
+
+Do not introduce a second approval system.
+
+---
+
+# Task 4 — Creator approval request
+
+After successful content generation, provide the creator with an action to request approval from the player.
+
+Use the existing permission/request infrastructure wherever possible.
+
+The creator action should create/update the appropriate `story_permissions` record so the player can see the approval request in the Post Round app.
+
+The workflow should be idempotent:
+
+* clicking Request Approval multiple times should not create duplicate permission requests,
+* an existing pending request should remain pending,
+* an already-approved Story should remain approved,
+* an already-rejected/denied Story should follow the existing application's intended behavior.
+
+Use the existing schema/status values rather than inventing new ones unless the current implementation genuinely requires one.
+
+---
+
+# Task 5 — Player approval remains authoritative
+
+The existing player-facing Story approval UI is already implemented.
+
+Do not replace or duplicate it.
+
+Verify that the request generated by the Creator Dashboard appears in that existing player approval flow.
+
+When the player approves:
+
+`story_permissions.status = 'approved'`
+
+(or the exact existing approved value used by the application).
+
+The approval should be tied to the correct:
+
+* player/user,
+* creator,
+* Story,
+* and generated content/request.
+
+Make sure authorization/RLS prevents one user from approving or modifying another user's Story permissions.
+
+---
+
+# Task 6 — Unlock creator use only after approval
+
+The Creator Dashboard should reflect the permission state.
+
+Suggested states:
+
+### Pending / not yet approved
+
+Show:
+
+* generated content
+* approval status
+* **Request Approval** if appropriate
+* clear indication that the creator cannot publish/use the Story yet
+
+Example:
+
+> Approval requested
+> Waiting for the player to approve this Story.
+
+### Approved
+
+Show:
+
+> Approved
+
+and enable the existing creator use/publish action.
+
+### Not generated
+
+Show:
+
+> Generate Content
+
+### Generating
+
+Show:
+
+> Generating…
+
+### Generation failed
+
+Show a useful error and allow:
+
+> Try Again
+
+Do not allow publishing/use while the permission is pending.
+
+The backend must enforce this as well. Do not rely solely on hiding/disabling a frontend button.
+
+---
+
+# Task 7 — Preserve existing Story qualification
+
+The fact that two qualified Stories are already reaching the Creator Dashboard proves that the qualification/query path is working.
+
+Do not modify that logic unless absolutely necessary.
+
+The scope of this task is:
+
+**qualified Story → generate content → request approval → player approval → creator use**
+
+Do not change the criteria for what qualifies as a Story.
+
+---
+
+# Task 8 — Preserve existing Story persistence and player UI
+
+The recently implemented Story persistence and player-facing approval experience must remain intact.
+
+Do not regress:
+
+* Story persistence
+* Story qualification
+* Story permissions
+* player Stories screen
+* player approval UI
+* creator recognition/authentication
+* existing creator dashboard functionality
+
+Also do not modify unrelated handicap logic or handicap UI.
+
+---
+
+# Task 9 — Data integrity
+
+Inspect the existing database relationships carefully.
+
+A generated Story should remain associated with the correct source Story/round/player.
+
+The approval request should remain associated with the correct creator.
+
+Avoid storing generated content only in transient frontend state if the application expects the content to survive refresh/navigation.
+
+If the existing schema already has an appropriate field/table for generated creator content, use it.
+
+If it does not, determine the smallest schema addition necessary and implement it using the project's existing migration conventions.
+
+Do not create redundant tables.
+
+---
+
+# Task 10 — Authentication and authorization
+
+The creator dashboard must only be able to:
+
+* see Stories the authenticated creator is entitled to see,
+* generate content for eligible Stories,
+* request approval for those Stories.
+
+The player must only be able to approve/reject permissions associated with their own Stories.
+
+The creator must not be able to directly set:
+
+`story_permissions.status = approved`
+
+Approval must come through the player-facing approval workflow.
+
+---
+
+# Task 11 — Error handling
+
+Handle at least:
+
+* Story no longer exists
+* Story is no longer qualified
+* creator is unauthorized
+* generation API failure
+* missing Story context
+* duplicate approval request
+* permission already approved
+* permission already pending
+* network/API failure
+
+Errors should be understandable in the UI rather than silently failing.
+
+---
+
+# Task 12 — Testing
+
+After implementation, test the complete workflow.
+
+At minimum verify:
+
+1. Qualified Story appears in Creator Dashboard.
+2. Generate Content button is clickable.
+3. Content generation succeeds.
+4. Generated content appears in the dashboard.
+5. `story_permissions` is NOT automatically changed to approved by generation.
+6. Creator can request approval.
+7. Player sees the approval request in the existing Post Round Stories approval UI.
+8. Player approves.
+9. `story_permissions` changes to the existing approved state.
+10. Creator Dashboard reflects the approved state.
+11. Creator can now use/publish the Story.
+12. Creator cannot use/publish it before approval.
+13. Refreshing the Creator Dashboard preserves the correct state.
+14. Duplicate approval requests are not created.
+15. Existing Story persistence still works.
+16. Existing creator authentication/recognition still works.
+
+If the project has browser tests, add/update an appropriate test covering the Creator Dashboard workflow.
+
+---
+
+# Implementation approach
+
+Please do not blindly rewrite the feature.
+
+First inspect the current implementation and identify why **Generate Content** is currently non-functional.
+
+Then make the smallest coherent set of changes required to connect the existing pieces.
+
+At the end, report:
+
+1. Root cause of the broken Generate Content button.
+2. Files changed.
+3. API/server routes added or modified.
+4. Database changes, if any.
+5. How generated content is persisted.
+6. How the approval request is created.
+7. What changes when the player approves.
+8. How the Creator Dashboard determines whether publishing/use is allowed.
+9. Tests run and their results.
+
+The final desired architecture is:
+
+**Qualified Story**
+→ **Creator Dashboard**
+→ **Generate Content**
+→ **Generated Draft**
+→ **Request Player Approval**
+→ **`story_permissions` pending**
+→ **Player approves in Post Round**
+→ **`story_permissions` approved**
+→ **Creator can use/publish Story**
+
+Keep player approval as the authoritative gate.

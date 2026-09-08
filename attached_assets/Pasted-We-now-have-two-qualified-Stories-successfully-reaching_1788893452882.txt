@@ -1,0 +1,375 @@
+We now have two qualified Stories successfully reaching the Creator Dashboard. The remaining workflow has several backend/API wiring issues that need to be resolved.
+
+## Important diagnostic observation
+
+I have inspected the database and can see the appropriate records/rows being created in both:
+
+* `story_candidate`
+* `story_permissions`
+
+This is important.
+
+It suggests that at least part of the generation and permission-request workflow is already functioning correctly at the database-write level.
+
+Therefore, **do not assume the problem is that generation or permission records are not being created.**
+
+The current problem may instead be in:
+
+* retrieving the newly created `story_candidate` records,
+* filtering/querying those records,
+* RLS/authorization on the SELECT operation,
+* Story/creator ID mismatches,
+* response serialization/mapping,
+* timing/race conditions between INSERT and subsequent SELECT,
+* or the Creator Dashboard expecting a different data shape/status.
+
+Please verify this against the actual database records before changing the schema or creating another persistence mechanism.
+
+---
+
+# Current intended workflow
+
+The intended workflow is:
+
+1. A qualifying Story is created from a player's round.
+2. The qualified Story appears in the Creator Dashboard.
+3. Creator clicks **Generate Content**.
+4. Content is generated from the Story/context.
+5. Generated content is saved to `story_candidate`.
+6. Generated candidates are retrieved and displayed to the creator.
+7. Creator can request player approval.
+8. The appropriate `story_permissions` record represents the pending approval.
+9. Player receives the approval request in the existing Post Round app.
+10. Player explicitly approves.
+11. `story_permissions` changes to the existing `approved` state.
+12. The approved Story/content becomes available for creator use/publishing.
+13. Creator cannot publish/use the Story before player approval.
+
+Generation and approval MUST remain separate.
+
+Do not bypass player approval.
+
+---
+
+# Current error 1 — Ideas cannot be loaded
+
+The Creator Dashboard currently shows:
+
+> **Ideas couldn’t be loaded**
+>
+> Generation completed, but the saved candidates could not be retrieved. This story remains available.
+
+However, I can see the expected rows being created in `story_candidate`.
+
+Therefore, investigate the **write → read path** rather than assuming generation failed.
+
+Trace:
+
+`Generate Content`
+→ generation API
+→ `story_candidate` INSERT
+→ subsequent candidate retrieval
+→ Creator Dashboard
+
+Specifically compare the values in the actual database row against the parameters used by the retrieval query.
+
+Check:
+
+* Story ID
+* creator ID
+* player ID
+* candidate ID
+* permission ID if relevant
+* status
+* timestamps
+* any creator/Story relationship fields
+* any `is_active`/visibility fields
+* any generated-content status fields
+
+Look for mismatches between what the INSERT writes and what the SELECT expects.
+
+Also inspect RLS policies.
+
+It is possible that:
+
+* the row is successfully inserted,
+* but the authenticated creator cannot SELECT it,
+* or the SELECT query filters it out.
+
+If that is the case, fix the authorization/query issue rather than changing the data model.
+
+Also check whether the application generates the candidates and immediately performs a SELECT before the transaction/write is fully available or before the correct ID is propagated.
+
+The fix must make this reliable.
+
+---
+
+# Current error 2 — Story dismissal does not work
+
+The Creator Dashboard shows:
+
+> **Story couldn’t be dismissed**
+>
+> This story is still in your queue. Please try again.
+
+The **Dismiss Story** action currently does not work.
+
+Trace:
+
+`Creator clicks Dismiss`
+→ frontend handler
+→ API/server route
+→ database update
+→ creator queue query
+→ Story removed from queue
+
+Determine the actual reason it remains in the queue.
+
+Check:
+
+* wrong Story ID
+* wrong creator ID
+* incorrect API payload
+* failed UPDATE
+* RLS UPDATE policy
+* incorrect dismissal status
+* queue query ignoring dismissal state
+* frontend expecting a different API response
+* cache/stale query state
+* creator-specific queue logic
+
+Do not simply remove the Story from React state.
+
+Dismissal must persist server-side.
+
+Refreshing the Creator Dashboard should keep the Story dismissed.
+
+Do NOT delete the underlying player's Story.
+
+Creator dismissal should only remove/mark the Story appropriately for that creator's queue using the existing data model.
+
+---
+
+# Task 1 — Inspect existing implementation first
+
+Before making changes, trace:
+
+* Creator Dashboard
+* qualified Story query
+* creator Story queue
+* Story dismissal
+* Story generation
+* `story_candidate`
+* `story_permissions`
+* player approval UI
+* creator authentication/recognition
+* creator publish/use actions
+
+Identify the actual routes, components, server functions, database tables, and policies involved.
+
+Do not create duplicate APIs or duplicate tables if the existing infrastructure already supports the workflow.
+
+---
+
+# Task 2 — Fix candidate retrieval
+
+Since `story_candidate` rows are visibly being created, determine why the application cannot retrieve them.
+
+Compare:
+
+### INSERT path
+
+What exactly is written to `story_candidate`?
+
+versus:
+
+### SELECT path
+
+What exactly does the Creator Dashboard query for?
+
+Make sure the same canonical identifiers and status values are being used.
+
+Verify that the API response contains the candidates in the shape the frontend expects.
+
+If the backend returns candidates but the frontend cannot render them, fix the response mapping/frontend state handling.
+
+If the backend SELECT returns zero rows, determine why.
+
+If Supabase/RLS rejects the SELECT, fix the relevant authorization policy rather than bypassing RLS.
+
+Do not expose service-role credentials to the browser as a workaround.
+
+---
+
+# Task 3 — Fix dismissal
+
+Determine how creator queue membership is currently represented.
+
+Use the existing mechanism if possible.
+
+The correct behavior is:
+
+`Creator dismisses Story`
+→ persistent creator-specific dismissal state
+→ queue query excludes dismissed Story
+→ Story disappears from dashboard
+→ refresh remains dismissed
+
+Do not delete the source Story.
+
+Do not modify player Story visibility.
+
+Do not affect another creator's queue.
+
+---
+
+# Task 4 — Wire approval request
+
+Once content has been successfully generated and persisted, the creator should be able to request approval.
+
+Use the existing `story_permissions` infrastructure.
+
+Since I can already see appropriate `story_permissions` rows being created, inspect whether the current row is sufficient for the intended workflow and determine why the player/creator state may not yet be transitioning correctly.
+
+Do NOT automatically set the permission to `approved`.
+
+The sequence must remain:
+
+**Generated**
+→ **Pending approval**
+→ **Player approves**
+→ **Approved**
+→ **Creator can use/publish**
+
+Avoid duplicate permission requests.
+
+---
+
+# Task 5 — Verify player approval
+
+The existing player Stories/approval UI is already implemented.
+
+Do not replace it.
+
+Verify that the permission request created for the creator appears in the existing player approval flow.
+
+When the player approves:
+
+* the correct `story_permissions` row changes to the existing approved state,
+* the correct Story is authorized,
+* the correct creator receives access,
+* Creator Dashboard reflects approval.
+
+---
+
+# Task 6 — Enforce approval before creator use
+
+Before approval:
+
+* creator can view generated content,
+* creator can see approval status,
+* creator can request approval,
+* creator cannot publish/use the Story.
+
+After approval:
+
+* creator can use/publish according to the existing creator workflow.
+
+This must be enforced server-side, not merely through frontend button visibility.
+
+---
+
+# Task 7 — Preserve existing Story systems
+
+Do not regress:
+
+* Story qualification
+* Story persistence
+* `story_candidate`
+* `story_permissions`
+* player Stories screen
+* player approval UI
+* creator authentication/recognition
+* Creator Dashboard
+* handicap logic/UI
+
+Do not change Story qualification criteria.
+
+---
+
+# Task 8 — Testing
+
+Test the complete workflow.
+
+### Candidate generation
+
+1. Qualified Story appears.
+2. Generate Content works.
+3. Generation succeeds.
+4. A `story_candidate` row is created.
+5. The newly created candidate can be retrieved by the Creator Dashboard.
+6. Candidate content is displayed.
+7. Refreshing the page still displays the candidate.
+8. No "Ideas couldn't be loaded" error occurs.
+
+### Dismissal
+
+9. Dismiss Story works.
+10. Appropriate persistent dismissal state is written.
+11. Story disappears from the creator queue.
+12. Refreshing the page does not restore it.
+13. Underlying player Story remains intact.
+14. Another creator's queue is not affected.
+
+### Approval
+
+15. Creator can request approval.
+16. Generation does NOT automatically approve the Story.
+17. Player sees the request in the existing approval UI.
+18. Player approves.
+19. `story_permissions` becomes the existing approved state.
+20. Creator Dashboard reflects approval.
+21. Creator can now use/publish the Story.
+22. Creator cannot use/publish before approval.
+
+### Regression
+
+23. Existing qualified Stories continue appearing correctly.
+24. Existing Story persistence works.
+25. Existing player approval UI works.
+26. Creator authentication/recognition works.
+
+---
+
+# Critical implementation principle
+
+Do not patch the error messages or simply hide failed states.
+
+Find the actual failure in the data flow.
+
+We already have evidence that:
+
+* qualified Stories are reaching the Creator Dashboard,
+* `story_candidate` rows are being created,
+* `story_permissions` rows are being created.
+
+So the next debugging focus should be:
+
+**Are the correct records being READ and interpreted correctly by the Creator Dashboard?**
+
+and:
+
+**Why does the persistent queue state not change when Dismiss is clicked?**
+
+At the end, report:
+
+1. Root cause of the candidate retrieval failure.
+2. Evidence from the database/query/API showing where it failed.
+3. Root cause of the dismissal failure.
+4. Files changed.
+5. API/server routes changed.
+6. Database/RLS changes, if any.
+7. How candidate persistence/retrieval now works.
+8. How dismissal is persisted.
+9. How approval transitions from pending to approved.
+10. Tests run and results.
