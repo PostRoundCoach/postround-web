@@ -72,7 +72,7 @@ export function EmailCaptureModal({ open, onOpenChange }: EmailCaptureModalProps
             <DialogHeader>
               <DialogTitle className="text-2xl font-serif">Join the Launch Waitlist</DialogTitle>
               <DialogDescription>
-                Be among the first to experience Post Round and a better way to remember, reflect on, and learn from your rounds.
+                Be among the first to play your round, learn from what happened, and share the moments that made it yours.
               </DialogDescription>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4 pt-4">

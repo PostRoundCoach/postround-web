@@ -8,7 +8,8 @@ export function Footer() {
           <div>
             <h3 className="font-serif text-xl mb-3 text-[#D4AF37]">Post Round</h3>
             <p className="text-sm text-muted-foreground max-w-xs">
-              Your game. Your story. Capture the round, learn from it, and share what mattered.
+              <span className="font-semibold text-foreground">Your game. Your story. Your people.</span><br />
+              Play your round, learn from it, and share what mattered.
             </p>
           </div>
           
@@ -20,6 +21,7 @@ export function Footer() {
               <li><Link href="/#ai-coaching" className="hover:text-foreground transition-colors">AI Coaching</Link></li>
               <li><Link href="/#player-dna" className="hover:text-foreground transition-colors">Player DNA</Link></li>
               <li><Link href="/#share-your-round" className="hover:text-foreground transition-colors">Share Your Round</Link></li>
+              <li><Link href="/#creators" className="hover:text-foreground transition-colors">Creators</Link></li>
             </ul>
           </div>
           

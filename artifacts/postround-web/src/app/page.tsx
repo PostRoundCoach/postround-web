@@ -13,17 +13,17 @@ const steps = [
   {
     label: 'Play',
     icon: Flag,
-    copy: 'Play your round. Chase a number, a feeling, a shot you know is in there.',
+    copy: 'Play your round and capture it naturally as you go. Keep the score. Talk through the moments that matter.',
   },
   {
     label: 'Learn',
     icon: Brain,
-    copy: 'Capture what happened in your own words, then turn the round into useful context and coaching.',
+    copy: 'Post Round combines your score and your own context to help you understand your game and find patterns across your rounds.',
   },
   {
     label: 'Share',
     icon: Share2,
-    copy: 'Turn the moments and lessons from your round into a story worth sharing.',
+    copy: 'Turn the moments that mattered into an editable Story. Keep it for yourself, share it with friends, or send it to a creator you follow.',
   },
 ]
 
@@ -33,6 +33,7 @@ const navigation = [
   ['AI Coaching', '#ai-coaching'],
   ['Player DNA', '#player-dna'],
   ['Share Your Round', '#share-your-round'],
+  ['Creators', '#creators'],
 ]
 
 export default function Home() {
@@ -103,8 +104,9 @@ export default function Home() {
               </FadeIn>
               <FadeIn delay={0.2}>
                 <p className="mt-7 max-w-2xl text-lg leading-relaxed text-foreground/80 md:text-xl">
-                  It&apos;s a story of decisions, misses, breakthroughs, and moments worth remembering. Post Round captures your round while you play, helps you learn afterward, and turns the experience into a story you can share.
+                  It&apos;s the shot you flushed, the decision you questioned, the bounce you didn&apos;t expect, the birdie you fought for, and the moment you finally settled into your game.
                 </p>
+                <p className="mt-4 max-w-2xl text-lg font-semibold leading-relaxed text-foreground md:text-xl">Post Round captures your round while you play, helps you understand it afterward, and turns the moments that mattered into stories worth sharing.</p>
               </FadeIn>
               <FadeIn delay={0.35}>
                 <Button variant="gold" size="xl" onClick={() => setModalOpen(true)} className="mt-9 shadow-xl shadow-black/20">
@@ -115,22 +117,7 @@ export default function Home() {
           </div>
         </section>
 
-        <section className="bg-card/30 py-24 md:py-32">
-          <div className="container mx-auto grid gap-12 px-6 md:grid-cols-[0.85fr_1.15fr] md:items-center">
-            <FadeIn direction="left">
-              <p className="text-sm font-semibold uppercase tracking-[0.24em] text-primary">The story of a round</p>
-              <h2 className="mt-4 font-serif text-4xl font-bold md:text-6xl">The card keeps the score. You remember everything else.</h2>
-            </FadeIn>
-            <FadeIn direction="right">
-              <div className="space-y-5 text-lg leading-relaxed text-muted-foreground">
-                <p>The flushed iron. The decision you&apos;d take back. The bounce that changed the hole. The calm you found after a rough start.</p>
-                <p>Capture those details as the round unfolds. They&apos;re what make the round yours, where the most useful lessons live, and what turns a score into a story worth sharing.</p>
-              </div>
-            </FadeIn>
-          </div>
-        </section>
-
-        <section id="play" className="py-24 md:py-32">
+        <section id="on-course-capture" className="py-24 md:py-32">
           <div className="container mx-auto px-6">
             <div className="grid gap-12 md:grid-cols-2 md:items-center">
               <FadeIn direction="left">
@@ -141,22 +128,23 @@ export default function Home() {
                 </div>
               </FadeIn>
               <FadeIn direction="right">
-                <p className="text-sm font-semibold uppercase tracking-[0.24em] text-[#D4AF37]">Play</p>
-                <h2 className="mt-4 font-serif text-4xl font-bold md:text-6xl">Be there for the round.</h2>
+                <p className="text-sm font-semibold uppercase tracking-[0.24em] text-[#D4AF37]">The story starts on the course.</p>
+                <h2 className="mt-4 font-serif text-4xl font-bold md:text-6xl">The scorecard records what happened. Round Buddy captures why.</h2>
                 <p className="mt-6 text-lg leading-relaxed text-muted-foreground">
-                  Post Round is built around golf as it&apos;s actually played: one shot, one choice, one hole at a time. Keep score on course, then speak naturally after each hole while the shots, decisions, and feelings are still fresh.
+                  Golf happens one hole at a time. Keep your score as you play, then talk naturally with Round Buddy after each hole while the shots, decisions, conditions, and feelings are still fresh.
                 </p>
+                <p className="mt-4 text-lg leading-relaxed text-muted-foreground">That context becomes part of your round — giving Post Round something a traditional scorecard never can.</p>
                 <div className="mt-8 rounded-2xl border border-border bg-card p-6">
-                  <p className="font-semibold text-foreground">The scorecard gives the round its shape.</p>
-                   <p className="mt-2 text-muted-foreground">The on-course scorecard records each hole. Round Buddy adds the spoken decisions, conditions, and feelings that explain how the number came to be.</p>
+                  <p className="font-semibold text-foreground">Your score tells us what happened.</p>
+                  <p className="mt-2 text-muted-foreground">Your words help explain why.</p>
                 </div>
               </FadeIn>
             </div>
             <StaggerContainer className="mt-12 grid gap-5 md:grid-cols-3">
               {[
-                ['Keep the score', 'Record the hole-by-hole result and preserve the structure of the round.'],
-                ['Talk after each hole', 'Tell Round Buddy about the turning points, good swings, misses, and decisions while they are fresh.'],
-                ['Capture score and story', 'Keep the number. Keep the moment. Keep the reason behind it.'],
+                ['Keep the score', 'Record the result of every hole and preserve the structure of your round.'],
+                ['Capture what happened', 'Tell Round Buddy about the shots, decisions, conditions, turning points, and moments you want to remember.'],
+                ['Keep the context', 'Your score tells us what happened. Your words help explain why.'],
               ].map(([title, copy]) => (
                 <StaggerItem key={title}>
                   <div className="h-full rounded-2xl border border-border bg-card p-7">
@@ -177,15 +165,15 @@ export default function Home() {
                 <p className="text-sm font-semibold uppercase tracking-[0.24em] text-primary">Round Buddy</p>
                 <h2 className="mt-4 font-serif text-4xl font-bold md:text-6xl">Your on-course companion.</h2>
                 <p className="mt-6 text-lg leading-relaxed text-muted-foreground">
-                  After each hole, tell Round Buddy what happened in your own words. It captures the score and spoken context a scorecard misses—what you tried, what changed, and how the hole felt.
+                  You shouldn&apos;t have to reconstruct your round afterward. After each hole, tell Round Buddy what happened in your own words. Talk about the fairway, the miss, the wind, the decision, the recovery, the putt — whatever mattered to you. Round Buddy keeps track of the score and the story as your round unfolds.
                 </p>
               </div>
             </FadeIn>
             <StaggerContainer className="mx-auto mt-14 grid max-w-5xl gap-5 md:grid-cols-3">
               {[
-                ['Speak naturally', 'Talk through the hole as you would with a playing partner—no after-round reconstruction required.'],
-                ['Add the human context', 'Describe the lie, the wind, the thought, or the feeling behind the result.'],
-                ['Capture score and story', 'Keep the number. Keep the moment. Keep the reason behind it.'],
+                ['Speak naturally', 'Talk to Round Buddy like you would talk to a playing partner.'],
+                ['Capture the moment', 'Record thoughts and reactions while they’re still fresh instead of trying to remember them hours later.'],
+                ['Build the story', 'Every hole adds another piece of the round — the score, the context, and the moments that made it yours.'],
               ].map(([title, copy]) => (
                 <StaggerItem key={title}>
                   <div className="h-full rounded-2xl border border-border bg-card p-7">
@@ -205,13 +193,13 @@ export default function Home() {
               <FadeIn direction="left">
                 <div>
                   <p className="text-sm font-semibold uppercase tracking-[0.24em] text-primary">Learn</p>
-                  <h2 className="mt-4 font-serif text-4xl font-bold md:text-6xl">See your game more clearly.</h2>
+                   <h2 className="mt-4 font-serif text-4xl font-bold md:text-6xl">Your round has more to teach you than your score.</h2>
                   <p className="mt-6 text-lg leading-relaxed text-muted-foreground">
-                     AI coaching turns the score and context captured on course into useful reflection. It helps surface patterns, connect decisions to outcomes, and focus practice before the next round. You bring the experience. Post Round helps you learn from it.
+                      Once the round is complete, Post Round brings your score and your own observations together. AI coaching helps identify patterns, connect decisions to outcomes, and turn what happened on the course into useful reflection for your next round. You bring the experience. Post Round helps you learn from it.
                   </p>
                   <div className="mt-8 flex gap-4 rounded-2xl border border-border bg-card p-6">
                     <BookOpen className="mt-1 h-6 w-6 shrink-0 text-[#D4AF37]" />
-                    <p className="text-muted-foreground">Coaching should add perspective—not invent certainty. Insights are grounded in the score and context you choose to share.</p>
+                     <p className="text-muted-foreground">Coaching should add perspective — not invent certainty. Insights are grounded in the score and context you choose to capture.</p>
                   </div>
                 </div>
               </FadeIn>
@@ -232,19 +220,34 @@ export default function Home() {
                 </div>
               </FadeIn>
             </div>
+            <StaggerContainer className="mt-12 grid gap-5 md:grid-cols-3">
+              {[
+                ['Understand your round', 'See what happened across your game, not just what you scored.'],
+                ['Find patterns', 'Identify recurring situations, decisions, and outcomes across your rounds.'],
+                ['Practice with purpose', 'Turn what you learn on the course into areas to focus on before you play again.'],
+              ].map(([title, copy]) => (
+                <StaggerItem key={title}>
+                  <div className="h-full rounded-2xl border border-border bg-card p-7">
+                    <BookOpen className="h-7 w-7 text-primary" />
+                    <h3 className="mt-5 text-xl font-semibold">{title}</h3>
+                    <p className="mt-3 leading-relaxed text-muted-foreground">{copy}</p>
+                  </div>
+                </StaggerItem>
+              ))}
+            </StaggerContainer>
             <div id="player-dna" className="mt-16">
               <FadeIn>
                 <div className="mx-auto max-w-3xl text-center">
                   <p className="text-sm font-semibold uppercase tracking-[0.24em] text-[#D4AF37]">Player DNA</p>
-                  <h3 className="mt-4 font-serif text-3xl font-bold md:text-5xl">A living picture of how you play.</h3>
-                   <p className="mt-5 text-lg text-muted-foreground">As you capture more rounds, Player DNA builds a living picture of recurring patterns without reducing your game to a single number.</p>
+                   <h3 className="mt-4 font-serif text-3xl font-bold md:text-5xl">A living picture of your game.</h3>
+                    <p className="mt-5 text-lg text-muted-foreground">Your golf changes. Your patterns change. Your Player DNA evolves with you. As you capture more rounds, Post Round builds a richer picture of how you actually play — the situations you handle well, the patterns that keep showing up, and the decisions that influence your results.</p>
                 </div>
               </FadeIn>
               <StaggerContainer className="mt-10 grid gap-5 md:grid-cols-3">
                 {[
-                  [TrendingUp, 'Patterns across rounds', 'Notice recurring situations, choices, and outcomes in the context of the rounds you captured.'],
+                   [TrendingUp, 'Patterns across rounds', 'See recurring situations, choices, and outcomes in the context of your actual rounds.'],
                   [Target, 'Scoring context', 'Connect where strokes were gained or lost with what you were trying to do on the course.'],
-                  [Brain, 'Mental tendencies', 'Reflect on commitment, focus, recovery, and decision-making when those themes show up in your notes.'],
+                   [Brain, 'Mental tendencies', 'Reflect on commitment, focus, recovery, and decision-making when those themes appear in your rounds.'],
                 ].map(([Icon, title, copy]) => {
                   const FeatureIcon = Icon as typeof Brain
                   return (
@@ -270,18 +273,18 @@ export default function Home() {
                   <Sparkles className="h-7 w-7 text-[#D4AF37]" />
                 </div>
                 <p className="mt-6 text-sm font-semibold uppercase tracking-[0.24em] text-[#D4AF37]">Share</p>
-                <h2 className="mt-4 font-serif text-4xl font-bold md:text-6xl">Every golfer has a story worth following.</h2>
+                 <h2 className="mt-4 font-serif text-4xl font-bold md:text-6xl">Your golf is already a story.</h2>
                 <p className="mt-6 text-lg leading-relaxed text-muted-foreground">
-                  Your scorecard and Round Buddy context come together as a round story you can share. Post Round helps turn real moments, lessons, and breakthroughs from your game into social storytelling grounded in what actually happened.
+                   Post Round brings your score and Round Buddy context together to find the moments that are worth remembering — and worth sharing. A great round. A ridiculous hole. A breakthrough. A personal best. A lesson you finally learned.
                 </p>
-                <p className="mt-5 text-sm font-medium text-primary">Play it. Learn from it. Share the story.</p>
+                 <p className="mt-5 font-semibold text-foreground">Post Round turns what actually happened on the course into an editable Story grounded in your real round.</p>
               </div>
             </FadeIn>
             <StaggerContainer className="mx-auto mt-12 grid max-w-5xl gap-5 md:grid-cols-3">
               {[
-                ['Start with the round', 'The scorecard gives your story structure, from the opening tee to the final putt.'],
-                ['Bring in the moments', 'Round Buddy context adds the choices, reactions, and turning points behind the score.'],
-                ['Share what mattered', 'Shape the round into a clear social story built from the golf you actually played.'],
+                ['You decide what gets shared', 'Review and approve your Story before it goes anywhere.'],
+                ['Share with the people you follow', 'Send an approved Story directly to a creator you follow — giving them the opportunity to share your golf with their audience.'],
+                ['Follow the golfers you care about', 'Discover creators, follow their golf, see their Stories, and become part of the conversation around the game.'],
               ].map(([title, copy], index) => (
                 <StaggerItem key={title}>
                   <div className="h-full rounded-2xl border border-border bg-card p-7">
@@ -295,12 +298,50 @@ export default function Home() {
           </div>
         </section>
 
+        <section id="creators" className="py-24 md:py-32">
+          <div className="container mx-auto grid gap-12 px-6 md:grid-cols-2 md:items-center">
+            <FadeIn direction="left">
+              <div>
+                <p className="text-sm font-semibold uppercase tracking-[0.24em] text-[#D4AF37]">For creators</p>
+                <h2 className="mt-4 font-serif text-4xl font-bold md:text-6xl">Your audience is already playing golf.</h2>
+                <p className="mt-6 text-xl text-foreground">What if their golf could become your content?</p>
+              </div>
+            </FadeIn>
+            <FadeIn direction="right">
+              <div className="space-y-5 text-lg leading-relaxed text-muted-foreground">
+                <p>Post Round gives players a way to send their approved golf Stories directly to creators they follow.</p>
+                <p>A great score. A first birdie. A breakthrough. A brutal hole. A ridiculous recovery.</p>
+                <p className="font-semibold text-foreground">Your audience creates the golf. Post Round turns it into content.</p>
+                <p>Creators can discover authentic stories from the golfers who follow them and choose the moments they want to share with their own audience.</p>
+                <p>No manufactured content. No guessing what your audience is doing.</p>
+                <p className="font-semibold text-[#D4AF37]">Real golfers. Real rounds. Real stories.</p>
+              </div>
+            </FadeIn>
+          </div>
+        </section>
+
+        <section id="golf-connections" className="bg-card/30 py-24 md:py-32">
+          <div className="container mx-auto px-6">
+            <FadeIn>
+              <div className="mx-auto max-w-4xl text-center">
+                <p className="text-sm font-semibold uppercase tracking-[0.24em] text-primary">A different kind of golf connection.</p>
+                <h2 className="mt-4 font-serif text-4xl font-bold md:text-6xl">Follow the golfers you want to hear from.</h2>
+                <div className="mx-auto mt-6 max-w-3xl space-y-4 text-lg leading-relaxed text-muted-foreground">
+                  <p>Post Round isn&apos;t just about improving your own game. It&apos;s about making golf more connected.</p>
+                  <p>Follow creators you care about. See their rounds and Stories. Share your own golf directly with them. And maybe one day, see your Story become part of theirs.</p>
+                  <p className="font-semibold text-foreground">The golfer you follow isn&apos;t just someone on a screen. They&apos;re part of your golf world.</p>
+                </div>
+              </div>
+            </FadeIn>
+          </div>
+        </section>
+
         <section id="how-it-works" className="py-24 md:py-32">
           <div className="container mx-auto px-6">
             <FadeIn>
               <div className="mx-auto max-w-3xl text-center">
                 <p className="text-sm font-semibold uppercase tracking-[0.24em] text-primary">Play. Learn. Share.</p>
-                <h2 className="mt-4 font-serif text-4xl font-bold md:text-6xl">A home for the whole game.</h2>
+                 <h2 className="mt-4 font-serif text-4xl font-bold md:text-6xl">How it all comes together</h2>
               </div>
             </FadeIn>
             <StaggerContainer className="mt-14 grid gap-6 md:grid-cols-3">
@@ -326,8 +367,9 @@ export default function Home() {
           <div className="container relative z-10 mx-auto px-6 text-center">
             <FadeIn>
               <p className="text-sm font-semibold uppercase tracking-[0.24em] text-[#D4AF37]">Post Round</p>
-              <h2 className="mt-4 font-serif text-5xl font-bold md:text-7xl">Your game. Your story.</h2>
-               <p className="mx-auto mt-6 max-w-2xl text-lg text-foreground/75">Capture the round while you play, learn from the full story, and share the moments that made it yours.</p>
+               <h2 className="mt-4 font-serif text-5xl font-bold md:text-7xl">Your game. Your story. Your people.</h2>
+                <p className="mx-auto mt-6 max-w-2xl text-lg text-foreground/75">Golf is more than the number on the card.</p>
+                <p className="mx-auto mt-4 max-w-2xl text-lg font-semibold text-foreground">Play your round. Learn from what happened. Share the moments that made it yours.</p>
               <Button variant="gold" size="xl" onClick={() => setModalOpen(true)} className="mt-9">
                 Join the Launch Waitlist <ArrowRight className="ml-2 h-5 w-5" />
               </Button>
