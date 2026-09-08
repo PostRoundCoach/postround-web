@@ -3,3 +3,4 @@
 - [VAD writer source gap](vad-writer-source-gap.md) — the accessible mobile/API repository removed an incompatible parallel writer; the live canonical writer is not on an accessible branch.
 - [Conservative VAD classification](vad-classification-rules.md) — classify from event-time evidence only; reserve high/critical severity for explicit impact or final failure.
 - [Creator dashboard backend boundary](creator-dashboard-boundary.md) — creator ideas come only from the authenticated authoritative API; never use admin or direct-table access.
+- [Next E2E isolation](next-e2e-isolation.md) — authenticated browser suites need a separate production build directory from the managed preview.
