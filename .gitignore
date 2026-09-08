@@ -31,6 +31,9 @@ node_modules
 /.sass-cache
 /connect.lock
 /coverage
+artifacts/postround-web/.next-e2e/
+artifacts/postround-web/test-results/
+artifacts/postround-web/playwright-report/
 /libpeerconnection.log
 npm-debug.log
 yarn-error.log
