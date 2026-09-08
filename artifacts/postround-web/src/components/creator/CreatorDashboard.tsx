@@ -18,7 +18,11 @@ type DashboardState =
   | { kind: 'error' }
   | { kind: 'ready'; profile: CreatorProfile; stories: CreatorStory[] }
 
-export function CreatorDashboard() {
+interface CreatorDashboardProps {
+  initialProfile?: CreatorProfile
+}
+
+export function CreatorDashboard({ initialProfile }: CreatorDashboardProps) {
   const [state, setState] = useState<DashboardState>({ kind: 'loading' })
 
   const load = useCallback(async () => {
@@ -31,7 +35,8 @@ export function CreatorDashboard() {
     }
 
     try {
-      const profile = await fetchOwnedActiveCreatorProfile(supabase)
+      const profile = initialProfile
+        ?? await fetchOwnedActiveCreatorProfile(supabase)
 
       if (!profile) {
         setState({ kind: 'unavailable' })
@@ -43,7 +48,7 @@ export function CreatorDashboard() {
     } catch {
       setState({ kind: 'error' })
     }
-  }, [])
+  }, [initialProfile])
 
   useEffect(() => {
     void load()

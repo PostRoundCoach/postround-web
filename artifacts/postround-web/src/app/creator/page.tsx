@@ -38,7 +38,7 @@ export default async function CreatorPage() {
 
   return (
     <>
-      <CreatorDashboard />
+      <CreatorDashboard initialProfile={profile} />
       <Toaster richColors position="bottom-right" />
     </>
   )
