@@ -1,0 +1,445 @@
+We have now validated the real production pipeline with TWO fresh Round Buddy rounds.
+
+Do NOT rebuild the Creator Engine or Round Buddy persistence as part of this task.
+
+The generation pipeline is already working.
+
+## VERIFIED CURRENT BEHAVIOR
+
+Two real Round Buddy rounds were completed.
+
+For both rounds:
+
+1. Round Buddy completed.
+2. Hole-level records were persisted in `holes`.
+3. Round Buddy player notes/transcript context was persisted in `holes.player_notes`.
+4. The rounds qualified as Stories.
+5. `story_candidates` contains the qualified Stories.
+6. `story_permissions` contains the creator relationship.
+7. The Stories appear correctly on the Creator Dashboard.
+8. Content was automatically generated and persisted into `content_ideas`.
+
+Examples of existing `content_ideas` records:
+
+* `round_id = c9738b90-0519-42ba-9a77-4a0d6aa1d801`
+
+  * Round Analysis
+  * Putting Insight
+* `round_id = 2af30733-3241-49f8-8899-7253b22af6e8`
+
+  * Putting Insight
+  * Breaking 80
+
+These records already contain:
+
+* id
+* round_id
+* category
+* title
+* hook
+* script
+* stats_used
+* status
+* created_at
+* story_id
+
+The important observation is:
+
+**CONTENT GENERATION IS ALREADY HAPPENING.**
+
+Therefore, the Creator Dashboard's current **"Generate Story Candidates" / "Generate Content"** action appears to be outdated, disconnected from the actual pipeline, or incorrectly attempting to regenerate something that already exists.
+
+For THIS task, do not rebuild generation.
+
+Instead, repair the Creator Dashboard so it consumes the existing generated content.
+
+---
+
+# DESIRED CREATOR WORKFLOW
+
+The Creator Dashboard should now work like this:
+
+Creator opens qualified Story
+↓
+Resolve story_candidate → source round_id
+↓
+Fetch existing content_ideas WHERE round_id = source round_id
+↓
+Display generated content ideas
+↓
+Creator selects/views an idea
+↓
+Creator requests player approval
+↓
+Player sees the available Story in Post Round
+↓
+Player approves
+↓
+Creator sees Story/content as Publishable
+
+The Creator Dashboard should NOT require the creator to trigger generation if the content already exists.
+
+---
+
+# 1. TRACE THE CURRENT "GENERATE STORY CANDIDATES" BUTTON
+
+Start from the actual Creator Dashboard UI.
+
+Find:
+
+* exact component
+* exact button
+* current label
+* click handler
+* client function
+* API endpoint
+* request payload
+* response
+* UI state update
+
+Determine what this button currently does.
+
+Specifically establish whether it is:
+
+* attempting to generate new Story candidates
+* attempting to generate content
+* attempting to retrieve `content_ideas`
+* calling an outdated endpoint
+* sending the wrong Story ID
+* expecting the wrong response shape
+* failing silently
+* or otherwise disconnected from the current pipeline
+
+DO NOT simply rename the button without understanding the existing implementation.
+
+---
+
+# 2. DETERMINE THE CANONICAL STORY → ROUND RELATIONSHIP
+
+For a Story currently visible in Creator Dashboard:
+
+Trace:
+
+`story_candidates → source Story → round_id`
+
+Use the existing authoritative relationship.
+
+Verify the exact identifier that connects the qualified Story to the round.
+
+Then verify:
+
+`round_id → content_ideas.round_id`
+
+This is the critical relationship for this task.
+
+Do not create a new relationship or duplicate the data.
+
+---
+
+# 3. RETRIEVE EXISTING CONTENT_IDEAS
+
+The Creator Dashboard should retrieve existing generated ideas using the source round.
+
+Conceptually:
+
+`GET content_ideas WHERE round_id = qualified_story.round_id`
+
+Use the existing API architecture if one already exists.
+
+If the existing `/api/content/ideas` endpoint already supports this, repair its input/response contract rather than creating another endpoint.
+
+Verify:
+
+* authentication
+* creator authorization
+* round ownership/Story relationship
+* query filters
+* response shape
+* empty-state behavior
+* ordering
+
+Return all relevant existing generated ideas for that round.
+
+Do NOT generate new ideas merely because the Creator opens the Story.
+
+---
+
+# 4. UPDATE THE CREATOR UI
+
+The Creator Dashboard Story card/page should display the generated `content_ideas`.
+
+For each idea, show the useful creator-facing fields already stored:
+
+* category
+* title
+* hook
+* script
+* stats used
+* status
+
+Do not invent a new content model.
+
+The UI should make it obvious that these are **content ideas generated from the player's Story/round**.
+
+If there are multiple ideas, allow the creator to select/open them.
+
+---
+
+# 5. RECONSIDER THE CURRENT BUTTON
+
+If content already exists automatically in `content_ideas`, the current:
+
+**"Generate Story Candidates"**
+
+button is no longer the correct action on the Creator Dashboard.
+
+Replace or remove it according to the existing UX architecture.
+
+The primary Creator actions should instead be something like:
+
+* View Content
+* Request Approval
+
+Do NOT introduce unnecessary generation controls.
+
+If there is a legitimate reason to retain a regeneration action, make it a separate, explicit action and do not make the primary Story workflow depend on it.
+
+For this task, prioritize the simplest working flow.
+
+---
+
+# 6. REQUEST APPROVAL
+
+Once the Creator can view an existing content idea, the Creator should be able to request player approval.
+
+Use the existing approval architecture from Task #38.
+
+Preserve these semantics:
+
+* `story_permissions.permission_granted=true` represents the active creator relationship/request.
+* `story_permissions.granted_at` is authoritative player approval.
+* `revoked_at` represents creator-specific dismissal/revocation.
+
+The Creator clicking "Request Approval" must NOT automatically approve the Story.
+
+The action should update the existing creator-specific permission/request state using the existing API.
+
+Do not create duplicate permission rows.
+
+Make the action idempotent.
+
+If approval has already been requested, the UI should reflect that state rather than creating another request.
+
+---
+
+# 7. PLAYER APPROVAL → PUBLISHABLE
+
+Verify the downstream lifecycle:
+
+Creator requests approval
+↓
+existing story_permissions row reflects pending request
+↓
+Player sees available Story in Post Round
+↓
+Player approves
+↓
+story_permissions.granted_at populated
+↓
+Creator Dashboard reloads
+↓
+Story/content becomes Publishable
+
+Use `granted_at` as the authoritative approval signal.
+
+Do not infer approval from:
+
+* Story qualification
+* `permission_granted`
+* creator request alone
+* existence of `content_ideas`
+
+---
+
+# 8. DO NOT TOUCH THE EXISTING CONTENT GENERATION ENGINE
+
+This task is NOT asking you to redesign content generation.
+
+The existing system has already demonstrated that it can generate and persist content.
+
+For example, the database currently contains generated ideas such as:
+
+"Breaking Par on an Executive Course"
+
+"11 Putts: A Recipe for Par"
+
+"Putting: The Game-Changer Today"
+
+"Breaking 80 with Stellar Short Game"
+
+Those are valid persisted outputs.
+
+The separate next-stage task will be to make the Creator Engine more creator-oriented by giving it richer inputs such as:
+
+* Story context
+* hole-by-hole data
+* scorecard
+* Round Buddy transcript/player notes
+* memorable moments
+* unusual shots
+* narrative arcs
+
+DO NOT combine that engine redesign with this Dashboard plumbing task.
+
+The objective here is simply:
+
+**make the Creator Dashboard consume and expose the content that is already being generated.**
+
+---
+
+# 9. IMPORTANT: ROUND BUDDY DATA IS ALREADY AVAILABLE
+
+Do not create any new Round Buddy persistence.
+
+The fresh test proved that `holes` now contains the actual Round Buddy/player transcript context.
+
+The existing `holes` records contain structured data including:
+
+* hole number
+* par
+* score
+* fairway result
+* GIR result
+* putts
+* chip count
+* bunker shot
+* sand save
+* scramble opportunity
+* scramble success
+* penalty strokes
+* player notes / Round Buddy transcript
+* playable fairway miss
+* playable GIR miss
+* sand shot count
+
+That data will be used in the NEXT Creator Engine improvement.
+
+It does NOT need to be moved into another table for this task.
+
+---
+
+# 10. TEST WITH THE TWO REAL STORIES
+
+Use the two newly generated Stories already present in Supabase.
+
+Verify:
+
+### Story 1
+
+`round_id = c9738b90-0519-42ba-9a77-4a0d6aa1d801`
+
+Expected existing content ideas include:
+
+* Round Analysis
+* Putting Insight
+
+### Story 2
+
+`round_id = 2af30733-3241-49f8-8899-7253b22af6e8`
+
+Expected existing content ideas include:
+
+* Putting Insight
+* Breaking 80
+
+For BOTH Stories verify:
+
+1. Story appears in Creator Dashboard.
+2. Story resolves to correct `round_id`.
+3. Dashboard retrieves existing `content_ideas`.
+4. Ideas render.
+5. Creator can open/view an idea.
+6. Creator can request approval.
+7. Approval request updates the correct existing permission row.
+8. No duplicate permission row is created.
+9. Player can approve.
+10. `granted_at` becomes populated.
+11. Creator Dashboard reflects approved/publishable state.
+
+---
+
+# 11. EMPTY-STATE BEHAVIOR
+
+Also test a qualified Story with no `content_ideas`.
+
+Do not silently fail.
+
+Display a clear state indicating that generated content is not currently available.
+
+Do NOT automatically create a new generation pipeline as a workaround.
+
+If the architecture already has a legitimate generation endpoint, identify it and document it, but do not make generation a prerequisite for this dashboard repair unless the existing product architecture explicitly requires it.
+
+---
+
+# 12. SILENT FAILURE IS NOT ACCEPTABLE
+
+The current problem is that the Creator action appears to "do nothing."
+
+Fix that.
+
+Any API failure must produce:
+
+* visible UI error
+* useful server logging
+* actionable response/error information
+
+No swallowed exceptions.
+
+No fake success state.
+
+No optimistic "generated" state before the server confirms the data.
+
+---
+
+# 13. TEST THE ACTUAL DATA CONTRACT
+
+Run:
+
+* relevant API tests
+* Creator Dashboard tests
+* TypeScript checks
+* existing E2E tests
+* one authenticated real-data test against the two existing Stories
+
+Verify the actual network request and response.
+
+Do not rely solely on mocked/fake Supabase data.
+
+---
+
+# 14. FINAL REPORT
+
+Before declaring this task complete, report:
+
+1. What the current "Generate Story Candidates" button was actually doing.
+2. Why it appeared to do nothing.
+3. Exact endpoint involved.
+4. Exact request payload.
+5. Exact Story → round relationship.
+6. Exact query used to retrieve `content_ideas`.
+7. Number of existing ideas retrieved for each of the two real Stories.
+8. Files changed.
+9. Tests run and results.
+10. Confirmation that the Creator Dashboard now displays existing `content_ideas`.
+11. Confirmation that Request Approval works.
+12. Confirmation that approval remains player-controlled through `granted_at`.
+13. Confirmation that Publishable state appears after player approval.
+14. Confirmation that no duplicate content/Story/Round Buddy storage was introduced.
+15. Confirmation that the content-generation engine itself was NOT unnecessarily rebuilt as part of this task.
+
+The key architectural principle for this task is:
+
+**Generation has already happened. The Creator Dashboard's job is to retrieve, present, and manage approval for the generated content.**
+
+Do not solve a working generation pipeline by rebuilding it.
