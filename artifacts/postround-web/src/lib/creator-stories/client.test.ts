@@ -33,6 +33,19 @@ const parsedCandidate = {
 }
 delete (parsedCandidate as { supporting_evidence?: string[] }).supporting_evidence
 
+const contentIdea = {
+  id: 'idea-1',
+  story_id: 'story-1',
+  round_id: 'round-1',
+  category: 'Putting Insight',
+  title: '11 Putts: A Recipe for Par',
+  hook: 'Only 11 putts over 9 holes?',
+  script: 'Stored production script.',
+  stats_used: { 'Total Putts': 11, 'Total Score': 34 },
+  status: 'draft',
+  created_at: '2026-09-09T17:56:36.250057+00:00',
+}
+
 test('projects only approved story fields and safely parses optional story data', () => {
   const story = toCreatorStory({
     id: 'story-1',
@@ -326,7 +339,7 @@ test('preserves the safe backend stage on generation failures', async () => {
   }
 })
 
-test('successful generation is followed by authenticated retrieval of persisted ideas', async () => {
+test('authenticated retrieval loads persisted round ideas without regeneration', async () => {
   const originalFetch = globalThis.fetch
   const originalApiBase = process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL
   process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL = 'https://api.postround.test/'
@@ -339,21 +352,11 @@ test('successful generation is followed by authenticated retrieval of persisted 
       body: init?.body ? String(init.body) : undefined,
     })
 
-    if (init?.method === 'POST') {
-        return new Response(JSON.stringify({
-          ok: true,
-          count: 1,
-          candidates: [candidate],
-          permission_status: 'pending',
-        }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      })
-    }
-
     return new Response(JSON.stringify({
       ok: true,
-      ideas: [candidate],
+      story_id: 'story-1',
+      round_id: 'round-1',
+      ideas: [contentIdea],
       permission_status: 'pending',
     }), {
       status: 200,
@@ -373,25 +376,13 @@ test('successful generation is followed by authenticated retrieval of persisted 
   } as unknown as SupabaseClient
 
   try {
-    const generation = await generateStoryCandidates(supabase, { story_id: 'story-1' })
     const retrieval = await fetchStoryCandidates(supabase, 'story-1')
 
-    assert.deepEqual(generation, {
-      ok: true,
-      count: 1,
-      candidates: [parsedCandidate],
-      permission_status: 'pending',
-    })
-    assert.equal(retrieval.candidates[0]?.title, 'The turning point')
-    assert.equal(retrieval.candidates[0]?.hook, 'One hole changed the entire round.')
+    assert.equal(retrieval.story_id, 'story-1')
+    assert.equal(retrieval.round_id, 'round-1')
+    assert.equal(retrieval.ideas[0]?.title, '11 Putts: A Recipe for Par')
+    assert.deepEqual(retrieval.ideas[0]?.stats_used, { 'Total Putts': 11, 'Total Score': 34 })
     assert.deepEqual(requests, [
-      {
-        url: 'https://api.postround.test/api/content/generate',
-        method: 'POST',
-        body: JSON.stringify({
-          story_id: 'story-1',
-        }),
-      },
       {
         url: 'https://api.postround.test/api/content/ideas?story_id=story-1',
         method: 'GET',
@@ -423,6 +414,8 @@ test('retrieval retry calls only the creator ideas endpoint and never regenerate
 
     return new Response(JSON.stringify({
       ok: true,
+      story_id: 'story-1',
+      round_id: 'round-1',
       ideas: [],
       permission_status: 'pending',
     }), {
@@ -449,7 +442,9 @@ test('retrieval retry calls only the creator ideas endpoint and never regenerate
     )
     assert.deepEqual(await fetchStoryCandidates(supabase, 'story-1'), {
       ok: true,
-      candidates: [],
+      story_id: 'story-1',
+      round_id: 'round-1',
+      ideas: [],
       permission_status: 'pending',
     })
     assert.deepEqual(methods, ['GET', 'GET'])

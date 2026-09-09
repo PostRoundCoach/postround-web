@@ -3,6 +3,7 @@ import type {
   CreatorProfile,
   CreatorStory,
   CreatorStoryRecord,
+  CreatorContentIdea,
   PermissionedCreatorStoryRecord,
   GenerateStoryCandidatesRequest,
   GenerateStoryCandidatesResponse,
@@ -196,6 +197,26 @@ function toStoryCandidate(value: unknown): StoryCandidate | null {
   }
 }
 
+function toContentIdea(value: unknown): CreatorContentIdea | null {
+  const idea = asObject(value)
+  if (!idea) return null
+  const strings = ['id', 'story_id', 'round_id', 'category', 'title', 'hook', 'script', 'status', 'created_at'] as const
+  const stats = asObject(idea.stats_used)
+  if (strings.some((field) => typeof idea[field] !== 'string') || !stats) return null
+  return {
+    id: idea.id as string,
+    story_id: idea.story_id as string,
+    round_id: idea.round_id as string,
+    category: idea.category as string,
+    title: idea.title as string,
+    hook: idea.hook as string,
+    script: idea.script as string,
+    stats_used: stats,
+    status: idea.status as string,
+    created_at: idea.created_at as string,
+  }
+}
+
 async function authenticatedAccessToken(supabase: SupabaseClient): Promise<string> {
   const { data: { session }, error: sessionError } = await supabase.auth.getSession()
   const accessToken = session?.access_token
@@ -359,19 +380,23 @@ export async function fetchStoryCandidates(
   const payload: unknown = await response.json()
   const result = asObject(payload)
   if (result?.ok !== true
+    || result.story_id !== storyId
+    || typeof result.round_id !== 'string'
     || !Array.isArray(result.ideas)
     || (result.permission_status !== 'pending' && result.permission_status !== 'approved')) {
     throw new CreatorStoryApiError(500, 'Generated content could not be loaded.')
   }
 
-  const candidates = result.ideas.map(toStoryCandidate)
-  if (candidates.some((candidate) => candidate === null)) {
+  const ideas = result.ideas.map(toContentIdea)
+  if (ideas.some((idea) => idea === null)) {
     throw new CreatorStoryApiError(500, 'Generated content could not be loaded.')
   }
 
   return {
     ok: true,
-    candidates: candidates as StoryCandidate[],
+    story_id: storyId,
+    round_id: result.round_id,
+    ideas: ideas as CreatorContentIdea[],
     permission_status: result.permission_status,
   }
 }

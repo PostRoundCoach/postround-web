@@ -5,12 +5,10 @@ test.setTimeout(90_000)
 const storyId = '20000000-0000-4000-8000-000000000001'
 const candidateId = '40000000-0000-4000-8000-000000000001'
 const candidate = {
-  id: candidateId, story_id: storyId, archetype: 'Achievement',
+  id: candidateId, story_id: storyId, round_id: '30000000-0000-4000-8000-000000000001', category: 'Round Analysis',
   title: 'The back-nine comeback', hook: 'A comeback worth sharing',
-  summary: 'Fixture candidate summary.', why_interesting: 'It has a clear arc.',
-  supporting_evidence: ['Recovered on the back nine'], relevant_holes: [10, 18],
-  confidence: 0.92, suggested_format: 'Social caption',
-  transcript_highlights: [], scorecard: [],
+  script: 'Fixture candidate summary.', stats_used: { 'Fairways hit': 8 },
+  status: 'draft', created_at: '2026-01-02T00:00:00.000Z',
 }
 
 async function signIn(page: import('@playwright/test').Page) {
@@ -27,10 +25,7 @@ test('creator story queue persists candidates, approval, and dismissal state', a
   let approvalStatus: 'pending' | 'approved' = 'pending'
 
   await page.route('**/api/content/ideas**', async (route) => {
-    await route.fulfill({ json: { ok: true, ideas: dismissed ? [] : [candidate], permission_status: approvalStatus } })
-  })
-  await page.route('**/api/content/generate', async (route) => {
-    await route.fulfill({ json: { ok: true, count: 1, candidates: [candidate], permission_status: approvalStatus } })
+    await route.fulfill({ json: { ok: true, story_id: storyId, round_id: candidate.round_id, ideas: dismissed ? [] : [candidate], permission_status: approvalStatus } })
   })
   await page.route('**/rest/v1/story_permissions*', async (route) => {
     await route.fulfill({
@@ -54,21 +49,21 @@ test('creator story queue persists candidates, approval, and dismissal state', a
   await page.goto('/creator')
 
   await expect(page.getByTestId(`card-story-${storyId}`)).toBeVisible()
-  await page.getByTestId(`button-generate-story-${storyId}`).click()
-  await page.getByTestId(`button-generate-draft-${candidateId}`).waitFor()
+  await page.getByTestId(`card-story-candidate-${candidateId}`).waitFor()
   await expect(page.getByText('Player approval required')).toBeVisible()
-  await expect(page.getByTestId(`button-generate-draft-${candidateId}`)).toBeDisabled()
 
   await page.getByTestId(`button-request-approval-${storyId}`).click()
   await expect(page.getByText('Player approval required')).toBeVisible()
   await expect.poll(() => approvalRequests).toBe(1)
-  await page.getByTestId(`button-request-approval-${storyId}`).click()
-  await expect.poll(() => approvalRequests).toBe(2)
+  await expect(page.getByTestId(`button-request-approval-${storyId}`)).toBeDisabled()
+  await expect(page.getByTestId(`button-request-approval-${storyId}`)).toHaveText(/Approval requested/)
 
   approvalStatus = 'approved'
   await page.reload()
   await expect(page.getByText('Approved by player')).toBeVisible()
-  await expect(page.getByTestId(`button-generate-draft-${candidateId}`)).toBeEnabled()
+  await expect(
+    page.getByTestId(`card-story-candidate-${candidateId}`).getByText('Publishable', { exact: true }),
+  ).toBeVisible()
 
   await page.getByTestId(`button-dismiss-story-${storyId}`).click()
   await expect(page.getByTestId(`card-story-${storyId}`)).toHaveCount(0)

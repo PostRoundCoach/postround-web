@@ -285,61 +285,51 @@ export async function persistCandidates(
 
 type ContentIdeaRow = {
   id: string;
-  story_id: string;
-  category: StoryCandidate["archetype"];
+  round_id: string;
+  story_id: string | null;
+  category: string;
   title: string;
   hook: string;
   script: string;
-  stats_used: {
-    story_engine?: string;
-    creator_id?: string;
-    summary?: string;
-    why_interesting?: string;
-    supporting_evidence?: string[];
-    relevant_holes?: number[];
-    confidence?: number;
-    suggested_format?: string | null;
-    transcript_highlights?: string[];
-    scorecard?: ScorecardHole[];
-  } | null;
+  stats_used: Record<string, unknown> | null;
+  status: string;
+  created_at: string;
 };
+
+export interface CreatorContentIdea {
+  id: string;
+  story_id: string;
+  round_id: string;
+  category: string;
+  title: string;
+  hook: string;
+  script: string;
+  stats_used: Record<string, unknown>;
+  status: string;
+  created_at: string;
+}
 
 export async function fetchPersistedCandidates(
   context: SupabaseRequestContext,
-  creatorId: string,
   storyId: string,
-): Promise<StoryCandidate[]> {
+  roundId: string,
+): Promise<CreatorContentIdea[]> {
   const rows = await rest<ContentIdeaRow[]>(
     context,
-    `content_ideas?select=id,story_id,category,title,hook,script,stats_used&story_id=eq.${encodeURIComponent(storyId)}&stats_used-%3E%3Estory_engine=eq.creator_story_v1&stats_used-%3E%3Ecreator_id=eq.${encodeURIComponent(creatorId)}&order=created_at.desc`,
+    `content_ideas?select=id,round_id,story_id,category,title,hook,script,stats_used,status,created_at&round_id=eq.${encodeURIComponent(roundId)}&order=created_at.asc,id.asc`,
   );
-  return rows.flatMap((row): StoryCandidate[] => {
-    const data = row.stats_used;
-    if (!data
-      || data.story_engine !== "creator_story_v1"
-      || data.creator_id !== creatorId
-      || typeof data.why_interesting !== "string"
-      || !Array.isArray(data.supporting_evidence)
-      || !Array.isArray(data.relevant_holes)
-      || typeof data.confidence !== "number"
-      || !Array.isArray(data.scorecard)) return [];
-    return [{
-      id: row.id,
-      story_id: row.story_id,
-      archetype: row.category,
-      category: row.category,
-      title: row.title,
-      hook: row.hook,
-      summary: typeof data.summary === "string" ? data.summary : row.script,
-      why_interesting: data.why_interesting,
-      supporting_evidence: data.supporting_evidence,
-      relevant_holes: data.relevant_holes,
-      confidence: data.confidence,
-      suggested_format: data.suggested_format ?? undefined,
-      transcript_highlights: data.transcript_highlights ?? [],
-      scorecard: data.scorecard,
-    }];
-  }).sort((a, b) => b.confidence - a.confidence || a.id.localeCompare(b.id));
+  return rows.map((row) => ({
+    id: row.id,
+    story_id: storyId,
+    round_id: row.round_id,
+    category: row.category,
+    title: row.title,
+    hook: row.hook,
+    script: row.script,
+    stats_used: row.stats_used ?? {},
+    status: row.status,
+    created_at: row.created_at,
+  }));
 }
 
 export async function fetchPersistedCandidate(
@@ -348,8 +338,37 @@ export async function fetchPersistedCandidate(
   storyId: string,
   candidateId: string,
 ): Promise<StoryCandidate> {
-  const candidates = await fetchPersistedCandidates(context, creatorId, storyId);
-  const candidate = candidates.find((item) => item.id === candidateId);
+  const rows = await rest<ContentIdeaRow[]>(
+    context,
+    `content_ideas?select=id,round_id,story_id,category,title,hook,script,stats_used,status,created_at&story_id=eq.${encodeURIComponent(storyId)}&stats_used-%3E%3Estory_engine=eq.creator_story_v1&stats_used-%3E%3Ecreator_id=eq.${encodeURIComponent(creatorId)}&id=eq.${encodeURIComponent(candidateId)}&limit=1`,
+  );
+  const row = rows[0];
+  const data = row?.stats_used;
+  const candidate = row && data
+    && data.story_engine === "creator_story_v1"
+    && data.creator_id === creatorId
+    && typeof data.why_interesting === "string"
+    && Array.isArray(data.supporting_evidence)
+    && Array.isArray(data.relevant_holes)
+    && typeof data.confidence === "number"
+    && Array.isArray(data.scorecard)
+    ? {
+      id: row.id,
+      story_id: storyId,
+      archetype: row.category as StoryCandidate["archetype"],
+      category: row.category as StoryCandidate["archetype"],
+      title: row.title,
+      hook: row.hook,
+      summary: typeof data.summary === "string" ? data.summary : row.script,
+      why_interesting: data.why_interesting,
+      supporting_evidence: data.supporting_evidence as string[],
+      relevant_holes: data.relevant_holes as number[],
+      confidence: data.confidence,
+      suggested_format: typeof data.suggested_format === "string" ? data.suggested_format : undefined,
+      transcript_highlights: Array.isArray(data.transcript_highlights) ? data.transcript_highlights as string[] : [],
+      scorecard: data.scorecard as ScorecardHole[],
+    }
+    : null;
   if (!candidate) throw new CreatorContentError(404, "The selected persisted story candidate was not found.");
   return candidate;
 }

@@ -160,11 +160,14 @@ test("persistence replaces candidates and refreshes the structured result", asyn
   const generated = generateStoryCandidates(base);
   const stored = generated.map((candidate) => ({
     id: candidate.id,
+    round_id: "cccccccc-cccc-cccc-cccc-cccccccccccc",
     story_id: candidate.story_id,
     category: candidate.archetype,
     title: candidate.title,
     hook: candidate.hook,
     script: candidate.summary,
+    status: "draft",
+    created_at: "2026-09-09T12:00:00Z",
     stats_used: {
       story_engine: "creator_story_v1",
       creator_id: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
@@ -202,13 +205,15 @@ test("persistence replaces candidates and refreshes the structured result", asyn
     );
     const refreshed = await fetchPersistedCandidates(
       context,
-      "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
       base.storyId,
+      "cccccccc-cccc-cccc-cccc-cccccccccccc",
     );
     assert.deepEqual(refreshed.map((item) => item.id), generated.map((item) => item.id));
     assert.deepEqual(requests.map((item) => item.method), ["DELETE", "POST", "GET"]);
     assert.ok(requests[0]?.url.includes("creator_id=eq.bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"));
     assert.ok(requests[1]?.body?.includes('"story_engine":"creator_story_v1"'));
+    assert.ok(requests[2]?.url.includes("round_id=eq.cccccccc-cccc-cccc-cccc-cccccccccccc"));
+    assert.ok(requests[2]?.url.includes("order=created_at.asc,id.asc"));
 });
 
 test("creator-scoped persistence cannot erase another permitted creator's candidates", async () => {
@@ -244,13 +249,58 @@ test("creator-scoped persistence cannot erase another permitted creator's candid
   await persistCandidates(context, creatorA, base.storyId, "cccccccc-cccc-cccc-cccc-cccccccccccc", generatedA);
   await persistCandidates(context, creatorB, base.storyId, "cccccccc-cccc-cccc-cccc-cccccccccccc", generatedB);
   assert.deepEqual(
-    (await fetchPersistedCandidates(context, creatorA, base.storyId)).map((item) => item.id),
+    (stored.get(creatorA) as Array<{ id: string }>).map((item) => item.id),
     generatedA.map((item) => item.id),
   );
   assert.deepEqual(
-    (await fetchPersistedCandidates(context, creatorB, base.storyId)).map((item) => item.id),
+    (stored.get(creatorB) as Array<{ id: string }>).map((item) => item.id),
     generatedB.map((item) => item.id),
   );
+});
+
+test("round retrieval returns production-shaped ideas without story or engine metadata", async () => {
+  const requested: string[] = [];
+  const roundId = "cccccccc-cccc-cccc-cccc-cccccccccccc";
+  const context: SupabaseRequestContext = {
+    ...requestContext,
+    proxy: async (path) => {
+      requested.push(path);
+      return Response.json([
+        {
+          id: "11111111-1111-4111-8111-111111111111",
+          round_id: roundId,
+          story_id: null,
+          category: "Putting Insight",
+          title: "11 Putts",
+          hook: "Putting changed the round.",
+          script: "Stored production script.",
+          stats_used: { "Total Putts": 11 },
+          status: "draft",
+          created_at: "2026-09-09T12:00:00Z",
+        },
+        {
+          id: "22222222-2222-4222-8222-222222222222",
+          round_id: roundId,
+          story_id: null,
+          category: "Round Analysis",
+          title: "Breaking Par",
+          hook: "A complete round analysis.",
+          script: "Second stored production script.",
+          stats_used: { "Total Score": 34 },
+          status: "draft",
+          created_at: "2026-09-09T12:00:00Z",
+        },
+      ]);
+    },
+  };
+
+  const ideas = await fetchPersistedCandidates(context, base.storyId, roundId);
+  assert.deepEqual(ideas.map((idea) => idea.category), ["Putting Insight", "Round Analysis"]);
+  assert.ok(ideas.every((idea) => idea.story_id === base.storyId));
+  assert.deepEqual(ideas[0]?.stats_used, { "Total Putts": 11 });
+  assert.ok(requested[0]?.includes(`round_id=eq.${roundId}`));
+  assert.ok(!requested[0]?.includes("story_engine"));
+  assert.ok(!requested[0]?.includes("creator_id"));
 });
 
 test("approval requests reuse the active pending permission and never approve it", async () => {
@@ -287,6 +337,34 @@ test("approval requests reuse the active pending permission and never approve it
     "pending",
   );
   assert.deepEqual(methods, ["GET", "PATCH"]);
+});
+
+test("repeated pending approval requests update the same permission row without granting it", async () => {
+  const permissionId = "99999999-9999-4999-8999-999999999999";
+  const patchPaths: string[] = [];
+  const context: SupabaseRequestContext = {
+    ...requestContext,
+    proxy: async (path, init) => {
+      const row = {
+        id: permissionId,
+        story_id: base.storyId,
+        user_id: "dddddddd-dddd-dddd-dddd-dddddddddddd",
+        permission_granted: true,
+        granted_at: null,
+        revoked_at: null,
+      };
+      if (init?.method === "PATCH") {
+        patchPaths.push(path);
+        assert.ok(!String(init.body).includes("granted_at"));
+      }
+      return Response.json([row]);
+    },
+  };
+
+  assert.equal(await requestStoryApproval(context, base.ownerId, base.storyId), "pending");
+  assert.equal(await requestStoryApproval(context, base.ownerId, base.storyId), "pending");
+  assert.equal(patchPaths.length, 2);
+  assert.ok(patchPaths.every((path) => path.includes(`id=eq.${permissionId}`)));
 });
 
 test("an approved permission stays approved without a duplicate request mutation", async () => {

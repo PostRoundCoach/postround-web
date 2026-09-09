@@ -126,8 +126,23 @@ export interface GenerateStoryDraftResponse {
 
 export interface FetchStoryCandidatesResponse {
   ok: true
-  candidates: StoryCandidate[]
+  story_id: string
+  round_id: string
+  ideas: CreatorContentIdea[]
   permission_status: StoryPermissionStatus
+}
+
+export interface CreatorContentIdea {
+  id: string
+  story_id: string
+  round_id: string
+  category: string
+  title: string
+  hook: string
+  script: string
+  stats_used: Record<string, unknown>
+  status: string
+  created_at: string
 }
 
 export interface DismissCreatorStoryResponse {

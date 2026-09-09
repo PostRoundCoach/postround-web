@@ -73,9 +73,18 @@ router.get("/content/ideas", async (req, res): Promise<void> => {
   try {
     const access = await authorized(req, id);
     stage = "refresh";
-    const ideas = await fetchPersistedCandidates(access.context, access.creatorId, id);
-    req.log.info({ stage: "refresh", storyId: id, candidateCount: ideas.length }, "Refreshed persisted story candidates");
-    res.json({ ok: true, ideas, permission_status: access.permissionStatus });
+    const ideas = await fetchPersistedCandidates(access.context, id, access.roundId);
+    req.log.info(
+      { stage: "refresh", storyId: id, roundId: access.roundId, ideaCount: ideas.length },
+      "Retrieved existing creator content ideas for authorized story round",
+    );
+    res.json({
+      ok: true,
+      story_id: id,
+      round_id: access.roundId,
+      ideas,
+      permission_status: access.permissionStatus,
+    });
   } catch (error) { failure(req, res, error, stage); }
 });
 

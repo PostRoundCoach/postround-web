@@ -6,11 +6,9 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { createClient } from '@/lib/supabase/client'
-import type { CreatorStory, StoryCandidate } from '@/lib/creator-stories/contracts'
+import type { CreatorContentIdea, CreatorStory } from '@/lib/creator-stories/contracts'
 import {
-  CreatorStoryApiError,
   fetchStoryCandidates,
-  generateStoryCandidates,
   dismissCreatorStory,
   requestStoryApproval,
 } from '@/lib/creator-stories/client'
@@ -23,17 +21,14 @@ export function StoryCard({
   story: CreatorStory
   onDismissed: (storyId: string) => void
 }) {
-  const [isGenerating, setIsGenerating] = useState(false)
   const [isFetchingIdeas, setIsFetchingIdeas] = useState(false)
-  const [generatedCount, setGeneratedCount] = useState<number | null>(null)
-  const [candidates, setCandidates] = useState<StoryCandidate[] | null>(null)
-  const [generationFailed, setGenerationFailed] = useState(false)
-  const [generationFailureStage, setGenerationFailureStage] = useState<string | null>(null)
+  const [candidates, setCandidates] = useState<CreatorContentIdea[] | null>(null)
   const [retrievalFailed, setRetrievalFailed] = useState(false)
   const [isDismissing, setIsDismissing] = useState(false)
   const [dismissalFailed, setDismissalFailed] = useState(false)
   const [permissionStatus, setPermissionStatus] = useState(story.permissionStatus)
   const [isRequestingApproval, setIsRequestingApproval] = useState(false)
+  const [approvalRequested, setApprovalRequested] = useState(false)
   const [approvalRequestFailed, setApprovalRequestFailed] = useState(false)
 
   const loadCandidates = async (
@@ -44,7 +39,7 @@ export function StoryCard({
 
     try {
       const result = await fetchStoryCandidates(supabase, story.id)
-      setCandidates(result.candidates)
+      setCandidates(result.ideas)
       setPermissionStatus(result.permission_status)
     } catch {
       setRetrievalFailed(true)
@@ -61,41 +56,8 @@ export function StoryCard({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [story.id])
 
-  const handleGenerate = async () => {
-    if (isGenerating || isFetchingIdeas) return
-
-    const supabase = createClient()
-    if (!supabase) {
-      setGenerationFailed(true)
-      return
-    }
-
-    setIsGenerating(true)
-    setGenerationFailed(false)
-    setGenerationFailureStage(null)
-    setRetrievalFailed(false)
-    setGeneratedCount(null)
-    setCandidates(null)
-
-    try {
-      const result = await generateStoryCandidates(supabase, { story_id: story.id })
-      setGeneratedCount(result.count)
-      // The server may return candidates immediately, but persisted candidates
-      // remain authoritative after a reload or another creator session.
-      setCandidates(result.candidates)
-      setPermissionStatus(result.permission_status)
-      setIsGenerating(false)
-      await loadCandidates(supabase)
-    } catch (error) {
-      setGenerationFailed(true)
-      setGenerationFailureStage(error instanceof CreatorStoryApiError ? error.stage : null)
-    } finally {
-      setIsGenerating(false)
-    }
-  }
-
   const handleRetryIdeas = async () => {
-    if (isGenerating || isFetchingIdeas) return
+    if (isFetchingIdeas) return
 
     const supabase = createClient()
     if (!supabase) {
@@ -107,7 +69,7 @@ export function StoryCard({
   }
 
   const handleDismiss = async () => {
-    if (isDismissing || isGenerating || isFetchingIdeas) return
+    if (isDismissing || isFetchingIdeas) return
 
     const supabase = createClient()
     if (!supabase) {
@@ -140,6 +102,7 @@ export function StoryCard({
     try {
       const result = await requestStoryApproval(supabase, story.id)
       setPermissionStatus(result.permission_status)
+      setApprovalRequested(result.permission_status === 'pending')
     } catch {
       setApprovalRequestFailed(true)
     } finally {
@@ -222,24 +185,24 @@ export function StoryCard({
             </div>
             <h3 className="font-serif text-xl font-bold">Find the story in this round</h3>
             <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-              Generate evidence-backed angles about this player’s round for your audience.
+               View content already generated from this player’s Story and source round.
             </p>
 
             <Button
               className="mt-6 w-full"
-              onClick={() => void handleGenerate()}
-              disabled={isGenerating || isFetchingIdeas}
-              data-testid={`button-generate-story-${story.id}`}
+              onClick={() => void handleRetryIdeas()}
+              disabled={isFetchingIdeas}
+              data-testid={`button-view-content-${story.id}`}
             >
-              {isGenerating ? (
+              {isFetchingIdeas ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  Generating…
+                   Loading…
                 </>
               ) : (
                 <>
                   <Sparkles className="h-4 w-4" />
-                  Generate story candidates
+                   View generated content
                 </>
               )}
             </Button>
@@ -249,7 +212,7 @@ export function StoryCard({
               variant="ghost"
               className="mt-2 w-full text-muted-foreground hover:text-destructive"
               onClick={() => void handleDismiss()}
-              disabled={isDismissing || isGenerating || isFetchingIdeas}
+              disabled={isDismissing || isFetchingIdeas}
               data-testid={`button-dismiss-story-${story.id}`}
             >
               {isDismissing ? (
@@ -298,37 +261,7 @@ export function StoryCard({
                 <Loader2 className="h-4 w-4 animate-spin" />
                 <AlertTitle>Retrieving saved story candidates</AlertTitle>
                 <AlertDescription>
-                  Generation completed. Retrieving the saved candidates now.
-                </AlertDescription>
-              </Alert>
-            )}
-
-            {generatedCount !== null && !isFetchingIdeas && !retrievalFailed && (
-              <Alert
-                className="mt-5 text-left"
-                data-testid={`status-generation-success-${story.id}`}
-              >
-                <CircleCheck className="h-4 w-4" />
-                <AlertTitle>Story candidates generated</AlertTitle>
-                <AlertDescription>
-                  {generatedCount} candidate{generatedCount === 1 ? '' : 's'} found for
-                  this player’s round.
-                </AlertDescription>
-              </Alert>
-            )}
-
-            {generationFailed && (
-              <Alert
-                variant="destructive"
-                className="mt-5 text-left"
-                data-testid={`status-generation-error-${story.id}`}
-              >
-                <AlertTitle>Candidate generation didn’t complete</AlertTitle>
-                <AlertDescription>
-                  {generationFailureStage
-                    ? `The ${generationFailureStage.replaceAll('_', ' ')} stage failed. `
-                    : ''}
-                  Please try again. This story remains available in your queue.
+                   Loading the content already generated for this round.
                 </AlertDescription>
               </Alert>
             )}
@@ -342,8 +275,8 @@ export function StoryCard({
                 <AlertTitle>Ideas couldn’t be loaded</AlertTitle>
                 <AlertDescription>
                   <p>
-                    Generation completed, but the saved candidates could not be retrieved.
-                    This story remains available.
+                     Existing content for this Story’s round could not be retrieved.
+                     The Story remains available.
                   </p>
                   <Button
                     type="button"
@@ -371,7 +304,7 @@ export function StoryCard({
         >
           <div className="mb-5">
             <p className="text-xs font-bold uppercase tracking-[0.18em] text-primary">
-              Evidence-backed candidate angles
+               Generated content ideas
             </p>
             <h3 className="mt-2 font-serif text-2xl font-bold">{story.headline}</h3>
             <div className="mt-4 flex flex-col gap-3 rounded-xl border border-border bg-background p-4 sm:flex-row sm:items-center sm:justify-between">
@@ -385,8 +318,8 @@ export function StoryCard({
                   </p>
                   <p className="text-sm text-muted-foreground">
                     {permissionStatus === 'approved'
-                      ? 'You can now create an editable draft for use.'
-                      : 'You can preview candidates, but cannot create or use a draft until the player approves.'}
+                       ? 'This Story and its generated content are now publishable.'
+                       : 'You can review the generated content while player approval is pending.'}
                   </p>
                 </div>
               </div>
@@ -395,11 +328,11 @@ export function StoryCard({
                   type="button"
                   variant="outline"
                   onClick={() => void handleRequestApproval()}
-                  disabled={isRequestingApproval}
+                  disabled={isRequestingApproval || approvalRequested}
                   data-testid={`button-request-approval-${story.id}`}
                 >
                   {isRequestingApproval ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                  {isRequestingApproval ? 'Requesting…' : 'Request approval'}
+                  {isRequestingApproval ? 'Requesting…' : approvalRequested ? 'Approval requested' : 'Request approval'}
                 </Button>
               )}
             </div>
@@ -415,9 +348,9 @@ export function StoryCard({
               className="rounded-xl border border-dashed border-border bg-background px-5 py-8 text-center"
               data-testid={`status-candidates-empty-${story.id}`}
             >
-              <p className="font-medium">No supported story candidates were found.</p>
+               <p className="font-medium">Generated content is not available yet.</p>
               <p className="mt-1 text-sm text-muted-foreground">
-                There is no publish-ready content here—try again if more round evidence becomes available.
+                 No existing content ideas were found for this Story’s source round. You can retry retrieval later.
               </p>
             </div>
           ) : (
