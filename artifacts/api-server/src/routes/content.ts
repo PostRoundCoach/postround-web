@@ -10,7 +10,10 @@ const storyId = (value: unknown): string | null => typeof value === "string" && 
 
 function failure(req: Request, res: Response, error: unknown, stage: string): void {
   if (error instanceof CreatorContentError) {
-    req.log.warn({ stage, status: error.status }, error.message);
+    req.log.warn(
+      { stage, status: error.status, diagnostic: error.diagnostic },
+      error.message,
+    );
     res.status(error.status).json({ error: error.message, stage });
     return;
   }

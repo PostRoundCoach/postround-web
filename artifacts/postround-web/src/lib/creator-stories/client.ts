@@ -76,7 +76,25 @@ export class CreatorStoryConfigurationError extends Error {
 
 function contentApiBase(): string {
   const apiBase = process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL?.trim()
-  return apiBase ? apiBase.replace(/\/+$/, '') : ''
+  if (!apiBase) throw new CreatorStoryConfigurationError()
+
+  try {
+    const url = new URL(apiBase)
+    if (
+      url.protocol !== 'https:' ||
+      url.username ||
+      url.password ||
+      url.search ||
+      url.hash ||
+      (url.pathname !== '/' && url.pathname !== '')
+    ) {
+      throw new CreatorStoryConfigurationError()
+    }
+    return url.origin
+  } catch (error) {
+    if (error instanceof CreatorStoryConfigurationError) throw error
+    throw new CreatorStoryConfigurationError()
+  }
 }
 
 function contentGenerationUrl(): string {

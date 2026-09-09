@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { generateStoryCandidates, generateStoryDraft, type RoundEvidence } from "./story-engine.ts";
 import {
+  authenticateSupabaseBearer,
   authorizeCreatorStory,
   CreatorContentError,
   fetchPersistedCandidates,
@@ -84,6 +85,100 @@ const requestContext: SupabaseRequestContext = {
   userId: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
   proxy: async () => new Response(null, { status: 500 }),
 };
+
+test("authentication delegates session verification to the connected Supabase project", async () => {
+  const token = [
+    Buffer.from('{"alg":"HS256","typ":"JWT"}').toString("base64url"),
+    Buffer.from(
+      '{"iss":"https://fixture-project.supabase.co/auth/v1","sub":"aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"}',
+    ).toString("base64url"),
+    "signature",
+  ].join(".");
+  let projectPath: string | undefined;
+  let authRequest:
+    | { url: string; apikey: string | null; authorization: string | null }
+    | undefined;
+  const proxy: NonNullable<SupabaseRequestContext["proxy"]> = async (path) => {
+    projectPath = path;
+    return Response.json({
+      id: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+      email: "creator@example.com",
+    });
+  };
+  const authFetch: typeof fetch = async (input, init) => {
+    const headers = new Headers(init?.headers);
+    authRequest = {
+      url: String(input),
+      apikey: headers.get("apikey"),
+      authorization: headers.get("authorization"),
+    };
+    return Response.json({
+      id: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+      email: "creator@example.com",
+    });
+  };
+
+  const context = await authenticateSupabaseBearer(
+    `Bearer ${token}`,
+    proxy,
+    authFetch,
+    "fixture-anon-key",
+  );
+
+  assert.equal(context.userId, "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
+  assert.deepEqual(authRequest, {
+    url: "https://fixture-project.supabase.co/auth/v1/user",
+    apikey: "fixture-anon-key",
+    authorization: `Bearer ${token}`,
+  });
+  assert.equal(
+    projectPath,
+    "/auth/v1/admin/users/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+  );
+});
+
+test("authentication rejects sessions that Supabase does not accept", async () => {
+  const token = [
+    Buffer.from('{"alg":"HS256","typ":"JWT"}').toString("base64url"),
+    Buffer.from(
+      '{"iss":"https://fixture-project.supabase.co/auth/v1","sub":"aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"}',
+    ).toString("base64url"),
+    "signature",
+  ].join(".");
+
+  await assert.rejects(
+    () => authenticateSupabaseBearer(
+      `Bearer ${token}`,
+      async () => Response.json({ id: "unused" }),
+      async () => Response.json({ message: "Invalid JWT" }, { status: 401 }),
+      "fixture-anon-key",
+    ),
+    (error: unknown) => error instanceof CreatorContentError
+      && error.status === 401
+      && error.message === "The bearer token is invalid or expired.",
+  );
+});
+
+test("authentication rejects malformed sessions without making a request", async () => {
+  let requested = false;
+  await assert.rejects(
+    () => authenticateSupabaseBearer(
+      "Bearer malformed",
+      async () => {
+        requested = true;
+        return Response.json({});
+      },
+      async () => {
+        requested = true;
+        return Response.json({});
+      },
+      "fixture-anon-key",
+    ),
+    (error: unknown) => error instanceof CreatorContentError
+      && error.status === 401,
+  );
+  assert.equal(requested, false);
+});
 
 test("authorization denies a creator without an active permission", async () => {
   const context: SupabaseRequestContext = {

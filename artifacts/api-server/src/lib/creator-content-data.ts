@@ -1,14 +1,15 @@
 import { ReplitConnectors } from "@replit/connectors-sdk";
-import { createPublicKey, verify as verifySignature } from "node:crypto";
 import type { ScorecardHole, StoryCandidate } from "./story-engine";
 
 export class CreatorContentError extends Error {
   readonly status: number;
+  readonly diagnostic?: string;
 
-  constructor(status: number, message: string) {
+  constructor(status: number, message: string, diagnostic?: string) {
     super(message);
     this.name = "CreatorContentError";
     this.status = status;
+    this.diagnostic = diagnostic;
   }
 }
 
@@ -60,73 +61,93 @@ async function rest<T>(
 
 export async function authenticateSupabaseBearer(
   authorization: string | undefined,
+  proxy?: SupabaseRequestContext["proxy"],
+  authFetch: typeof fetch = fetch,
+  anonKey: string | undefined = process.env.SUPABASE_ANON_KEY,
 ): Promise<SupabaseRequestContext> {
   const token = authorization?.match(/^Bearer\s+(.+)$/i)?.[1]?.trim();
   if (!token) throw new CreatorContentError(401, "A bearer token is required.");
+  if (!anonKey) {
+    throw new CreatorContentError(
+      500,
+      "Supabase session verification is not configured.",
+    );
+  }
+  let diagnostic = "unexpected_verification_error";
   try {
     const parts = token.split(".");
+    diagnostic = "malformed_jwt";
     if (parts.length !== 3) throw new Error("Malformed JWT");
-    const header = JSON.parse(Buffer.from(parts[0]!, "base64url").toString("utf8")) as {
-      alg?: unknown;
-      kid?: unknown;
-    };
     const claims = JSON.parse(Buffer.from(parts[1]!, "base64url").toString("utf8")) as {
-      sub?: unknown;
-      email?: unknown;
       iss?: unknown;
-      aud?: unknown;
-      role?: unknown;
-      exp?: unknown;
-      nbf?: unknown;
     };
-    if (header.alg !== "ES256" || typeof header.kid !== "string") throw new Error("Unsupported JWT");
-    if (typeof claims.sub !== "string"
-      || typeof claims.email !== "string"
-      || claims.aud !== "authenticated"
-      || claims.role !== "authenticated"
-      || typeof claims.iss !== "string"
-      || typeof claims.exp !== "number") throw new Error("Invalid claims");
+    diagnostic = "invalid_issuer";
+    if (typeof claims.iss !== "string") throw new Error("Missing issuer");
     const issuer = new URL(claims.iss);
-    if (issuer.protocol !== "https:"
+    if (
+      issuer.protocol !== "https:"
+      || issuer.port
+      || issuer.username
+      || issuer.password
+      || issuer.search
+      || issuer.hash
       || !/^[a-z0-9-]+\.supabase\.co$/i.test(issuer.hostname)
-      || issuer.pathname.replace(/\/$/, "") !== "/auth/v1") throw new Error("Invalid issuer");
-    const now = Math.floor(Date.now() / 1000);
-    if (claims.exp <= now || (typeof claims.nbf === "number" && claims.nbf > now)) {
-      throw new Error("Expired JWT");
+      || issuer.pathname.replace(/\/$/, "") !== "/auth/v1"
+    ) {
+      throw new Error("Invalid issuer");
     }
-    const jwksResponse = await fetch(`${claims.iss.replace(/\/$/, "")}/.well-known/jwks.json`);
-    if (!jwksResponse.ok) throw new Error("JWKS unavailable");
-    const jwks = await jwksResponse.json() as {
-      keys?: Array<Record<string, unknown> & { kid?: string; alg?: string }>;
-    };
-    const jwk = jwks.keys?.find((key) => key.kid === header.kid && key.alg === "ES256");
-    if (!jwk) throw new Error("Signing key unavailable");
-    const valid = verifySignature(
-      "sha256",
-      Buffer.from(`${parts[0]}.${parts[1]}`),
-      {
-        key: createPublicKey(
-          { key: jwk, format: "jwk" } as Parameters<typeof createPublicKey>[0],
-        ),
-        dsaEncoding: "ieee-p1363",
-      },
-      Buffer.from(parts[2]!, "base64url"),
-    );
-    if (!valid) throw new Error("Invalid signature");
 
-    const connectors = new ReplitConnectors();
-    const response = await connectors.proxy(
-      "supabase",
-      `/auth/v1/admin/users/${encodeURIComponent(claims.sub)}`,
+    const authResponse = await authFetch(`${issuer.origin}/auth/v1/user`, {
+      headers: {
+        apikey: anonKey,
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    diagnostic = `auth_user_status_${authResponse.status}`;
+    if (!authResponse.ok) throw new Error("Supabase rejected the session");
+    const authenticatedUser = await authResponse.json() as {
+      id?: unknown;
+      email?: unknown;
+    };
+    diagnostic = "auth_user_missing_identity";
+    if (typeof authenticatedUser.id !== "string") {
+      throw new Error("Supabase returned no user identity");
+    }
+
+    const authProxy = proxy ?? ((path, init) => {
+      const connectors = new ReplitConnectors();
+      return connectors.proxy("supabase", path, init);
+    });
+    const projectResponse = await authProxy(
+      `/auth/v1/admin/users/${encodeURIComponent(authenticatedUser.id)}`,
     );
-    if (!response.ok) throw new Error("User is not in the connected project");
-    const user = await response.json() as { id?: unknown; email?: unknown };
-    if (user.id !== claims.sub || user.email !== claims.email) {
+    diagnostic = `connected_project_user_status_${projectResponse.status}`;
+    if (!projectResponse.ok) throw new Error("User is not in the connected project");
+    const projectUser = await projectResponse.json() as {
+      id?: unknown;
+      email?: unknown;
+    };
+    diagnostic = "connected_project_user_mismatch";
+    if (
+      projectUser.id !== authenticatedUser.id
+      || (
+        typeof authenticatedUser.email === "string"
+        && projectUser.email !== authenticatedUser.email
+      )
+    ) {
       throw new Error("User does not match the connected project");
     }
-    return { userId: claims.sub };
+
+    return {
+      userId: authenticatedUser.id,
+      ...(proxy ? { proxy } : {}),
+    };
   } catch {
-    throw new CreatorContentError(401, "The bearer token is invalid or expired.");
+    throw new CreatorContentError(
+      401,
+      "The bearer token is invalid or expired.",
+      diagnostic,
+    );
   }
 }
 

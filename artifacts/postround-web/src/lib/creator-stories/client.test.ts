@@ -3,6 +3,7 @@ import test from 'node:test'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import {
   CreatorStoryApiError,
+  CreatorStoryConfigurationError,
   fetchStoryCandidates,
   fetchOwnedActiveCreatorProfile,
   fetchPermissionedCreatorStories,
@@ -246,6 +247,33 @@ test('sends only the story ID and bearer identity to the Story Engine', async ()
     if (originalApiBase === undefined) {
       delete process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL
     } else {
+      process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL = originalApiBase
+    }
+  }
+})
+
+test('fails visibly instead of falling back to an unhandled same-site API route', async () => {
+  const originalApiBase = process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL
+  delete process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL
+
+  const supabase = {
+    auth: {
+      async getSession() {
+        return {
+          data: { session: { access_token: 'test-access-token' } },
+          error: null,
+        }
+      },
+    },
+  } as unknown as SupabaseClient
+
+  try {
+    await assert.rejects(
+      () => fetchStoryCandidates(supabase, 'story-1'),
+      CreatorStoryConfigurationError,
+    )
+  } finally {
+    if (originalApiBase !== undefined) {
       process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL = originalApiBase
     }
   }

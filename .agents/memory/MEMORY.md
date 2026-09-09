@@ -5,3 +5,4 @@
 - [Creator dashboard backend boundary](creator-dashboard-boundary.md) — creator ideas come only from the authenticated authoritative API; never use admin or direct-table access.
 - [Next E2E isolation](next-e2e-isolation.md) — authenticated browser suites need a separate production build directory from the managed preview.
 - [Creator Story consent lifecycle](creator-story-consent-lifecycle.md) — active sharing, player approval, and creator dismissal are separate states on one permission row.
+- [Production checks from task branches](task-branch-production-checks.md) — publishing deploys the main Replit branch, not an isolated in-progress task branch.

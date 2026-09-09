@@ -4,9 +4,9 @@
   "private": true,
   "scripts": {
     "dev": "next dev -p $PORT -H 0.0.0.0",
-    "build": "next build",
+    "build": "node scripts/validate-production-api-origin.mjs && next build",
     "start": "next start -p $PORT -H 0.0.0.0",
-    "test": "node --experimental-strip-types --test src/lib/vad-telemetry/*.test.ts src/lib/creator-stories/*.test.ts src/components/creator/*.test.ts src/components/dashboard/*.test.ts",
+    "test": "node --experimental-strip-types --test scripts/*.test.mjs src/lib/vad-telemetry/*.test.ts src/lib/creator-stories/*.test.ts src/components/creator/*.test.ts src/components/dashboard/*.test.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
