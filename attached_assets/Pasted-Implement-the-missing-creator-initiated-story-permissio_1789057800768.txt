@@ -1,0 +1,162 @@
+Implement the missing creator-initiated story permission request flow.
+
+We have now traced the mobile side end-to-end and confirmed that it is already wired correctly.
+
+DO NOT redesign the approval system.
+DO NOT create a second permission/request table.
+DO NOT modify the mobile retrieval/UI unless absolutely required by the implementation.
+
+IMPORTANT — INSPECT THE EXISTING CREATOR ACTION FIRST
+
+Before making any changes, thoroughly inspect the existing Creator Dashboard and identify the current UI action/button/menu that is intended to let a creator request permission to use a player's story.
+
+There may already be a Request Approval, Request Permission, Share, Generate Content, or similar action that is intended to initiate this workflow.
+
+Determine:
+- exactly which component renders the action
+- what happens when the creator clicks it
+- which handler/function it calls
+- whether it currently calls an endpoint
+- whether that endpoint exists
+- whether it currently writes anything to story_permissions
+- whether the action is currently disabled, incomplete, or wired to the wrong behavior
+
+DO NOT automatically create a new button if an existing creator action is intended for this purpose.
+
+Use the existing Creator Dashboard action and wire it to the correct API endpoint whenever possible.
+
+EXISTING MOBILE RETRIEVAL
+
+The mobile app already retrieves pending requests through:
+
+GET /api/stories/permissions
+
+It queries story_permissions where:
+- user_id = authenticated player's Supabase auth UUID
+- permission_granted = false
+- revoked_at IS NULL
+
+The mobile Stories screen renders the returned permissions directly.
+
+The mobile side therefore appears to be correct.
+
+EXACT CURRENT BREAK
+
+There is currently NO creator-side INSERT path that creates a story_permissions row with:
+
+permission_granted = false
+
+The only existing INSERT into story_permissions is the player-initiated flow, which sets:
+
+permission_granted = true
+
+That is a different workflow and must remain intact.
+
+IMPLEMENT THE SMALLEST CORRECT FIX
+
+After inspecting the existing Creator Dashboard action:
+
+1. Add or wire an authenticated creator endpoint, preferably:
+
+POST /api/stories/permissions/request
+
+2. Authenticate the caller and resolve their active creator_profiles row using the caller's Supabase auth UUID.
+
+3. Accept story_id.
+
+4. Verify the story_candidates record exists and obtain its player/user_id.
+
+5. Verify the story is eligible for a creator permission request using the EXISTING story lifecycle/status model.
+
+Do not invent a new status model.
+
+6. Insert exactly one row into story_permissions:
+
+{
+  story_id,
+  user_id: story_candidate.user_id,
+  creator_id: creator_profile.id,
+  permission_granted: false,
+  created_at,
+  updated_at
+}
+
+7. Prevent duplicate pending requests for the same:
+- story_id
+- creator_id
+- user_id
+
+when an existing row has:
+- permission_granted = false
+- revoked_at IS NULL
+
+If an existing pending request already exists, return an appropriate response rather than creating another row.
+
+8. Return a clear success response that the existing Creator Dashboard action can use.
+
+9. Wire the EXISTING Creator Dashboard request/permission action to this endpoint.
+
+Do not create a parallel UI workflow unless inspection proves that no suitable existing action exists.
+
+10. Do NOT modify GET /api/stories/permissions. It is already correct.
+
+11. Do NOT modify the mobile Stories screen. It is already correct.
+
+12. Preserve the existing player-initiated "Share My Story" flow. Do not break or repurpose its existing endpoint.
+
+13. Check existing RLS/auth patterns and use the established server-side Supabase/API authorization approach rather than bypassing security.
+
+14. Verify production/development environment configuration so the creator request and mobile retrieval are using the same database/environment.
+
+END-TO-END TEST
+
+Use an existing valid creator/follower relationship and an existing eligible story.
+
+Creator side:
+- locate the existing permission/request action
+- click/request approval for the story
+
+Database:
+- verify exactly one story_permissions row is created
+- verify permission_granted = false
+- verify user_id is the follower/player's auth UUID
+- verify creator_id is the creator's creator_profiles ID
+- verify story_id is correct
+- verify revoked_at is NULL
+
+Follower side:
+- call GET /api/stories/permissions as that player's authenticated session
+- verify the request is returned
+- verify the request appears in the existing mobile Stories experience
+
+Approval:
+- approve the request through the existing mobile PATCH flow
+- verify permission_granted becomes true
+- verify it no longer appears in GET /api/stories/permissions
+
+Duplicate protection:
+- attempt the same creator request a second time
+- verify no second pending story_permissions row is created
+
+IMPORTANT:
+Do not use generation endpoints to manufacture a test story.
+Do not create duplicate stories or duplicate approval systems.
+Use an existing valid story and existing creator/follower relationship.
+
+Before changing anything, inspect the existing Creator Dashboard request/permission action and existing story lifecycle so the implementation uses the current architecture rather than guessing.
+
+REPORT BACK WITH:
+
+1. Exact existing Creator Dashboard button/action discovered
+2. What that action currently does
+3. Exact missing/broken API or database path
+4. Endpoint added or changed
+5. Exact table/columns written
+6. Duplicate protection implemented
+7. Auth/RLS behavior
+8. Files changed
+9. Tests run
+10. End-to-end result:
+    Creator request → database row → mobile GET → follower Stories screen → approval/decline
+
+The goal is a minimal fix that completes the existing creator → follower approval workflow, not a redesign.

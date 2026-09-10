@@ -1,0 +1,206 @@
+Implement the minimal fix for creator-initiated story approval requests reaching the player.
+
+IMPORTANT: Do not redesign the approval system and do not create a second `story_permissions` row unless schema/constraint inspection proves that the existing-row model is impossible.
+
+## Confirmed current architecture
+
+The existing `story_permissions` row represents the creator/player/story relationship.
+
+Current semantics:
+
+* `permission_granted = true` means the creator relationship is active/authorized.
+* `approval_requested_at` records that the creator has requested player approval for a story.
+* `granted_at` represents player approval.
+* `revoked_at` represents dismissal/revocation.
+
+The existing Creator Dashboard action already operates on the existing `story_permissions` row and sets `approval_requested_at`.
+
+Do NOT change `permission_granted` to false when the creator requests approval, because existing creator authorization and queue logic depends on `permission_granted = true`.
+
+Do NOT create a duplicate `story_permissions` relationship row unless the schema proves that is required.
+
+## Goal
+
+Make the existing creator approval request visible in the existing Post Round mobile Stories experience.
+
+The intended flow is:
+
+Creator requests approval
+→ existing `story_permissions` row gets `approval_requested_at`
+→ player GET recognizes that pending-request state
+→ existing Stories screen displays it
+→ player approves or declines using the existing handlers.
+
+## Step 1 — Confirm the existing row/update path
+
+Inspect the existing Creator Dashboard request action and confirm:
+
+* which component/action initiates the request
+* which API endpoint/handler it calls
+* which existing `story_permissions` row it updates
+* what fields it changes
+
+Do not create a new creator button or duplicate endpoint if the existing action already performs the request.
+
+Preserve that existing creator-side behavior unless a minimal correction is required.
+
+## Step 2 — Confirm the actual pending-request state
+
+Inspect:
+
+* `story_permissions` schema and constraints
+* existing RLS policies
+* creator authorization queries
+* creator queue queries
+* player GET `/api/stories/permissions`
+* existing player approval PATCH handler
+* existing player decline/revoke behavior
+
+Confirm the schema-backed pending state.
+
+The likely intended pending state is:
+
+* `permission_granted = true`
+* `approval_requested_at IS NOT NULL`
+* `granted_at IS NULL`
+* `revoked_at IS NULL`
+
+But DO NOT assume this without confirming the existing handlers and schema.
+
+## Step 3 — Make the smallest player-side retrieval change
+
+If the confirmed schema supports the existing-row model above, modify ONLY the player GET `/api/stories/permissions` query so it recognizes an active permission row with an outstanding approval request.
+
+The query should continue to enforce:
+
+* authenticated player's `user_id`
+* active/non-revoked relationship
+* creator/story relationship
+* request has actually been made
+* player has not already granted the request
+
+Do not return ordinary active permissions as pending requests.
+
+Do not change the existing mobile Stories UI if its response shape already supports these rows.
+
+The existing mobile app should continue receiving:
+
+`{ permissions: [...] }`
+
+and rendering the returned permission cards.
+
+## Step 4 — Preserve approval/decline semantics
+
+Inspect the existing PATCH handlers before changing anything.
+
+Ensure that:
+
+Creator request:
+
+* sets `approval_requested_at`
+* does NOT revoke the relationship
+* does NOT set `permission_granted = false`
+
+Player approval:
+
+* records the player's approval using the existing fields/handler
+* clears or resolves `approval_requested_at` appropriately according to the existing model
+* leaves the relationship in the correct authorized state
+
+Player decline:
+
+* uses the existing decline/revoke semantics
+* does not create a duplicate row
+
+Do not invent a new status column unless the existing schema proves one is required.
+
+## Step 5 — Do not break existing creator behavior
+
+After the fix, verify that a creator can still:
+
+* see authorized stories
+* access their existing creator queue
+* use existing creator authorization checks
+* request approval
+
+The creator's existing relationship must not disappear merely because an approval request is pending.
+
+## End-to-end validation
+
+Use an existing valid creator/player relationship and an existing story.
+
+Before the request:
+
+* verify the existing `story_permissions` row
+* verify no outstanding approval request exists
+
+Creator:
+
+* use the EXISTING Creator Dashboard request action
+
+Database:
+
+* verify the SAME `story_permissions` row was updated
+* verify `approval_requested_at` is populated
+* verify `permission_granted` remains true
+* verify `granted_at` remains null until the player approves
+* verify `revoked_at` remains null
+* verify NO second `story_permissions` row was created
+
+Player API:
+
+* authenticate as the player
+* call `GET /api/stories/permissions`
+* verify the requested story is returned
+
+Player UI:
+
+* verify the existing Stories screen displays the request
+
+Approval:
+
+* approve using the existing player flow
+* verify the existing row reaches the correct approved state
+* verify the request no longer appears as pending
+
+Decline:
+
+* separately verify the existing decline/revoke path behaves correctly.
+
+## Important constraints
+
+DO NOT:
+
+* create a second permission/request table
+* create duplicate `story_permissions` rows
+* change `permission_granted` to false merely to represent pending
+* redesign the mobile Stories screen
+* create a new notification system
+* replace the existing creator request action
+* change the existing player-initiated "Share My Story" flow
+* modify unrelated Story Engine or Creator Dashboard functionality
+* manufacture new test stories
+* delete existing test data simply to make the test pass
+
+## Deliverable
+
+Report:
+
+1. Existing Creator Dashboard request action and endpoint
+2. Exact fields it currently updates
+3. Confirmed meaning of `permission_granted`, `approval_requested_at`, `granted_at`, and `revoked_at`
+4. Existing schema constraints/RLS relevant to this flow
+5. Exact change made to player retrieval
+6. Any change made to approval/decline handling, if required
+7. Files changed
+8. Tests run
+9. Confirmation that NO duplicate `story_permissions` row is created
+10. End-to-end result:
+
+Creator request
+→ existing row updated
+→ player GET retrieves it
+→ existing Stories screen displays it
+→ player approval/decline works
+
+Keep this fix minimal and consistent with the existing data model.

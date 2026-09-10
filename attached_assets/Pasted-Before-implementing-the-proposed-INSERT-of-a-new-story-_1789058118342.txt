@@ -1,0 +1,58 @@
+Before implementing the proposed INSERT of a new story_permissions row, reconsider the data model based on the existing rows.
+
+We already have an existing story_permissions row for the creator/player/story relationship.
+
+The existing Creator Dashboard action currently updates that existing row and sets approval_requested_at.
+
+I want to determine whether the intended workflow should simply transition that existing permission row into a pending state rather than creating a second row.
+
+Specifically investigate:
+
+1. For an existing story_permissions row where:
+   permission_granted = true
+   revoked_at IS NULL
+
+   can a creator requesting approval safely update that same row to:
+
+   permission_granted = false
+   approval_requested_at = NOW()
+   revoked_at = NULL
+
+2. Would the existing mobile endpoint:
+
+   GET /api/stories/permissions
+
+   then automatically retrieve that row because it already filters:
+
+   permission_granted = false
+   revoked_at IS NULL
+
+3. What does permission_granted semantically represent in the existing application?
+   Is it the current permission state, or is it intended to represent whether a permission relationship has ever been granted?
+
+4. Trace the existing approval PATCH handler and determine whether it already supports:
+   pending → approved
+   pending → declined
+
+5. Determine whether creating a NEW story_permissions row would result in duplicate relationship records for the same:
+   story_id + user_id + creator_id
+
+6. Check whether the existing unique constraints/indexes on story_permissions indicate that there should be one row per story/player/creator relationship.
+
+IMPORTANT:
+Do not implement the new INSERT approach yet.
+
+First report which model is correct for this existing architecture:
+
+A) Update the existing story_permissions row to pending when the creator requests approval
+
+OR
+
+B) Create a separate new story_permissions row for the pending request
+
+Base the answer on the existing schema, constraints, creator flow, player approval flow, and semantics of the fields — not on assumptions.
+
+If A is the correct model, the smallest fix should be:
+Creator requests approval → existing row changes to permission_granted=false + approval_requested_at → existing mobile GET retrieves it → player approves/declines using the existing flow.
+
+Do not redesign the system.
