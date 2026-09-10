@@ -1,0 +1,154 @@
+## Task: Fix Creator Dashboard story state persistence across logout/login
+
+### Problem
+
+The Creator Dashboard currently displays story actions correctly during a session, but the state is not surviving logout/login.
+
+Observed behavior:
+
+* Stories load correctly.
+* Clicking **Dismiss** causes the story to disappear.
+* Clicking **Request Approval** immediately changes the button to **Approval Requested**.
+* However, after logging out and logging back in:
+
+  * Previously dismissed stories reappear.
+  * Previously requested-approval stories revert from **Approval Requested** to **Request Approval**.
+
+This indicates that either the state is not being persisted correctly, or the dashboard is not correctly rehydrating the persisted state.
+
+### Scope
+
+**This task is ONLY about Creator Dashboard state persistence.**
+
+Do not make changes to the follower/mobile approval-request experience as part of this task.
+
+Do not redesign the Creator Dashboard.
+
+Do not change the existing UI behavior.
+
+Do not create a new state/approval system if the existing database architecture already supports this workflow.
+
+### Investigation
+
+Trace the complete lifecycle for both actions:
+
+#### 1. Dismiss
+
+Trace:
+
+Creator Dashboard → dismiss handler → API/server action → database mutation → database record → dashboard reload/query → displayed state.
+
+Determine:
+
+* Which endpoint/server action handles Dismiss.
+* Which database table and column(s) are updated.
+* Which story/content identifier is stored.
+* Which creator/user identifier is stored.
+* Whether the production database mutation actually succeeds.
+* Whether the state is stored against the correct story and creator.
+* How the dashboard retrieves dismissed state when it loads.
+* Whether the dashboard is using persisted state or only local React state.
+
+#### 2. Request Approval
+
+Trace:
+
+Creator Dashboard → Request Approval handler → API/server action → database mutation → database record → dashboard reload/query → displayed state.
+
+Determine:
+
+* Which endpoint/server action handles Request Approval.
+* Which database table and column(s) are updated.
+* Which story/content/round identifier is stored.
+* Which creator/follower identifiers are involved.
+* What status is stored.
+* Whether the production database mutation actually succeeds.
+* How the dashboard determines that a story is already `Approval Requested` when it loads.
+
+### Pay particular attention to identifiers
+
+The existing system has multiple concepts/IDs, including:
+
+* Production Story
+* canonical round
+* content_ideas
+* story_candidates
+* story permissions
+* creator/follower relationships
+* approval/request records
+
+Make sure the persistence logic uses the correct identifier consistently.
+
+We previously fixed Production Story → canonical round resolution. **Do not regress that functionality.**
+
+### Required root-cause diagnosis
+
+Determine whether the problem is:
+
+1. The write/mutation is failing.
+2. The write succeeds but is stored against the wrong record.
+3. The database state is correct but the dashboard query doesn't retrieve it.
+4. The query retrieves it but the frontend doesn't hydrate/use it correctly.
+5. Some combination of the above.
+
+Do not assume the cause. Verify the actual production data path.
+
+### Fix
+
+Implement the **smallest targeted fix** that makes the existing workflow persistent.
+
+Do not introduce unrelated refactoring.
+
+Do not modify the follower/mobile app in this task.
+
+### Validation
+
+Test the following end-to-end.
+
+#### Dismiss persistence
+
+1. Log in as creator.
+2. Identify an existing story.
+3. Click **Dismiss**.
+4. Confirm it disappears.
+5. Refresh the dashboard.
+6. Confirm it remains dismissed.
+7. Log out.
+8. Log back in.
+9. Confirm the dismissed story does not reappear.
+
+#### Approval persistence
+
+1. Log in as creator.
+2. Identify an existing story.
+3. Click **Request Approval**.
+4. Confirm the button changes to **Approval Requested**.
+5. Refresh the dashboard.
+6. Confirm it remains **Approval Requested**.
+7. Log out.
+8. Log back in.
+9. Confirm it still shows **Approval Requested**.
+
+### Production safety
+
+* Do not mass-update or delete production data.
+* Do not create unnecessary test content.
+* Do not generate content.
+* Do not modify authentication.
+* Do not change unrelated Creator Dashboard functionality.
+* Do not change the follower/mobile approval experience.
+* Preserve all existing story and creator functionality.
+
+### Deliverable
+
+Report:
+
+1. Root cause of dismissed-story persistence failure.
+2. Root cause of approval-request persistence failure.
+3. Exact files/components/endpoints changed.
+4. Exact database tables/columns involved.
+5. Whether production database records were correctly created/updated.
+6. Tests performed and results.
+7. Confirmation that the follower/mobile approval workflow was not modified.
+
+Do not proceed into the follower/mobile approval-delivery problem. That will be handled as a separate task after this one is verified.

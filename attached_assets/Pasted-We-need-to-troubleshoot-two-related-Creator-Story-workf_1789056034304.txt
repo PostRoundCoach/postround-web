@@ -1,0 +1,218 @@
+We need to troubleshoot two related Creator/Story workflow issues in production. **Do not make speculative changes. Trace the existing implementation and identify the root causes first, then make the smallest correct fixes.**
+
+## Current observed behavior
+
+I have tested logging in/out of the Creator Dashboard.
+
+### Issue 1 — Story state is not persisting across logout/login
+
+While logged in as a creator:
+
+* Stories load correctly.
+* If I click **Dismiss**, the story disappears as expected.
+* If I click **Request Approval**, the button immediately changes to **Approval Requested** as expected.
+
+However, after logging out and then logging back in:
+
+* Previously dismissed stories reappear.
+* Stories that previously showed **Approval Requested** revert to **Request Approval**.
+
+This strongly suggests that the dashboard's displayed story state is either:
+
+* not being persisted to the correct database record,
+* being persisted but not queried when the dashboard reloads,
+* being persisted to the wrong user/story relationship,
+* or being derived from transient frontend state instead of durable database state.
+
+### Issue 2 — Approval request is not appearing for the follower in the app
+
+When the creator clicks **Request Approval**, the creator sees **Approval Requested**, but the affected follower/user does not receive/see the approval request anywhere in the Post Round app.
+
+We need to trace the entire approval-request lifecycle:
+
+Creator → approval request creation → database → follower → app query → UI.
+
+## Important constraints
+
+* Do NOT redesign the workflow.
+* Do NOT create a new approval system if one already exists.
+* Do NOT change the existing UI unless required to fix the bugs.
+* Do NOT remove existing functionality.
+* Preserve the current Creator Dashboard behavior where the button immediately changes to `Approval Requested`.
+* Preserve the existing Dismiss behavior.
+* Use the existing creator/story/content/story-permission architecture.
+* Prefer the smallest targeted fix.
+* Do not generate content as part of this investigation.
+* Do not create duplicate database rows or duplicate approval requests during testing.
+
+## Investigation 1 — Persisted story state
+
+Trace exactly what happens when the creator clicks:
+
+1. Dismiss
+2. Request Approval
+
+For each action, identify:
+
+* Frontend handler/component
+* API endpoint/server action
+* Database mutation
+* Exact table
+* Exact columns
+* Story/content identifier being written
+* Creator identifier
+* Follower/user identifier, where applicable
+* Whether the mutation succeeds
+* Whether the database row actually exists after the mutation
+
+Then trace what happens when the Creator Dashboard loads:
+
+* What API/query retrieves the creator's stories?
+* What tables does it query?
+* Does it retrieve dismissal state?
+* Does it retrieve approval-request state?
+* How does it associate those records with the current creator/story?
+* Is the UI deriving state from the returned database data or from local React state?
+* Are there multiple IDs involved, such as content_idea ID vs story_candidate ID vs round/story ID?
+
+Pay particular attention to the existing distinction between:
+
+* Production Story
+* canonical round
+* content_ideas
+* story_candidates
+* story permissions
+* approval/request records
+
+We previously fixed production Story → canonical round resolution. Do not regress that behavior.
+
+### Required diagnosis
+
+Determine why:
+
+* Dismissed stories reappear after login.
+* Approval Requested stories revert to Request Approval after login.
+
+Verify the actual production database state rather than assuming the frontend is correct.
+
+If the database state IS correct but the dashboard reload loses the state, fix the read/query/state hydration path.
+
+If the database state IS NOT correct, fix the write path.
+
+After fixing, verify:
+
+1. Login
+2. Dismiss a story
+3. Confirm the database state
+4. Logout
+5. Login again
+6. Confirm the story remains dismissed
+
+And:
+
+1. Login
+2. Request approval on a story
+3. Confirm the database state
+4. Logout
+5. Login again
+6. Confirm it still displays `Approval Requested`
+
+## Investigation 2 — Approval request delivery to follower
+
+Trace the approval request from the creator action all the way to the follower's Post Round app.
+
+When Request Approval is clicked, determine:
+
+1. What database record is created/updated?
+2. Which user/follower does it target?
+3. Is the follower relationship resolved correctly?
+4. Does the approval request contain the correct story/content/round identifiers?
+5. Is there an existing notification/request/inbox mechanism?
+6. Is the request actually written successfully?
+7. What endpoint/query does the Post Round mobile app use to retrieve pending creator approval requests?
+8. Does that query return the newly-created request for the follower?
+9. Does the mobile app have a UI location for displaying it?
+10. Is the UI filtering it out due to status, creator ID, follower ID, story ID, permissions, or another condition?
+
+Do not assume the problem is in the mobile UI. Establish where the chain breaks.
+
+### Specifically check for
+
+* Creator ID vs follower/user ID being reversed.
+* Incorrect foreign-key relationship.
+* Wrong story/content ID being stored.
+* `pending` / `requested` / `approved` / `dismissed` status mismatch.
+* Approval requests being written to one table while the app reads another.
+* Production vs development Supabase project mismatch.
+* RLS policies preventing the follower from reading the request.
+* API authentication/user identity mismatch.
+* Queries filtering on an outdated status or column.
+* Requests being created successfully but never surfaced by the app.
+* Any notification/inbox table that exists but is not being populated.
+* Any existing endpoint that already supports this workflow but is not being called.
+
+## Production safety
+
+Before modifying anything:
+
+* Inspect the current schema and code paths.
+* Use existing test data where possible.
+* Do not mass-update or delete production rows.
+* Do not create unnecessary test content.
+* Do not alter unrelated Creator Dashboard functionality.
+* Do not change authentication.
+* Do not change production environment variables unless the investigation proves one is incorrect.
+
+## Testing requirements
+
+After making the smallest necessary fixes, test both workflows end-to-end.
+
+### Creator persistence test
+
+* Creator logs in.
+* Story appears.
+* Dismiss story.
+* Refresh dashboard.
+* Confirm dismissed.
+* Logout.
+* Login.
+* Confirm dismissed remains dismissed.
+
+Then:
+
+* Request approval on another story.
+* Confirm button changes to `Approval Requested`.
+* Refresh.
+* Confirm `Approval Requested`.
+* Logout.
+* Login.
+* Confirm `Approval Requested`.
+
+### Follower approval test
+
+Using a real existing creator/follower relationship:
+
+* Creator requests approval.
+* Verify the request exists in the database.
+* Log in as the follower in the Post Round app.
+* Navigate to the existing location where creator/story approval requests should appear.
+* Confirm the request is visible.
+* Confirm it identifies the correct creator/story.
+* Confirm no duplicate request was created.
+
+## Deliverable
+
+Before/after implementation, report:
+
+1. Root cause of dismissed-story persistence failure.
+2. Root cause of approval-request persistence failure.
+3. Root cause of approval request not appearing in the follower app.
+4. Exact files/components/endpoints changed.
+5. Exact database tables/columns involved.
+6. Any RLS/auth issue discovered.
+7. Tests run and results.
+8. Confirmation that no unrelated workflow was changed.
+
+If one issue is caused by a shared underlying problem, fix the shared problem rather than adding separate workarounds.
+
+**Most important:** trace the actual data lifecycle first. I want the underlying persistence/delivery issue fixed, not a frontend workaround that merely makes the state look correct until the next reload.

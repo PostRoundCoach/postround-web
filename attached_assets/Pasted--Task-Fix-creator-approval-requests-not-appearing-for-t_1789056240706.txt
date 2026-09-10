@@ -1,0 +1,153 @@
+## Task: Fix creator approval requests not appearing for the follower in Post Round
+
+### Problem
+
+The Creator Dashboard currently allows a creator to click **Request Approval**.
+
+During the creator session, the button changes to:
+
+**Approval Requested**
+
+However, the affected follower/user does not see the approval request anywhere in the Post Round mobile app.
+
+The Creator Dashboard state-persistence issue is being handled separately. **Do not investigate or modify that problem in this task unless it directly prevents this task from functioning.**
+
+### Scope
+
+This task is specifically about the approval request lifecycle from:
+
+**Creator requests approval → approval request is persisted → follower can retrieve it → follower sees it in the existing Post Round app experience.**
+
+Do not redesign the approval workflow.
+
+Do not create a new approval system.
+
+Use the existing database schema, API architecture, creator/follower relationships, and existing app UI wherever possible.
+
+### Investigation
+
+Trace the approval request from beginning to end.
+
+#### Step 1 — Creator request
+
+When the creator clicks **Request Approval**, determine:
+
+* Which frontend handler is called.
+* Which API/server action is called.
+* Which database table is written.
+* Which row is created or updated.
+* Which status is stored.
+* Which creator ID is stored.
+* Which follower/user ID is stored.
+* Which story/content/round ID is stored.
+* Whether the mutation succeeds in production.
+
+Do not assume the request exists simply because the button changes state.
+
+Verify the actual production database record.
+
+#### Step 2 — Recipient identification
+
+Verify that the approval request is associated with the correct follower.
+
+Pay particular attention to:
+
+* Creator ID vs follower/user ID being reversed.
+* Creator/follower relationship lookup.
+* Favorite creator relationship.
+* Story ownership.
+* User IDs vs profile IDs.
+* Any mismatch between Supabase Auth user ID and application profile/user ID.
+
+The request must target the actual follower associated with the story.
+
+#### Step 3 — Mobile app retrieval
+
+Find the existing Post Round mobile app code responsible for retrieving creator/story approval requests.
+
+Determine:
+
+* Which API endpoint/query the app uses.
+* Which database table it reads.
+* What status it expects.
+* What user ID it filters on.
+* Whether it is querying the correct production Supabase project.
+* Whether authentication/RLS prevents the follower from seeing the request.
+* Whether the request is returned by the API but discarded by frontend filtering/state logic.
+
+Do not immediately assume the mobile UI needs to be changed.
+
+First establish exactly where the data flow breaks.
+
+### Check specifically for
+
+* Wrong recipient ID.
+* Wrong story/content/round ID.
+* Status mismatch such as `pending` vs `requested`.
+* Request being written to one table while the app reads another.
+* Existing endpoint and mobile query using different schemas.
+* RLS preventing the follower from reading the request.
+* Authentication/user identity mismatch.
+* Production vs development Supabase mismatch.
+* Frontend filtering that excludes valid pending requests.
+* Existing notification/inbox/request UI that is already intended to display these requests but isn't receiving the data.
+
+### Fix
+
+Once the break in the data flow is identified, implement the **smallest correct fix**.
+
+Prefer fixing the existing API/database/query/UI path over creating a parallel system.
+
+Only modify the mobile UI if the investigation proves that the existing request is being retrieved correctly but has no usable presentation path.
+
+Do not redesign the approval experience.
+
+### End-to-end validation
+
+Use an existing valid creator/follower relationship.
+
+#### Creator
+
+1. Log in as the creator.
+2. Open an existing eligible story.
+3. Click **Request Approval**.
+4. Verify the approval request is actually persisted.
+5. Verify it targets the correct follower.
+
+#### Follower
+
+1. Log in as the affected follower in Post Round.
+2. Navigate to the existing location where creator/story approval requests should appear.
+3. Confirm the pending request appears.
+4. Confirm it identifies the correct creator.
+5. Confirm it identifies the correct story/content.
+6. Confirm the request is in the correct pending/requested state.
+
+### Duplicate protection
+
+Do not create duplicate approval requests during testing.
+
+If an existing request already exists for the story/follower combination, inspect and use that record where possible.
+
+### Production safety
+
+* Do not delete unrelated production data.
+* Do not mass-update records.
+* Do not create unnecessary content.
+* Do not modify authentication unless the investigation proves it is the cause.
+* Do not alter unrelated Creator Dashboard functionality.
+* Do not create a second approval architecture.
+
+### Deliverable
+
+Report:
+
+1. Exact point where the approval-request data flow was breaking.
+2. Whether the creator's request was being persisted correctly.
+3. Exact database table/columns involved.
+4. Whether the correct follower was being targeted.
+5. Whether the mobile app was querying the correct source.
+6. Any RLS/auth issue discovered.
+7. Exact files/components/endpoints changed.
+8. Tests performed and results.
+9. Confirmation that no duplicate approval system was introduced.
