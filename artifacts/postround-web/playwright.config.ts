@@ -39,6 +39,7 @@ export default defineConfig({
         NEXT_DIST_DIR: '.next-e2e',
         NEXT_PUBLIC_SUPABASE_URL: fixtureUrl,
         NEXT_PUBLIC_SUPABASE_ANON_KEY: 'e2e-anon-key',
+        NEXT_PUBLIC_POSTROUND_API_BASE_URL: fixtureUrl,
       },
       timeout: 180_000,
     },

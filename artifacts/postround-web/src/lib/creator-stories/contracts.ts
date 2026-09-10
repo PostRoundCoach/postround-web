@@ -35,11 +35,12 @@ export interface CreatorStoryRecord {
 
 export interface PermissionedCreatorStoryRecord {
   story_id: string
+  approval_requested_at: string | null
   granted_at: string | null
   story_candidates: CreatorStoryRecord | CreatorStoryRecord[]
 }
 
-export type StoryPermissionStatus = 'pending' | 'approved'
+export type StoryPermissionStatus = 'pending' | 'requested' | 'approved'
 
 export interface CreatorStory {
   id: string

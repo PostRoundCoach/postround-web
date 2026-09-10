@@ -124,72 +124,29 @@ test('resolves the active creator profile from the authenticated user identity',
   ])
 })
 
-test('builds the queue only from active permissions for the resolved creator', async () => {
-  const filters: Array<[string, unknown]> = []
-  const permissionedStory = {
-    id: 'shared-story',
-    story_type: 'personal_best',
-    headline: 'Shared headline',
-    summary: 'Shared summary',
-    story_data: {},
-    round_id: 'shared-round',
-    status: 'shared' as const,
+test('loads the creator queue from the authoritative API and hydrates request state', async () => {
+  const originalFetch = globalThis.fetch
+  const originalApiBase = process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL
+  process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL = 'https://api.postround.test'
+  globalThis.fetch = (async () => Response.json({
+    ok: true,
+    stories: [{
+      id: 'shared-story', story_type: 'personal_best', headline: 'Shared headline',
+      summary: 'Shared summary', story_data: {}, round_id: 'shared-round',
+      status: 'shared', permission_status: 'requested',
+    }],
+  })) as typeof fetch
+  const supabase = { auth: { async getSession() {
+    return { data: { session: { access_token: 'test-access-token' } }, error: null }
+  } } } as unknown as SupabaseClient
+  try {
+    const stories = await fetchPermissionedCreatorStories(supabase, 'creator-1')
+    assert.equal(stories[0]?.permissionStatus, 'requested')
+  } finally {
+    globalThis.fetch = originalFetch
+    if (originalApiBase === undefined) delete process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL
+    else process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL = originalApiBase
   }
-
-  const query = {
-    select(value: string) {
-      assert.match(value, /story_candidates!inner/)
-      return this
-    },
-    eq(column: string, value: unknown) {
-      filters.push([column, value])
-      return this
-    },
-    is(column: string, value: unknown) {
-      filters.push([column, value])
-      return this
-    },
-    in(column: string, value: unknown) {
-      filters.push([column, value])
-      return this
-    },
-    then(
-      resolve: (value: {
-        data: Array<{
-          story_id: string
-          story_candidates: typeof permissionedStory
-        }>
-        error: null
-      }) => unknown,
-    ) {
-      return Promise.resolve({
-        data: [{
-          story_id: 'shared-story',
-          granted_at: '2026-09-08T20:00:00Z',
-          story_candidates: permissionedStory,
-        }],
-        error: null,
-      }).then(resolve)
-    },
-  }
-  const supabase = {
-    from(table: string) {
-      assert.equal(table, 'story_permissions')
-      return query
-    },
-  } as unknown as SupabaseClient
-
-  const stories = await fetchPermissionedCreatorStories(supabase, 'creator-1')
-
-  assert.equal(stories.length, 1)
-  assert.equal(stories[0]?.id, 'shared-story')
-  assert.equal(stories[0]?.permissionStatus, 'approved')
-  assert.deepEqual(filters, [
-    ['creator_id', 'creator-1'],
-    ['permission_granted', true],
-    ['revoked_at', null],
-    ['story_candidates.status', ['offered', 'shared']],
-  ])
 })
 
 test('sends only the story ID and bearer identity to the Story Engine', async () => {

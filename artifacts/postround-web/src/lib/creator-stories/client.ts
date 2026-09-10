@@ -106,6 +106,10 @@ function generatedIdeasUrl(storyId: string): string {
   return `${contentApiBase()}/api/content/ideas?${query.toString()}`
 }
 
+function creatorStoriesUrl(): string {
+  return `${contentApiBase()}/api/content/stories`
+}
+
 function storyDraftUrl(): string {
   return `${contentApiBase()}/api/content/draft`
 }
@@ -122,6 +126,10 @@ function asObject(value: unknown): Record<string, unknown> | null {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
     ? value as Record<string, unknown>
     : null
+}
+
+function isStoryPermissionStatus(value: unknown): value is CreatorStory['permissionStatus'] {
+  return value === 'pending' || value === 'requested' || value === 'approved'
 }
 
 function firstString(
@@ -309,31 +317,24 @@ export async function fetchOwnedActiveCreatorProfile(
 
 export async function fetchPermissionedCreatorStories(
   supabase: SupabaseClient,
-  creatorId: string,
+  _creatorId: string,
 ): Promise<CreatorStory[]> {
-  const { data, error } = await supabase
-    .from('story_permissions')
-    .select(`
-      story_id,
-      granted_at,
-      story_candidates!inner(
-        ${CREATOR_STORY_SELECT}
-      )
-    `)
-    .eq('creator_id', creatorId)
-    .eq('permission_granted', true)
-    .is('revoked_at', null)
-    .in('story_candidates.status', ['offered', 'shared'])
-
-  if (error) throw new CreatorStoryIntegrationError()
-
-  return ((data ?? []) as PermissionedCreatorStoryRecord[]).flatMap((permission) => {
-    const related = Array.isArray(permission.story_candidates)
-      ? permission.story_candidates
-      : [permission.story_candidates]
-
-    return related.filter(Boolean).map((story) =>
-      toCreatorStory(story, permission.granted_at ? 'approved' : 'pending'))
+  const accessToken = await authenticatedAccessToken(supabase)
+  const response = await fetch(creatorStoriesUrl(), {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  })
+  if (!response.ok) throw await apiFailure(response, 'The creator workspace could not be loaded.')
+  const payload: unknown = await response.json()
+  const result = asObject(payload)
+  if (result?.ok !== true || !Array.isArray(result.stories)) {
+    throw new CreatorStoryApiError(500, 'The creator workspace could not be loaded.')
+  }
+  return result.stories.map((value) => {
+    const record = asObject(value)
+    if (!record || !isStoryPermissionStatus(record.permission_status)) {
+      throw new CreatorStoryApiError(500, 'The creator workspace could not be loaded.')
+    }
+    return toCreatorStory(record as unknown as CreatorStoryRecord, record.permission_status)
   })
 }
 
@@ -364,7 +365,7 @@ export async function generateStoryCandidates(
   if (result?.ok !== true
     || typeof result.count !== 'number'
     || !Array.isArray(result.candidates)
-    || (result.permission_status !== 'pending' && result.permission_status !== 'approved')) {
+    || !isStoryPermissionStatus(result.permission_status)) {
     throw new CreatorStoryApiError(500)
   }
   const candidates = result.candidates.map(toStoryCandidate)
@@ -401,7 +402,7 @@ export async function fetchStoryCandidates(
     || result.story_id !== storyId
     || typeof result.round_id !== 'string'
     || !Array.isArray(result.ideas)
-    || (result.permission_status !== 'pending' && result.permission_status !== 'approved')) {
+    || !isStoryPermissionStatus(result.permission_status)) {
     throw new CreatorStoryApiError(500, 'Generated content could not be loaded.')
   }
 
@@ -505,7 +506,7 @@ export async function requestStoryApproval(
   const result = asObject(payload)
   if (result?.ok !== true
     || result.story_id !== storyId
-    || (result.permission_status !== 'pending' && result.permission_status !== 'approved')) {
+    || !isStoryPermissionStatus(result.permission_status)) {
     throw new CreatorStoryApiError(500, 'Approval could not be requested.')
   }
   return {

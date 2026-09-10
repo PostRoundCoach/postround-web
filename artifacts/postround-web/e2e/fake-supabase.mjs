@@ -32,6 +32,19 @@ const story = {
 }
 let dismissed = false
 let approved = false
+let approvalRequested = false
+const candidate = {
+  id: '40000000-0000-4000-8000-000000000001',
+  story_id: storyId,
+  round_id: story.round_id,
+  category: 'Round Analysis',
+  title: 'The back-nine comeback',
+  hook: 'A comeback worth sharing',
+  script: 'Fixture candidate summary.',
+  stats_used: { 'Fairways hit': 8 },
+  status: 'draft',
+  created_at: '2026-01-02T00:00:00.000Z',
+}
 
 function encode(value) {
   return Buffer.from(JSON.stringify(value)).toString('base64url')
@@ -74,7 +87,7 @@ function userFromRequest(request) {
 function send(response, status, body) {
   response.writeHead(status, {
     'Access-Control-Allow-Headers': 'authorization, apikey, content-type, x-client-info, x-supabase-api-version',
-    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    'Access-Control-Allow-Methods': 'GET, POST, PATCH, OPTIONS',
     'Access-Control-Allow-Origin': '*',
     'Content-Type': 'application/json',
   })
@@ -123,6 +136,40 @@ const server = http.createServer((request, response) => {
       : send(response, 401, { message: 'Invalid token' })
   }
 
+  if (request.method === 'POST' && url.pathname === '/auth/v1/logout') {
+    return send(response, 200, {})
+  }
+
+  if (request.method === 'GET' && url.pathname === '/api/content/stories') {
+    return send(response, 200, {
+      ok: true,
+      stories: dismissed ? [] : [{
+        ...story,
+        permission_status: approved ? 'approved' : approvalRequested ? 'requested' : 'pending',
+      }],
+    })
+  }
+
+  if (request.method === 'GET' && url.pathname === '/api/content/ideas') {
+    return send(response, 200, {
+      ok: true,
+      story_id: storyId,
+      round_id: story.round_id,
+      ideas: dismissed ? [] : [candidate],
+      permission_status: approved ? 'approved' : approvalRequested ? 'requested' : 'pending',
+    })
+  }
+
+  if (request.method === 'POST' && url.pathname === `/api/content/stories/${storyId}/approval-request`) {
+    approvalRequested = true
+    return send(response, 200, { ok: true, story_id: storyId, permission_status: 'requested' })
+  }
+
+  if (request.method === 'PATCH' && url.pathname === `/api/content/stories/${storyId}/dismissal`) {
+    dismissed = true
+    return send(response, 200, { ok: true, story_id: storyId })
+  }
+
   if (request.method === 'GET' && url.pathname === '/rest/v1/creator_profiles') {
     const user = userFromRequest(request)
     const profile = user?.creator
@@ -159,6 +206,7 @@ const server = http.createServer((request, response) => {
     if (dismissed) return send(response, 200, [])
     return send(response, 200, [{
       story_id: storyId,
+      approval_requested_at: approvalRequested ? '2026-01-02T01:00:00.000Z' : null,
       granted_at: approved ? '2026-01-03T00:00:00.000Z' : null,
       story_candidates: story,
     }])

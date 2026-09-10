@@ -5,6 +5,7 @@ import {
   authenticateSupabaseBearer,
   authorizeCreatorStory,
   CreatorContentError,
+  fetchCreatorStoryQueue,
   fetchPersistedCandidates,
   loadRoundEvidence,
   persistCandidates,
@@ -198,6 +199,36 @@ test("authorization denies a creator without an active permission", async () => 
     authorizeCreatorStory(context, base.storyId),
     (error: unknown) => error instanceof CreatorContentError && error.status === 403,
   );
+});
+
+test("creator queue reload uses the authoritative active permission store", async () => {
+  const paths: string[] = [];
+  const context: SupabaseRequestContext = {
+    ...requestContext,
+    proxy: async (path) => {
+      paths.push(path);
+      if (path.includes("creator_profiles?")) return Response.json([{ id: base.ownerId }]);
+      return Response.json([{
+        story_id: base.storyId,
+        approval_requested_at: "2026-09-10T12:00:00Z",
+        granted_at: null,
+        story_candidates: {
+          id: base.storyId,
+          story_type: "round_recap",
+          headline: "A comeback",
+          summary: "Stored story",
+          story_data: {},
+          round_id: "cccccccc-cccc-cccc-cccc-cccccccccccc",
+          status: "shared",
+        },
+      }]);
+    },
+  };
+  const stories = await fetchCreatorStoryQueue(context);
+  assert.equal(stories[0]?.permission_status, "requested");
+  assert.ok(paths[1]?.includes(`creator_id=eq.${base.ownerId}`));
+  assert.ok(paths[1]?.includes("permission_granted=eq.true"));
+  assert.ok(paths[1]?.includes("revoked_at=is.null"));
 });
 
 test("live round lookup contract uses rounds.par and maps it to course par", async () => {
@@ -410,17 +441,19 @@ test("approval requests reuse the active pending permission and never approve it
           story_id: base.storyId,
           user_id: "dddddddd-dddd-dddd-dddd-dddddddddddd",
           permission_granted: true,
+          approval_requested_at: null,
           granted_at: null,
           revoked_at: null,
         }]);
       }
       assert.equal(init.method, "PATCH");
-      assert.ok(String(init.body).includes('"updated_at"'));
+      assert.ok(String(init.body).includes('"approval_requested_at"'));
       return Response.json([{
         id: "99999999-9999-4999-8999-999999999999",
         story_id: base.storyId,
         user_id: "dddddddd-dddd-dddd-dddd-dddddddddddd",
         permission_granted: true,
+        approval_requested_at: "2026-09-08T19:00:00Z",
         granted_at: null,
         revoked_at: null,
       }]);
@@ -429,36 +462,37 @@ test("approval requests reuse the active pending permission and never approve it
 
   assert.equal(
     await requestStoryApproval(context, base.ownerId, base.storyId),
-    "pending",
+    "requested",
   );
   assert.deepEqual(methods, ["GET", "PATCH"]);
 });
 
-test("repeated pending approval requests update the same permission row without granting it", async () => {
+test("repeated approval requests reuse the requested permission without another mutation", async () => {
   const permissionId = "99999999-9999-4999-8999-999999999999";
   const patchPaths: string[] = [];
   const context: SupabaseRequestContext = {
     ...requestContext,
     proxy: async (path, init) => {
+      if (init?.method === "PATCH") {
+        patchPaths.push(path);
+        assert.ok(!String(init.body).includes("granted_at"));
+      }
       const row = {
         id: permissionId,
         story_id: base.storyId,
         user_id: "dddddddd-dddd-dddd-dddd-dddddddddddd",
         permission_granted: true,
+        approval_requested_at: patchPaths.length > 0 ? "2026-09-08T19:00:00Z" : null,
         granted_at: null,
         revoked_at: null,
       };
-      if (init?.method === "PATCH") {
-        patchPaths.push(path);
-        assert.ok(!String(init.body).includes("granted_at"));
-      }
       return Response.json([row]);
     },
   };
 
-  assert.equal(await requestStoryApproval(context, base.ownerId, base.storyId), "pending");
-  assert.equal(await requestStoryApproval(context, base.ownerId, base.storyId), "pending");
-  assert.equal(patchPaths.length, 2);
+  assert.equal(await requestStoryApproval(context, base.ownerId, base.storyId), "requested");
+  assert.equal(await requestStoryApproval(context, base.ownerId, base.storyId), "requested");
+  assert.equal(patchPaths.length, 1);
   assert.ok(patchPaths.every((path) => path.includes(`id=eq.${permissionId}`)));
 });
 
@@ -473,6 +507,7 @@ test("an approved permission stays approved without a duplicate request mutation
         story_id: base.storyId,
         user_id: "dddddddd-dddd-dddd-dddd-dddddddddddd",
         permission_granted: true,
+        approval_requested_at: "2026-09-08T19:00:00Z",
         granted_at: "2026-09-08T20:00:00Z",
         revoked_at: null,
       }]);
@@ -495,7 +530,13 @@ test("dismissal updates only the resolved creator permission row", async () => {
       requestedPath = path;
       assert.equal(init?.method, "PATCH");
       assert.ok(String(init?.body).includes('"permission_granted":false'));
-      return Response.json([{ story_id: base.storyId }]);
+      return Response.json([{
+        id: permissionId,
+        story_id: base.storyId,
+        creator_id: base.ownerId,
+        permission_granted: false,
+        revoked_at: "2026-09-10T12:00:00Z",
+      }]);
     },
   };
 

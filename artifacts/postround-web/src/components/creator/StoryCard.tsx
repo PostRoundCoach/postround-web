@@ -28,7 +28,6 @@ export function StoryCard({
   const [dismissalFailed, setDismissalFailed] = useState(false)
   const [permissionStatus, setPermissionStatus] = useState(story.permissionStatus)
   const [isRequestingApproval, setIsRequestingApproval] = useState(false)
-  const [approvalRequested, setApprovalRequested] = useState(false)
   const [approvalRequestFailed, setApprovalRequestFailed] = useState(false)
 
   const loadCandidates = async (
@@ -102,7 +101,6 @@ export function StoryCard({
     try {
       const result = await requestStoryApproval(supabase, story.id)
       setPermissionStatus(result.permission_status)
-      setApprovalRequested(result.permission_status === 'pending')
     } catch {
       setApprovalRequestFailed(true)
     } finally {
@@ -328,11 +326,11 @@ export function StoryCard({
                   type="button"
                   variant="outline"
                   onClick={() => void handleRequestApproval()}
-                  disabled={isRequestingApproval || approvalRequested}
+                  disabled={isRequestingApproval || permissionStatus === 'requested'}
                   data-testid={`button-request-approval-${story.id}`}
                 >
                   {isRequestingApproval ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                  {isRequestingApproval ? 'Requesting…' : approvalRequested ? 'Approval requested' : 'Request approval'}
+                  {isRequestingApproval ? 'Requesting…' : permissionStatus === 'requested' ? 'Approval requested' : 'Request approval'}
                 </Button>
               )}
             </div>

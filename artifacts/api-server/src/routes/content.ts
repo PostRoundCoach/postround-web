@@ -1,7 +1,7 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import {
   authenticateSupabaseBearer, authorizeCreatorStory, CreatorContentError, fetchPersistedCandidates,
-  dismissCreatorStory, fetchPersistedCandidate, loadRoundEvidence, persistCandidates, requestStoryApproval,
+  dismissCreatorStory, fetchCreatorStoryQueue, fetchPersistedCandidate, loadRoundEvidence, persistCandidates, requestStoryApproval,
 } from "../lib/creator-content-data";
 import { generateStoryCandidates, generateStoryDraft, STORY_DRAFT_FORMATS, type StoryDraftFormat } from "../lib/story-engine";
 
@@ -27,6 +27,14 @@ async function authorized(req: Request, id: string) {
   req.log.info({ stage: "authorization", storyId: id, creatorId: result.creatorId }, "Creator story authorized");
   return { context, ...result };
 }
+
+router.get("/content/stories", async (req, res): Promise<void> => {
+  try {
+    const context = await authenticateSupabaseBearer(req.header("authorization"));
+    const stories = await fetchCreatorStoryQueue(context);
+    res.json({ ok: true, stories });
+  } catch (error) { failure(req, res, error, "story_queue"); }
+});
 
 router.post("/content/generate", async (req, res): Promise<void> => {
   const id = storyId(req.body?.story_id);

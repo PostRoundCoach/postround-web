@@ -22,7 +22,7 @@ export interface AuthorizedStory {
   permissionStatus: StoryPermissionStatus;
 }
 
-export type StoryPermissionStatus = "pending" | "approved";
+export type StoryPermissionStatus = "pending" | "requested" | "approved";
 
 export interface SupabaseRequestContext {
   userId: string;
@@ -157,6 +157,7 @@ type PermissionRow = {
   story_id: string;
   user_id: string;
   permission_granted: boolean;
+  approval_requested_at: string | null;
   granted_at: string | null;
   revoked_at: string | null;
 };
@@ -179,7 +180,7 @@ export async function authorizeCreatorStory(
   if (!creator) throw new CreatorContentError(403, "This account does not control an active creator profile.");
   const permissions = await rest<PermissionRow[]>(
     context,
-    `story_permissions?select=id,story_id,user_id,permission_granted,granted_at,revoked_at&creator_id=eq.${encodeURIComponent(creator.id)}&story_id=eq.${encodeURIComponent(storyId)}&permission_granted=eq.true&revoked_at=is.null&limit=1`,
+    `story_permissions?select=id,story_id,user_id,permission_granted,approval_requested_at,granted_at,revoked_at&creator_id=eq.${encodeURIComponent(creator.id)}&story_id=eq.${encodeURIComponent(storyId)}&permission_granted=eq.true&revoked_at=is.null&limit=1`,
   );
   const permission = permissions[0];
   if (!permission) throw new CreatorContentError(403, "This creator is not permitted to access the story.");
@@ -203,8 +204,61 @@ export async function authorizeCreatorStory(
     playerId: story.user_id,
     playerName,
     permissionId: permission.id,
-    permissionStatus: permission.granted_at ? "approved" : "pending",
+    permissionStatus: permission.granted_at
+      ? "approved"
+      : permission.approval_requested_at
+        ? "requested"
+        : "pending",
   };
+}
+
+type CreatorStoryQueueRow = {
+  story_id: string;
+  approval_requested_at: string | null;
+  granted_at: string | null;
+  story_candidates: {
+    id: string;
+    story_type: string;
+    headline: string;
+    summary: string;
+    story_data: Record<string, unknown> | null;
+    round_id: string;
+    status: string;
+  } | Array<{
+    id: string;
+    story_type: string;
+    headline: string;
+    summary: string;
+    story_data: Record<string, unknown> | null;
+    round_id: string;
+    status: string;
+  }>;
+};
+
+export async function fetchCreatorStoryQueue(context: SupabaseRequestContext) {
+  const profiles = await rest<CreatorRow[]>(
+    context,
+    `creator_profiles?select=id&user_id=eq.${encodeURIComponent(context.userId)}&status=eq.active&limit=1`,
+  );
+  const creator = profiles[0];
+  if (!creator) throw new CreatorContentError(403, "This account does not control an active creator profile.");
+  const rows = await rest<CreatorStoryQueueRow[]>(
+    context,
+    "story_permissions?select=story_id,approval_requested_at,granted_at,story_candidates!inner(id,story_type,headline,summary,story_data,round_id,status)"
+      + `&creator_id=eq.${encodeURIComponent(creator.id)}&permission_granted=eq.true&revoked_at=is.null`
+      + "&story_candidates.status=in.(offered,shared)",
+  );
+  return rows.flatMap((permission) => {
+    const stories = Array.isArray(permission.story_candidates)
+      ? permission.story_candidates
+      : [permission.story_candidates];
+    const permissionStatus: StoryPermissionStatus = permission.granted_at
+      ? "approved"
+      : permission.approval_requested_at
+        ? "requested"
+        : "pending";
+    return stories.map((story) => ({ ...story, permission_status: permissionStatus }));
+  });
 }
 
 type DbHole = {
@@ -401,25 +455,38 @@ export async function requestStoryApproval(
 ): Promise<StoryPermissionStatus> {
   const rows = await rest<PermissionRow[]>(
     context,
-    `story_permissions?select=id,story_id,user_id,permission_granted,granted_at,revoked_at&creator_id=eq.${encodeURIComponent(creatorId)}&story_id=eq.${encodeURIComponent(storyId)}&permission_granted=eq.true&revoked_at=is.null&limit=1`,
+    `story_permissions?select=id,story_id,user_id,permission_granted,approval_requested_at,granted_at,revoked_at&creator_id=eq.${encodeURIComponent(creatorId)}&story_id=eq.${encodeURIComponent(storyId)}&permission_granted=eq.true&revoked_at=is.null&limit=1`,
   );
   const permission = rows[0];
   if (!permission) throw new CreatorContentError(404, "The active story permission was not found.");
   if (permission.granted_at) return "approved";
+  if (permission.approval_requested_at) return "requested";
 
   const requested = await rest<PermissionRow[]>(
     context,
-    `story_permissions?id=eq.${encodeURIComponent(permission.id)}&select=id,story_id,user_id,permission_granted,granted_at,revoked_at&creator_id=eq.${encodeURIComponent(creatorId)}&story_id=eq.${encodeURIComponent(storyId)}&permission_granted=eq.true&granted_at=is.null&revoked_at=is.null`,
+    `story_permissions?id=eq.${encodeURIComponent(permission.id)}&select=id,story_id,user_id,permission_granted,approval_requested_at,granted_at,revoked_at&creator_id=eq.${encodeURIComponent(creatorId)}&story_id=eq.${encodeURIComponent(storyId)}&permission_granted=eq.true&granted_at=is.null&revoked_at=is.null`,
     {
       method: "PATCH",
       headers: { Prefer: "return=representation" },
-      body: JSON.stringify({ updated_at: new Date().toISOString() }),
+      body: JSON.stringify({ approval_requested_at: new Date().toISOString() }),
     },
   );
   if (requested.length !== 1) {
     throw new CreatorContentError(409, "The approval request was not persisted.");
   }
-  return "pending";
+  const row = requested[0]!;
+  if (
+    row.id !== permission.id
+    || row.story_id !== storyId
+    || row.user_id !== permission.user_id
+    || row.permission_granted !== true
+    || row.granted_at !== null
+    || row.revoked_at !== null
+    || !row.approval_requested_at
+  ) {
+    throw new CreatorContentError(409, "The approval request was not persisted.");
+  }
+  return "requested";
 }
 
 export async function dismissCreatorStory(
@@ -428,14 +495,20 @@ export async function dismissCreatorStory(
   storyId: string,
   permissionId: string,
 ): Promise<boolean> {
-  const rows = await rest<Array<{ story_id: string }>>(
+  const rows = await rest<Array<{ id: string; story_id: string; creator_id: string; permission_granted: boolean; revoked_at: string | null }>>(
     context,
-    `story_permissions?id=eq.${encodeURIComponent(permissionId)}&select=story_id&creator_id=eq.${encodeURIComponent(creatorId)}&story_id=eq.${encodeURIComponent(storyId)}&permission_granted=eq.true&revoked_at=is.null`,
+    `story_permissions?id=eq.${encodeURIComponent(permissionId)}&select=id,story_id,creator_id,permission_granted,revoked_at&creator_id=eq.${encodeURIComponent(creatorId)}&story_id=eq.${encodeURIComponent(storyId)}&permission_granted=eq.true&revoked_at=is.null`,
     {
       method: "PATCH",
       headers: { Prefer: "return=representation" },
       body: JSON.stringify({ permission_granted: false, revoked_at: new Date().toISOString() }),
     },
   );
-  return rows.length === 1;
+  const row = rows[0];
+  return rows.length === 1
+    && row?.id === permissionId
+    && row.story_id === storyId
+    && row.creator_id === creatorId
+    && row.permission_granted === false
+    && Boolean(row.revoked_at);
 }
