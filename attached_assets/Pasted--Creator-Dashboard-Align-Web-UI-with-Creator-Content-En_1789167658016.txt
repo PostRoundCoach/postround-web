@@ -1,0 +1,345 @@
+# Creator Dashboard — Align Web UI with Creator Content Engine
+
+## Objective
+
+Rework the existing web Creator Dashboard to consume and display the new **Creator Content Engine** data model and API contract.
+
+The existing Creator Dashboard’s:
+
+* visual appearance
+* navigation
+* layout/shell
+* creator authentication
+* approval/review workflow
+* existing interaction patterns
+
+are already working well.
+
+**Preserve those wherever possible. Do not redesign the dashboard from scratch.**
+
+The goal of this task is to **replace the old content-idea assumptions with the new story → permission → content-opportunity model**, while keeping the current dashboard experience familiar.
+
+---
+
+# 1. Authoritative source
+
+Use the attached/available:
+
+**Creator Content Engine — Web Developer Integration Contract — 2026-09-11**
+
+as the backend integration authority.
+
+Do not infer or recreate qualification logic in the web application.
+
+The backend is authoritative for:
+
+* story qualification
+* significance scoring
+* story type
+* story headline/summary
+* permissions
+* creator ownership
+* generated content categories
+* generated hooks
+* generated scripts
+* content idea creation
+
+The web dashboard should consume these values rather than calculate them.
+
+---
+
+# 2. First: audit the existing dashboard
+
+Before modifying code, inspect the current web Creator Dashboard and identify:
+
+* current dashboard route/page
+* current API calls
+* current data models/types
+* current content cards
+* current approval/review workflow
+* current loading/error/empty states
+* current creator authentication/ownership handling
+* current navigation
+* current styling/components that should be preserved
+
+Produce a short implementation plan internally before making changes.
+
+### Important
+
+The current:
+
+**appearance, functionality, and approval process work.**
+
+Do NOT replace these with a new visual design unless required to accommodate the new data.
+
+Think:
+
+> **Rewire the dashboard, don't rebuild the dashboard.**
+
+---
+
+# 3. New conceptual model
+
+The dashboard should now be understood as:
+
+**Player round → qualifying story → player permission → creator content opportunity → creator review/approval**
+
+The important distinction is:
+
+### Story candidate
+
+A qualifying golf story detected by the backend.
+
+Examples:
+
+* personal best
+* broke 90
+* low putts
+* multiple birdies
+* fairway improvement
+* high GIR
+* strong comeback
+
+The dashboard must **not calculate whether a story qualifies**.
+
+### Content ideas
+
+Once a player has permissioned the story to the creator, the Creator Content Engine generates up to 3 content ideas.
+
+Each idea is a potential piece of creator content.
+
+The creator dashboard should present these as **content opportunities**, rather than as generic/raw database rows.
+
+---
+
+# 4. Creator-facing API contract
+
+Use the following endpoints.
+
+## Generate
+
+### POST `/api/content/generate`
+
+Request:
+
+```json
+{
+  "creator_id": "<creator profile uuid>",
+  "story_id": "<story candidate uuid>"
+}
+```
+
+Only this endpoint receives `creator_id`.
+
+The response is:
+
+```json
+{
+  "ok": true,
+  "count": 3
+}
+```
+
+**Do not expect generated ideas in this response.**
+
+After successful generation, call:
+
+### GET `/api/content/ideas?story_id=<story_id>`
+
+---
+
+# 5. Read generated ideas
+
+Use:
+
+### GET `/api/content/ideas?story_id=<uuid>`
+
+The response is:
+
+```json
+{
+  "ok": true,
+  "ideas": [
+    {
+      "id": "<uuid>",
+      "story_id": "<uuid>",
+      "category": "Putting Insight",
+      "title": "34 average putts dropped to 27",
+      "hook": "He averaged 34 putts — then one round changed everything.",
+      "script": "Going from 34 to 27 putts in a single round isn't luck.",
+      "created_at": "2026-09-04T10:00:01Z"
+    }
+  ]
+}
+```
+
+Only rely on these creator-facing fields:
+
+* `id`
+* `story_id`
+* `category`
+* `title`
+* `hook`
+* `script`
+* `created_at`
+
+The creator-facing API intentionally does **not** expose:
+
+* `stats_used`
+* `status`
+* `round_id`
+
+Do not attempt to read or display those fields from this endpoint.
+
+---
+
+# 6. Do not pass creator_id unnecessarily
+
+For:
+
+### GET `/api/content/ideas`
+
+and
+
+### PATCH `/api/content/stories/:storyId/permission`
+
+the server resolves the creator from the authenticated bearer token.
+
+Do not send `creator_id` to these endpoints.
+
+The only creator-facing generate call requiring `creator_id` is:
+
+```text
+POST /api/content/generate
+```
+
+---
+
+# 7. Permission model
+
+Permission is the central access rule.
+
+A creator can only access a story after the player has granted permission.
+
+The backend verifies:
+
+```text
+story_candidates
+        ↓
+story_permissions
+        ↓
+creator_profiles
+```
+
+Do not implement client-side permission assumptions.
+
+The dashboard should treat a story as accessible only when the backend allows the request.
+
+If an API call returns 403 because permission is absent/revoked, show the appropriate existing error/empty/restricted UI rather than trying to work around it.
+
+---
+
+# 8. Story → content opportunity presentation
+
+The current dashboard should evolve from displaying something like:
+
+> Category / Script / Status
+
+into a richer **content opportunity** presentation.
+
+Each opportunity should make the creator immediately understand:
+
+### What happened?
+
+Use the available generated:
+
+* `title`
+* `hook`
+* `script`
+* `category`
+
+and, where the dashboard already has access to the associated story information, present the underlying story context.
+
+The desired mental model is:
+
+> **Here's something interesting that happened in a real player's round, and here's a ready-to-use content angle for you.**
+
+---
+
+# 9. Preserve the existing approval workflow
+
+This is important.
+
+The current dashboard approval process works.
+
+**Do not replace it.**
+
+Continue using the existing workflow for:
+
+```text
+draft → approved → published
+```
+
+where that workflow already exists.
+
+However, understand that:
+
+### `content_ideas.status`
+
+is admin-managed server-side.
+
+The creator-facing:
+
+```text
+GET /api/content/ideas
+```
+
+endpoint deliberately does not expose `status`.
+
+Therefore:
+
+* do not expect creator GET responses to contain status
+* do not invent a creator-side status field
+* do not create a new approval API
+* preserve the current dashboard approval UX and connect it to the appropriate existing/admin functionality
+
+If the existing dashboard uses a separate admin data path for approval, preserve that behavior.
+
+---
+
+# 10. Multiple ideas per story
+
+Do NOT assume:
+
+> one story = one dashboard item
+
+A generation request can create up to 3 ideas.
+
+Repeated generation can potentially create additional ideas.
+
+Therefore the UI/data layer must support:
+
+```text
+Story
+ ├── Content Opportunity 1
+ ├── Content Opportunity 2
+ └── Content Opportunity 3
+```
+
+and potentially more if the backend has generated multiple batches.
+
+Do not silently overwrite ideas.
+
+Do not assume exactly three.
+
+Handle:
+
+* 0 ideas
+* 1 idea
+* 2 ideas
+* 3 ideas
+* more than 3 ideas
+
+gracefully.
+
+---

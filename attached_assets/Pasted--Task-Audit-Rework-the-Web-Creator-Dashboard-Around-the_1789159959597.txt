@@ -1,0 +1,527 @@
+## Task — Audit & Rework the Web Creator Dashboard Around the New Opportunity Model
+
+We need to audit the **existing web Creator Dashboard** and then update it so that it presents creator content opportunities in a way that is immediately understandable and actionable to a golf creator.
+
+### Context
+
+The Creator Content Engine has been reworked around a new mental model:
+
+> **“What could a golf creator actually make content from?”**
+
+rather than:
+
+> “What story does this round contain?”
+
+The dashboard should therefore present each result as a **content opportunity**, not as a raw database record or generic player story.
+
+A creator should be able to look at an opportunity and immediately understand:
+
+1. **What happened?**
+2. **Why is this interesting to their audience?**
+3. **What could I make from it?**
+4. **What evidence/stats support it?**
+5. **What format would work?**
+6. **What should I say/do next?**
+
+---
+
+# Phase 1 — Audit the Existing Dashboard
+
+Before making UI changes, inspect the existing web project thoroughly.
+
+### 1. Identify the Creator Dashboard implementation
+
+Find:
+
+* Creator Dashboard page/component(s)
+* `contentStudio.ts` or equivalent dashboard code
+* Related API routes/server functions
+* Supabase queries
+* Types/interfaces
+* Content opportunity/story/content idea models
+* Any creator-specific authentication or scoping logic
+* Any existing components used to display opportunities
+* Any existing Generate Content / Generate Ideas actions
+
+Do not assume the current dashboard architecture. Inspect the actual implementation.
+
+### 2. Determine exactly what the dashboard currently reads
+
+Trace the complete data flow:
+
+**Supabase → API/server → dashboard → UI**
+
+Document exactly:
+
+* Tables queried
+* Views/functions/RPCs used
+* API endpoints used
+* Filters
+* Joins
+* Creator scoping
+* Ordering
+* Limits/pagination
+* Fields selected
+* Fields transformed/derived server-side
+* Fields displayed
+* Fields fetched but currently unused
+
+For every displayed value, identify its actual source.
+
+Create an audit table similar to:
+
+| Dashboard UI | Source table/API | Database field | Transformation | Current purpose |
+| ------------ | ---------------- | -------------- | -------------- | --------------- |
+| Category     | ...              | ...            | ...            | ...             |
+| Hook         | ...              | ...            | ...            | ...             |
+| Player score | ...              | ...            | ...            | ...             |
+| Format       | ...              | ...            | ...            | ...             |
+| Caption      | ...              | ...            | ...            | ...             |
+
+Do not guess field names. Use the actual Supabase schema and code.
+
+### 3. Inspect the current Supabase schema
+
+Specifically inspect the schema relevant to:
+
+* `content_ideas`
+* `story_candidates`
+* `player_stories`
+* `story_permissions`
+* `rounds`
+* round statistics
+* Round Buddy data/transcripts/highlights
+* creator/player relationships
+* any other tables currently feeding the Creator Dashboard
+
+Determine which fields actually exist and which are currently being used.
+
+Pay particular attention to fields such as:
+
+* opportunity/category
+* hook
+* content angle
+* why it is interesting
+* key stats
+* suggested format
+* caption
+* CTA
+* player/round identifiers
+* story identifiers
+* permission/approval state
+* score
+* par
+* birdies
+* bogeys
+* GIR
+* fairways
+* putting
+* penalties
+* notable holes
+* Round Buddy excerpts/context
+* any creator-specific metadata
+
+Again: **verify against the actual schema and code. Do not invent fields.**
+
+---
+
+# Phase 2 — Map Existing Data to the New Opportunity Model
+
+The new dashboard mental model should be:
+
+### Content Opportunity
+
+**Hook**
+
+> The attention-grabbing idea.
+
+**Content Angle**
+
+> What the creator could actually make content about.
+
+**Why It's Interesting**
+
+> Why this round/player/moment is worth turning into content.
+
+**Evidence / Key Stats**
+
+> The concrete facts supporting the opportunity.
+
+**Suggested Format**
+
+> Reel, short, carousel, scorecard breakdown, lesson, putting insight, etc.
+
+**Caption**
+
+> Suggested social copy.
+
+**CTA**
+
+> Suggested audience action.
+
+The exact field names should follow the existing backend/API model where possible.
+
+Create an explicit mapping from the **current dashboard data** to this model.
+
+For example:
+
+| New Opportunity Concept | Existing Source | Existing Field | Action                 |
+| ----------------------- | --------------- | -------------- | ---------------------- |
+| Hook                    | ...             | ...            | Keep / rename / derive |
+| Content Angle           | ...             | ...            | Keep / derive          |
+| Why Interesting         | ...             | ...            | Keep / derive          |
+| Key Stats               | ...             | ...            | Keep / restructure     |
+| Suggested Format        | ...             | ...            | Keep                   |
+| Caption                 | ...             | ...            | Keep                   |
+| CTA                     | ...             | ...            | Keep                   |
+
+Identify any gaps.
+
+If the backend already provides the required information, **do not modify the backend unnecessarily**.
+
+If a field is available from the API but not currently displayed, use it.
+
+If a field is required by the new opportunity model but genuinely does not exist, clearly identify that as a backend/data gap rather than fabricating it in the UI.
+
+---
+
+# Phase 3 — Rework the Dashboard UI
+
+After completing the audit, update the Creator Dashboard.
+
+The dashboard should no longer feel like an admin database/table.
+
+It should feel like:
+
+> **“Here are pieces of content you could make from your followers' real rounds.”**
+
+### Primary opportunity card
+
+Each opportunity should have a clear visual hierarchy.
+
+Recommended structure:
+
+#### 1. Opportunity / Hook
+
+Make the hook the most prominent piece of information.
+
+Example:
+
+> **Four birdies turned an average round into a story**
+
+or whatever the actual generated opportunity provides.
+
+Do not hard-code example copy.
+
+---
+
+#### 2. Content Angle
+
+Clearly explain what the creator could make.
+
+Example concept:
+
+> **Scorecard Breakdown**
+>
+> Show how the player recovered from a double bogey to finish under par.
+
+The actual content should come from the opportunity data.
+
+---
+
+#### 3. Why This Is Interesting
+
+Give the creator the reason to care.
+
+This should answer:
+
+> “Why would my audience watch/care about this?”
+
+Do not bury this in metadata.
+
+---
+
+#### 4. Key Stats
+
+Display the most relevant supporting evidence in a compact, scannable way.
+
+For example:
+
+* Score
+* To par
+* Birdies
+* GIR
+* Fairways
+* Putts
+* Notable hole
+* Other opportunity-specific stats
+
+Only display statistics that are actually supplied/relevant.
+
+Avoid showing a giant generic scorecard unless the opportunity calls for it.
+
+---
+
+#### 5. Suggested Format
+
+Clearly surface the recommended format.
+
+Examples:
+
+* Reel
+* Short
+* Carousel
+* Scorecard Breakdown
+* Putting Insight
+* GIR Lesson
+* Voiceover
+* Story
+
+Use the actual value returned by the backend.
+
+---
+
+#### 6. Suggested Caption
+
+Show the generated caption in a readable, creator-friendly way.
+
+It should feel like something the creator can copy/edit rather than raw generated text.
+
+---
+
+#### 7. CTA
+
+Surface the suggested CTA separately.
+
+---
+
+# Phase 4 — Opportunity List / Dashboard Layout
+
+Rework the overall dashboard so that creators can quickly scan opportunities.
+
+Each opportunity should communicate its value **without requiring the creator to understand the underlying database model**.
+
+Consider a structure such as:
+
+```text
+Creator Dashboard
+
+Content Opportunities
+Turn real rounds from your followers into content.
+
+┌──────────────────────────────────────────────┐
+│ HOOK                                         │
+│ Four birdies made this round worth talking   │
+│ about                                        │
+│                                              │
+│ CONTENT ANGLE                                │
+│ Scorecard Breakdown                          │
+│                                              │
+│ WHY IT'S INTERESTING                         │
+│ The player bounced back from a double bogey  │
+│ and finished under par.                      │
+│                                              │
+│ KEY STATS                                    │
+│  -1    4 Birdies    1 Double    3 Putts...  │
+│                                              │
+│ FORMAT                                       │
+│ Reel                                         │
+│                                              │
+│ [Generate Content]                           │
+└──────────────────────────────────────────────┘
+```
+
+This is only a conceptual example. Adapt the design to the existing application architecture and design system.
+
+### Important
+
+Do not create unnecessary UI complexity.
+
+The goal is:
+
+**Understand opportunity → decide it's interesting → generate/use content.**
+
+---
+
+# Phase 5 — Preserve Existing Functionality
+
+Do not regress existing creator functionality.
+
+Preserve:
+
+* Creator authentication
+* Creator-specific data isolation
+* Creator profile
+* Creator/player relationships
+* Qualifying-round filtering
+* Existing Generate Content functionality
+* Existing API contracts unless a change is genuinely required
+* Existing content generation flow
+* Permission/approval logic
+* Existing navigation
+* Existing responsive behavior
+
+Do not expose another creator's player/round data.
+
+Do not weaken server-side authorization simply to make the UI work.
+
+---
+
+# Phase 6 — UX Requirements
+
+The dashboard should answer these questions immediately:
+
+### “What happened?”
+
+→ Hook
+
+### “Why should I care?”
+
+→ Why It's Interesting
+
+### “What content could I make?”
+
+→ Content Angle + Suggested Format
+
+### “What proves it?”
+
+→ Key Stats
+
+### “Can I use this immediately?”
+
+→ Caption + CTA + Generate Content
+
+Avoid presenting internal database terminology to creators.
+
+For example, don't expose terms like:
+
+* `content_ideas`
+* `story_candidates`
+* `story_id`
+* database IDs
+* internal statuses
+* raw JSON
+* internal category codes
+
+unless they are genuinely necessary for creator UX.
+
+---
+
+# Phase 7 — Responsive Design
+
+Check the dashboard on:
+
+* Desktop
+* Tablet
+* Mobile-width browser
+
+The opportunity should remain understandable at smaller widths.
+
+Avoid horizontal overflow.
+
+The current dashboard has previously had issues with horizontally overflowing content, so specifically inspect for this.
+
+---
+
+# Phase 8 — Empty / Loading / Error States
+
+Ensure the redesigned dashboard has appropriate states for:
+
+### Loading
+
+Clearly indicate that opportunities are being loaded.
+
+### No opportunities
+
+Explain what this means in creator-friendly language.
+
+For example:
+
+> No new content opportunities yet. When your followers' qualifying rounds come in, we'll surface ideas worth turning into content.
+
+Do not expose internal database terminology.
+
+### Error
+
+Provide a useful error state without exposing implementation details.
+
+---
+
+# Phase 9 — Testing
+
+After implementation:
+
+1. Run existing tests.
+2. Add/update tests for the dashboard where appropriate.
+3. Verify creator authorization/isolation.
+4. Verify opportunities render when the API returns the expected new opportunity structure.
+5. Verify missing/null optional fields do not break the UI.
+6. Verify long hooks/captions do not break layout.
+7. Verify mobile-width rendering.
+8. Verify Generate Content still works.
+9. Verify no unrelated dashboard functionality was broken.
+
+---
+
+# Deliverables
+
+At the end, provide a concise implementation report containing:
+
+### 1. Existing Data Audit
+
+* Tables queried
+* APIs used
+* Fields currently displayed
+* Fields fetched but unused
+* Transformations/derived values
+
+### 2. Opportunity Mapping
+
+Show:
+
+**Existing field → New opportunity concept → UI location**
+
+### 3. Data Gaps
+
+Identify anything the new opportunity model expects that the current API/backend does not provide.
+
+Do not silently invent missing data.
+
+### 4. UI Changes
+
+Summarize the dashboard changes made.
+
+### 5. Files Changed
+
+List the important files modified.
+
+### 6. Tests
+
+Report:
+
+* Tests run
+* Tests added/updated
+* Results
+* Any remaining issues
+
+---
+
+## Critical Implementation Principle
+
+**Do not redesign based on assumptions.**
+
+First inspect the actual dashboard, API routes, Supabase queries, and schema.
+
+Then map the real data to the new opportunity model.
+
+Then implement the UI.
+
+The final dashboard should make the creator think:
+
+> **“I can see exactly why this round is interesting and what I could make from it.”**
+
+rather than:
+
+> “I'm looking at a database of stories.”
+
+This is a **creator product**, not an admin dashboard.

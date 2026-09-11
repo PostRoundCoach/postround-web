@@ -1,0 +1,222 @@
+## Task: Audit Creator Dashboard Data Sources and Supabase Schema
+
+Do **not modify production behavior, database schema, APIs, or UI** as part of this task.
+
+I want a complete audit of the **current Creator Dashboard** and the data it actually displays, with the specific goal of understanding:
+
+1. What information the Creator Dashboard currently receives from Supabase.
+2. Which Supabase tables, views, joins, RPCs, API endpoints, and computed fields provide that information.
+3. What underlying database fields are available to the Creator Content/Story Engine.
+4. Which useful fields exist in Supabase but are currently NOT being surfaced to the dashboard.
+5. How we should expose the relevant schema/data to the Creator Content Engine prompt so the AI knows exactly what factual information it can use when deciding what content a creator could make.
+
+This is an **audit only**. Do not refactor or change implementation unless absolutely necessary to inspect the data.
+
+---
+
+# 1. Audit the Current Creator Dashboard
+
+Trace the Creator Dashboard from the UI backwards to its data sources.
+
+For every piece of information currently displayed on the Creator Dashboard, document:
+
+* UI component / screen
+* Display label
+* What the user sees
+* Frontend field/property name
+* API endpoint or server function supplying it
+* Supabase table/view/RPC supplying it
+* Exact database column(s)
+* Any joins involved
+* Any transformations or calculations
+* Whether the value is raw database data or AI-generated/derived
+* Whether the field belongs to:
+
+  * player
+  * round
+  * hole
+  * scorecard
+  * Round Buddy
+  * player story
+  * story candidate
+  * content idea
+  * creator
+  * permission/sharing
+  * other
+
+Do not infer fields from TypeScript interfaces alone. Trace them to the actual Supabase schema wherever possible.
+
+---
+
+# 2. Produce a Dashboard Data Map
+
+Create a table in the audit report similar to:
+
+| Dashboard Display | Frontend Field | API/Server Source | Supabase Table/View | DB Column | Transformation | Data Type | Available to Story Engine? |
+| ----------------- | -------------- | ----------------- | ------------------- | --------- | -------------- | --------- | -------------------------- |
+
+Include **every meaningful piece of player/round/story information displayed**, not just the headline fields.
+
+For example, investigate whether the dashboard currently has access to things such as:
+
+### Player identity
+
+* player name
+* display name
+* handicap index
+* player profile information
+* favorite creator
+* player-specific identifiers
+
+### Round information
+
+* round ID
+* date
+* course
+* course name
+* course location
+* tees
+* total holes
+* total score
+* par
+* score relative to par
+* 9-hole vs 18-hole
+* round status
+
+### Scorecard
+
+Determine exactly which fields exist at both the round and hole level:
+
+* hole number
+* yardage
+* par
+* score
+* score relative to par
+* fairway hit/miss
+* GIR
+* playable/unplayable
+* chips
+* putts
+* sand shots
+* penalties
+* other scoring metrics
+
+### Round Buddy / narrative data
+
+Determine whether the Creator Dashboard currently receives:
+
+* Round Buddy transcripts
+* individual messages
+* voice excerpts
+* timestamps
+* hole association
+* turn index
+* player comments
+* notable moments
+* contextual notes
+* events captured during the round
+
+Pay particular attention to whether narrative/context data is linked to the correct hole.
+
+### Story / candidate information
+
+Audit:
+
+* story_candidates
+* player_stories
+* story_permissions
+* content_ideas
+* generated content
+* stats_used
+* story type/category
+* title
+* description
+* evidence
+* approval status
+* publishable status
+* creator ownership/scoping
+
+Document the exact current relationships between these tables.
+
+---
+
+# 3. Audit the Supabase Schema Behind the Dashboard
+
+Inspect the relevant Supabase migrations/schema definitions.
+
+Identify all tables that participate in the Creator Dashboard and Story Engine.
+
+For each relevant table provide:
+
+* table name
+* purpose
+* primary key
+* important foreign keys
+* relevant columns
+* column data types
+* nullable/not-null
+* relationships to other tables
+* RLS considerations
+* whether the field is player-owned, creator-owned, round-owned, etc.
+
+Pay particular attention to these areas if they exist in the current project:
+
+* rounds
+* round/hole scoring tables
+* Round Buddy tables
+* round_buddy_messages
+* voice excerpts
+* story_candidates
+* player_stories
+* story_permissions
+* content_ideas
+* creator/profile tables
+* player/profile tables
+* any views or RPCs used by the creator dashboard
+
+Do not assume these are the only relevant tables. Discover the actual dependencies.
+
+---
+
+# 4. Trace the Complete Data Flow
+
+Document the current flow approximately like:
+
+Supabase
+→ server/API/RPC
+→ Creator Dashboard data loader
+→ frontend state/object
+→ dashboard component
+→ displayed value
+
+Do this for the major data categories.
+
+Also identify where information is being **lost or omitted** between Supabase and the Creator Dashboard.
+
+For example:
+
+Supabase contains:
+`rounds.par`
+
+but the dashboard/API might expose:
+`round.score`
+
+That distinction matters.
+
+Likewise, determine whether hole-level data is:
+
+* queried directly
+* aggregated server-side
+* flattened into a JSON object
+* summarized by AI
+* omitted entirely
+
+---
+
+# 5. Identify Data Available to the Content Engine but NOT Dashboard
+
+This is especially important.
+
+Find useful factual fields that already exist in Supabase but are not currently exposed to the Creator Dashboard or Story Engine.
+
+Create a section:
