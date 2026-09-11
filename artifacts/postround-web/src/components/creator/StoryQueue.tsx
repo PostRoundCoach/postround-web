@@ -36,7 +36,7 @@ export function StoryQueue({
             data-testid="list-creator-social-accounts"
           >
             {profile.creator_social_accounts.map((account) => (
-              <Badge key={account.id} variant="secondary">
+              <Badge key={account.id} variant="secondary" className="max-w-full whitespace-normal break-all">
                 <span className="capitalize">{account.platform}</span>
                 <span className="ml-1 text-muted-foreground">@{account.handle}</span>
               </Badge>

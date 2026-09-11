@@ -38,8 +38,8 @@ export function CreatorShell({
           </div>
 
           {profile && (
-            <div className="flex items-center gap-3" data-testid="profile-creator">
-              <span className="hidden text-sm font-medium text-muted-foreground sm:block">
+            <div className="flex min-w-0 items-center gap-3" data-testid="profile-creator">
+              <span className="hidden max-w-48 truncate text-sm font-medium text-muted-foreground sm:block">
                 {profile.display_name}
               </span>
               <Avatar className="h-9 w-9 border border-border">

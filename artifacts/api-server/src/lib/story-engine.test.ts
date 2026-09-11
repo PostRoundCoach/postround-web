@@ -423,7 +423,9 @@ test("round retrieval returns production-shaped ideas without story or engine me
   const ideas = await fetchPersistedCandidates(context, base.storyId, roundId);
   assert.deepEqual(ideas.map((idea) => idea.category), ["Putting Insight", "Round Analysis"]);
   assert.ok(ideas.every((idea) => idea.story_id === base.storyId));
-  assert.deepEqual(ideas[0]?.stats_used, { "Total Putts": 11 });
+  assert.deepEqual(Object.keys(ideas[0] ?? {}).sort(), [
+    "category", "created_at", "hook", "id", "script", "story_id", "title",
+  ]);
   assert.ok(requested[0]?.includes(`round_id=eq.${roundId}`));
   assert.ok(!requested[0]?.includes("story_engine"));
   assert.ok(!requested[0]?.includes("creator_id"));

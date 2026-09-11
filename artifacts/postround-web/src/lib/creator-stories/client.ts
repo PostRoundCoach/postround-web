@@ -12,10 +12,6 @@ import type {
   FetchStoryCandidatesResponse,
   DismissCreatorStoryResponse,
   RequestStoryApprovalResponse,
-  ScorecardHole,
-  StoryCandidate,
-  StoryCandidateEvidence,
-  StoryTranscriptHighlight,
 } from './contracts'
 
 const CREATOR_PROFILE_SELECT = `
@@ -164,81 +160,18 @@ function stringList(
   return []
 }
 
-const ARCHETYPES = new Set([
-  'Achievement', 'Drama', 'Surprise', 'Failure / Disaster', 'Insight', 'Progress',
-])
-
-function isOptionalStoredNumber(value: unknown): value is number | null | undefined {
-  return value === undefined || value === null || typeof value === 'number'
-}
-
-function toScorecardHole(value: unknown): ScorecardHole | null {
-  const row = asObject(value)
-  if (!row || typeof row.hole !== 'number') return null
-  const numberFields = ['yards', 'par', 'score', 'chips', 'putts', 'penalties']
-  const stringFields = ['fairway', 'green']
-  const booleanFields = ['playable', 'sand']
-  if (numberFields.some((field) => !isOptionalStoredNumber(row[field]))
-    || stringFields.some((field) => row[field] !== undefined && row[field] !== null && typeof row[field] !== 'string')
-    || booleanFields.some((field) => row[field] !== undefined && row[field] !== null && typeof row[field] !== 'boolean')) {
-    return null
-  }
-  return row as unknown as ScorecardHole
-}
-
-function toStoryCandidate(value: unknown): StoryCandidate | null {
-  const candidate = asObject(value)
-  if (!candidate) return null
-  const strings = ['id', 'story_id', 'archetype', 'title', 'hook', 'summary', 'why_interesting'] as const
-  if (strings.some((field) => typeof candidate[field] !== 'string')
-    || !ARCHETYPES.has(candidate.archetype as string)
-    || typeof candidate.confidence !== 'number'
-    || !Array.isArray(candidate.supporting_evidence)
-    || !Array.isArray(candidate.relevant_holes)
-    || !Array.isArray(candidate.scorecard)
-    || (candidate.suggested_format !== null && candidate.suggested_format !== undefined && typeof candidate.suggested_format !== 'string')) {
-    return null
-  }
-  const evidence = candidate.supporting_evidence
-  if (!Array.isArray(evidence) || !evidence.every((item) => typeof item === 'string')) return null
-  const transcriptHighlights = candidate.transcript_highlights === undefined
-    ? []
-    : candidate.transcript_highlights
-  if (!Array.isArray(transcriptHighlights)) return null
-  const highlights = transcriptHighlights.map((item): StoryTranscriptHighlight | null => {
-    return typeof item === 'string' ? { excerpt: item } : null
-  })
-  const scorecard = candidate.scorecard.map(toScorecardHole)
-  if (!candidate.relevant_holes.every((hole) => typeof hole === 'number')
-    || highlights.some((item) => item === null)
-    || scorecard.some((item) => item === null)) return null
-  return {
-    id: candidate.id as string, story_id: candidate.story_id as string,
-    archetype: candidate.archetype as StoryCandidate['archetype'],
-    title: candidate.title as string, hook: candidate.hook as string,
-    summary: candidate.summary as string, why_interesting: candidate.why_interesting as string,
-    evidence: (evidence as string[]).map((detail) => ({ label: 'Stored evidence', detail })), relevant_holes: candidate.relevant_holes as number[],
-    confidence: candidate.confidence, suggested_format: candidate.suggested_format as string | null ?? null,
-    transcript_highlights: highlights as StoryTranscriptHighlight[], scorecard: scorecard as ScorecardHole[],
-  }
-}
-
 function toContentIdea(value: unknown): CreatorContentIdea | null {
   const idea = asObject(value)
   if (!idea) return null
-  const strings = ['id', 'story_id', 'round_id', 'category', 'title', 'hook', 'script', 'status', 'created_at'] as const
-  const stats = asObject(idea.stats_used)
-  if (strings.some((field) => typeof idea[field] !== 'string') || !stats) return null
+  const strings = ['id', 'story_id', 'category', 'title', 'hook', 'script', 'created_at'] as const
+  if (strings.some((field) => typeof idea[field] !== 'string')) return null
   return {
     id: idea.id as string,
     story_id: idea.story_id as string,
-    round_id: idea.round_id as string,
     category: idea.category as string,
     title: idea.title as string,
     hook: idea.hook as string,
     script: idea.script as string,
-    stats_used: stats,
-    status: idea.status as string,
     created_at: idea.created_at as string,
   }
 }
@@ -363,18 +296,15 @@ export async function generateStoryCandidates(
   const result = asObject(payload)
 
   if (result?.ok !== true
-    || typeof result.count !== 'number'
-    || !Array.isArray(result.candidates)
-    || !isStoryPermissionStatus(result.permission_status)) {
+    || typeof result.count !== 'number') {
     throw new CreatorStoryApiError(500)
   }
-  const candidates = result.candidates.map(toStoryCandidate)
-  if (candidates.some((candidate) => candidate === null)) throw new CreatorStoryApiError(500)
+  const refreshed = await fetchStoryCandidates(supabase, input.story_id, options)
   return {
     ok: true,
     count: result.count,
-    candidates: candidates as StoryCandidate[],
-    permission_status: result.permission_status,
+    ideas: refreshed.ideas,
+    permission_status: refreshed.permission_status,
   }
 }
 
@@ -400,21 +330,19 @@ export async function fetchStoryCandidates(
   const result = asObject(payload)
   if (result?.ok !== true
     || result.story_id !== storyId
-    || typeof result.round_id !== 'string'
     || !Array.isArray(result.ideas)
     || !isStoryPermissionStatus(result.permission_status)) {
     throw new CreatorStoryApiError(500, 'Generated content could not be loaded.')
   }
 
   const ideas = result.ideas.map(toContentIdea)
-  if (ideas.some((idea) => idea === null)) {
+  if (ideas.some((idea) => idea === null || idea.story_id !== storyId)) {
     throw new CreatorStoryApiError(500, 'Generated content could not be loaded.')
   }
 
   return {
     ok: true,
     story_id: storyId,
-    round_id: result.round_id,
     ideas: ideas as CreatorContentIdea[],
     permission_status: result.permission_status,
   }

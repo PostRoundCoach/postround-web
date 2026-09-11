@@ -38,13 +38,18 @@ router.get("/content/stories", async (req, res): Promise<void> => {
 
 router.post("/content/generate", async (req, res): Promise<void> => {
   const id = storyId(req.body?.story_id);
-  if (!id || Object.keys(req.body ?? {}).some((key) => key !== "story_id")) {
-    res.status(400).json({ error: "Body must contain only a valid story_id." });
+  const creatorId = storyId(req.body?.creator_id);
+  const allowedKeys = new Set(["story_id", "creator_id"]);
+  if (!id || !creatorId || Object.keys(req.body ?? {}).some((key) => !allowedKeys.has(key))) {
+    res.status(400).json({ error: "Body must contain valid story_id and creator_id." });
     return;
   }
   let stage = "authorization";
   try {
     const access = await authorized(req, id);
+    if (access.creatorId !== creatorId) {
+      throw new CreatorContentError(403, "This creator is not permitted to generate content for the story.");
+    }
     stage = "round_scorecard_lookup";
     req.log.info({ stage: "round_scorecard_lookup", storyId: id }, "Looking up round scorecard");
     const loaded = await loadRoundEvidence(access.context, access.roundId, access.playerId);
@@ -68,12 +73,7 @@ router.post("/content/generate", async (req, res): Promise<void> => {
     stage = "persistence";
     await persistCandidates(access.context, access.creatorId, id, access.roundId, candidates);
     req.log.info({ stage: "persistence", storyId: id, candidateCount: candidates.length }, "Persisted story candidates");
-    res.json({
-      ok: true,
-      count: candidates.length,
-      candidates,
-      permission_status: access.permissionStatus,
-    });
+    res.json({ ok: true, count: candidates.length });
   } catch (error) { failure(req, res, error, stage); }
 });
 
@@ -92,7 +92,6 @@ router.get("/content/ideas", async (req, res): Promise<void> => {
     res.json({
       ok: true,
       story_id: id,
-      round_id: access.roundId,
       ideas,
       permission_status: access.permissionStatus,
     });

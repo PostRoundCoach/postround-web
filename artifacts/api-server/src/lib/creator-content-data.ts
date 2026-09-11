@@ -374,13 +374,10 @@ type ContentIdeaRow = {
 export interface CreatorContentIdea {
   id: string;
   story_id: string;
-  round_id: string;
   category: string;
   title: string;
   hook: string;
   script: string;
-  stats_used: Record<string, unknown>;
-  status: string;
   created_at: string;
 }
 
@@ -391,18 +388,15 @@ export async function fetchPersistedCandidates(
 ): Promise<CreatorContentIdea[]> {
   const rows = await rest<ContentIdeaRow[]>(
     context,
-    `content_ideas?select=id,round_id,story_id,category,title,hook,script,stats_used,status,created_at&round_id=eq.${encodeURIComponent(roundId)}&order=created_at.asc,id.asc`,
+    `content_ideas?select=id,story_id,category,title,hook,script,created_at&round_id=eq.${encodeURIComponent(roundId)}&order=created_at.asc,id.asc`,
   );
   return rows.map((row) => ({
     id: row.id,
     story_id: storyId,
-    round_id: row.round_id,
     category: row.category,
     title: row.title,
     hook: row.hook,
     script: row.script,
-    stats_used: row.stats_used ?? {},
-    status: row.status,
     created_at: row.created_at,
   }));
 }

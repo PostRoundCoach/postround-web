@@ -41,7 +41,6 @@ const candidate = {
   title: 'The back-nine comeback',
   hook: 'A comeback worth sharing',
   script: 'Fixture candidate summary.',
-  stats_used: { 'Fairways hit': 8 },
   status: 'draft',
   created_at: '2026-01-02T00:00:00.000Z',
 }

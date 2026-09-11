@@ -5,10 +5,9 @@ test.setTimeout(90_000)
 const storyId = '20000000-0000-4000-8000-000000000001'
 const candidateId = '40000000-0000-4000-8000-000000000001'
 const candidate = {
-  id: candidateId, story_id: storyId, round_id: '30000000-0000-4000-8000-000000000001', category: 'Round Analysis',
+  id: candidateId, story_id: storyId, category: 'Round Analysis',
   title: 'The back-nine comeback', hook: 'A comeback worth sharing',
-  script: 'Fixture candidate summary.', stats_used: { 'Fairways hit': 8 },
-  status: 'draft', created_at: '2026-01-02T00:00:00.000Z',
+  script: 'Fixture candidate summary.', created_at: '2026-01-02T00:00:00.000Z',
 }
 
 async function signIn(page: import('@playwright/test').Page) {

@@ -57,6 +57,7 @@ export interface CreatorStory {
 
 export interface GenerateStoryCandidatesRequest {
   story_id: string
+  creator_id: string
 }
 
 export interface ScorecardHole {
@@ -101,7 +102,7 @@ export interface StoryCandidate {
 export interface GenerateStoryCandidatesResponse {
   ok: true
   count: number
-  candidates: StoryCandidate[]
+  ideas: CreatorContentIdea[]
   permission_status: StoryPermissionStatus
 }
 
@@ -128,7 +129,6 @@ export interface GenerateStoryDraftResponse {
 export interface FetchStoryCandidatesResponse {
   ok: true
   story_id: string
-  round_id: string
   ideas: CreatorContentIdea[]
   permission_status: StoryPermissionStatus
 }
@@ -136,13 +136,10 @@ export interface FetchStoryCandidatesResponse {
 export interface CreatorContentIdea {
   id: string
   story_id: string
-  round_id: string
   category: string
   title: string
   hook: string
   script: string
-  stats_used: Record<string, unknown>
-  status: string
   created_at: string
 }
 
