@@ -7,3 +7,4 @@
 - [Creator Story consent lifecycle](creator-story-consent-lifecycle.md) — active sharing, player approval, and creator dismissal are separate states on one permission row.
 - [Production checks from task branches](task-branch-production-checks.md) — publishing deploys the main Replit branch, not an isolated in-progress task branch.
 - [Creator fixture scope](creator-fixture-scope.md) — verify only explicitly designated production creator fixtures; separately owned test-account fixtures are excluded.
+- [Supabase project origin recovery](supabase-project-origin-recovery.md) — legacy anon JWTs may use `iss: supabase`; derive the public project origin from the non-secret `ref` claim.

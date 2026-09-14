@@ -51,7 +51,7 @@ export function validateProductionApiOrigin(env = process.env) {
     throw new Error('The production web origin must be an absolute URL.')
   }
 
-  if (apiUrl.origin === siteOrigin) {
+  if (env.VERCEL_ENV === 'production' && apiUrl.origin === siteOrigin) {
     throw new Error(
       'NEXT_PUBLIC_POSTROUND_API_BASE_URL must target the authoritative API Server, not the Next.js site.',
     )

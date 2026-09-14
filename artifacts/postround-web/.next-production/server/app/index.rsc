@@ -1,0 +1,22 @@
+1:"$Sreact.fragment"
+2:I[8223,[],""]
+3:I[1635,[],""]
+4:I[2810,[],"ClientPageRoot"]
+5:I[2217,["5654","static/chunks/5654-36bc2f9c4b0aa4d0.js","2302","static/chunks/2302-753ae43135a952af.js","3018","static/chunks/3018-104bc9e6ef392d88.js","2605","static/chunks/2605-7f9d3b47f2f3633d.js","8974","static/chunks/app/page-0cf373005eb05291.js"],"default"]
+8:I[1830,[],"OutletBoundary"]
+a:I[8571,[],"AsyncMetadataOutlet"]
+c:I[1830,[],"ViewportBoundary"]
+e:I[1830,[],"MetadataBoundary"]
+f:"$Sreact.suspense"
+11:I[3029,[],""]
+:HL["/_next/static/media/13971731025ec697-s.p.woff2","font",{"crossOrigin":"","type":"font/woff2"}]
+:HL["/_next/static/media/eaead17c7dbfcd5d-s.p.woff2","font",{"crossOrigin":"","type":"font/woff2"}]
+:HL["/_next/static/css/a3f27b4877f712b4.css","style"]
+:HL["/_next/static/css/58285d7c8a93c5fb.css","style"]
+0:{"P":null,"b":"I-2b4Wmp5Z4EFbV2zcUn-","p":"","c":["",""],"i":false,"f":[[["",{"children":["__PAGE__",{}]},"$undefined","$undefined",true],["",["$","$1","c",{"children":[[["$","link","0",{"rel":"stylesheet","href":"/_next/static/css/a3f27b4877f712b4.css","precedence":"next","crossOrigin":"$undefined","nonce":"$undefined"}],["$","link","1",{"rel":"stylesheet","href":"/_next/static/css/58285d7c8a93c5fb.css","precedence":"next","crossOrigin":"$undefined","nonce":"$undefined"}]],["$","html",null,{"lang":"en","suppressHydrationWarning":true,"className":"dark","children":["$","body",null,{"className":"__variable_0a80b4 __variable_0d7163","children":["$","$L2",null,{"parallelRouterKey":"children","error":"$undefined","errorStyles":"$undefined","errorScripts":"$undefined","template":["$","$L3",null,{}],"templateStyles":"$undefined","templateScripts":"$undefined","notFound":[[["$","title",null,{"children":"404: This page could not be found."}],["$","div",null,{"style":{"fontFamily":"system-ui,\"Segoe UI\",Roboto,Helvetica,Arial,sans-serif,\"Apple Color Emoji\",\"Segoe UI Emoji\"","height":"100vh","textAlign":"center","display":"flex","flexDirection":"column","alignItems":"center","justifyContent":"center"},"children":["$","div",null,{"children":[["$","style",null,{"dangerouslySetInnerHTML":{"__html":"body{color:#000;background:#fff;margin:0}.next-error-h1{border-right:1px solid rgba(0,0,0,.3)}@media (prefers-color-scheme:dark){body{color:#fff;background:#000}.next-error-h1{border-right:1px solid rgba(255,255,255,.3)}}"}}],["$","h1",null,{"className":"next-error-h1","style":{"display":"inline-block","margin":"0 20px 0 0","padding":"0 23px 0 0","fontSize":24,"fontWeight":500,"verticalAlign":"top","lineHeight":"49px"},"children":404}],["$","div",null,{"style":{"display":"inline-block"},"children":["$","h2",null,{"style":{"fontSize":14,"fontWeight":400,"lineHeight":"49px","margin":0},"children":"This page could not be found."}]}]]}]}]],[]],"forbidden":"$undefined","unauthorized":"$undefined"}]}]}]]}],{"children":["__PAGE__",["$","$1","c",{"children":[["$","$L4",null,{"Component":"$5","searchParams":{},"params":{},"promises":["$@6","$@7"]}],null,["$","$L8",null,{"children":["$L9",["$","$La",null,{"promise":"$@b"}]]}]]}],{},null,false]},null,false],["$","$1","h",{"children":[null,[["$","$Lc",null,{"children":"$Ld"}],["$","meta",null,{"name":"next-size-adjust","content":""}]],["$","$Le",null,{"children":["$","div",null,{"hidden":true,"children":["$","$f",null,{"fallback":null,"children":"$L10"}]}]}]]}],false]],"m":"$undefined","G":["$11",[]],"s":false,"S":true}
+6:{}
+7:"$0:f:0:1:2:children:1:props:children:0:props:params"
+d:[["$","meta","0",{"charSet":"utf-8"}],["$","meta","1",{"name":"viewport","content":"width=device-width, initial-scale=1"}]]
+9:null
+b:{"metadata":[["$","title","0",{"children":"Post Round — Play. Learn. Share."}],["$","meta","1",{"name":"description","content":"Post Round captures your golf round while you play, helps you understand it afterward, and turns the moments that mattered into stories worth sharing."}],["$","meta","2",{"property":"og:title","content":"Post Round — Play. Learn. Share."}],["$","meta","3",{"property":"og:description","content":"Your game. Your story. Your people. Play your round, learn from it, and share what mattered."}],["$","meta","4",{"property":"og:type","content":"website"}],["$","meta","5",{"name":"twitter:card","content":"summary"}],["$","meta","6",{"name":"twitter:title","content":"Post Round — Play. Learn. Share."}],["$","meta","7",{"name":"twitter:description","content":"Your game. Your story. Your people. Play your round, learn from it, and share what mattered."}]],"error":null,"digest":"$undefined"}
+10:"$b:metadata"
