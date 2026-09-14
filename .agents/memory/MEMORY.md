@@ -8,3 +8,4 @@
 - [Production checks from task branches](task-branch-production-checks.md) — publishing deploys the main Replit branch, not an isolated in-progress task branch.
 - [Creator fixture scope](creator-fixture-scope.md) — verify only explicitly designated production creator fixtures; separately owned test-account fixtures are excluded.
 - [Supabase project origin recovery](supabase-project-origin-recovery.md) — legacy anon JWTs may use `iss: supabase`; derive the public project origin from the non-secret `ref` claim.
+- [Next build outputs and Tailwind scanning](next-build-output-scanning.md) — never commit custom Next dist directories; generated CSS can be rescanned and break later builds.
