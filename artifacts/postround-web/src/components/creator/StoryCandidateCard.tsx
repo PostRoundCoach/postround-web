@@ -4,11 +4,15 @@ import { Badge } from '@/components/ui/badge'
 import { AlertCircle } from 'lucide-react'
 import type { CreatorContentIdea } from '@/lib/creator-stories/contracts'
 import { CreatorRoundScorecard } from './CreatorRoundScorecard'
+import { ShareableScorecardGraphic } from './ShareableScorecardGraphic'
+import type { StoryPermissionStatus } from '@/lib/creator-stories/contracts'
 
 export function StoryCandidateCard({
   candidate: idea,
+  permissionStatus,
 }: {
   candidate: CreatorContentIdea
+  permissionStatus: StoryPermissionStatus
 }) {
   return (
     <details className="group min-w-0 rounded-xl border border-border/70 bg-background p-6 shadow-sm" data-testid={`card-story-candidate-${idea.id}`}>
@@ -34,7 +38,12 @@ export function StoryCandidateCard({
         <div className="space-y-4">
           <p className="text-xs font-bold uppercase tracking-widest text-primary">Round Context</p>
           {idea.round ? (
-            <CreatorRoundScorecard round={idea.round} />
+            <>
+              <CreatorRoundScorecard round={idea.round} />
+              <div className="mt-6">
+                <ShareableScorecardGraphic idea={idea} permissionStatus={permissionStatus} />
+              </div>
+            </>
           ) : (
             <div className="rounded-xl border border-dashed border-border bg-muted/20 px-5 py-6 flex gap-3 text-muted-foreground" data-testid={`status-round-unavailable-${idea.id}`}>
               <AlertCircle className="h-5 w-5 shrink-0" />

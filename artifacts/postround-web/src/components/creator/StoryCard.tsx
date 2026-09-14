@@ -355,6 +355,7 @@ export function StoryCard({
                   <StoryCandidateCard
                     key={candidate.id}
                     candidate={candidate}
+                    permissionStatus={permissionStatus}
                   />
                 ))}
               </div>
