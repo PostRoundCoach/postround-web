@@ -315,7 +315,11 @@ test("persistence replaces candidates and refreshes the structured result", asyn
       url: String(input),
       body: typeof init?.body === "string" ? init.body : undefined,
     });
-    const body = init?.method === "GET" || init?.method === undefined ? stored : undefined;
+    const body = init?.method === "GET" || init?.method === undefined
+      ? String(input).includes("/content_ideas?")
+        ? stored
+        : []
+      : undefined;
     return new Response(body === undefined ? null : JSON.stringify(body), {
       status: body === undefined ? 204 : 200,
       headers: body === undefined ? undefined : { "Content-Type": "application/json" },
@@ -335,10 +339,11 @@ test("persistence replaces candidates and refreshes the structured result", asyn
       "cccccccc-cccc-cccc-cccc-cccccccccccc",
     );
     assert.deepEqual(refreshed.map((item) => item.id), generated.map((item) => item.id));
-    assert.deepEqual(requests.map((item) => item.method), ["DELETE", "POST", "GET"]);
+    assert.deepEqual(requests.map((item) => item.method), ["DELETE", "POST", "GET", "GET", "GET"]);
     assert.ok(requests[0]?.url.includes("creator_id=eq.bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"));
     assert.ok(requests[1]?.body?.includes('"story_engine":"creator_story_v1"'));
-    assert.ok(requests[2]?.url.includes("round_id=eq.cccccccc-cccc-cccc-cccc-cccccccccccc"));
+    assert.ok(requests[2]?.url.includes("round_id.eq.cccccccc-cccc-cccc-cccc-cccccccccccc"));
+    assert.ok(requests[2]?.url.includes("story_id.eq.11111111-1111-1111-1111-111111111111"));
     assert.ok(requests[2]?.url.includes("order=created_at.asc,id.asc"));
 });
 
@@ -387,10 +392,81 @@ test("creator-scoped persistence cannot erase another permitted creator's candid
 test("round retrieval returns production-shaped ideas without story or engine metadata", async () => {
   const requested: string[] = [];
   const roundId = "cccccccc-cccc-cccc-cccc-cccccccccccc";
+  const playerId = "dddddddd-dddd-dddd-dddd-dddddddddddd";
   const context: SupabaseRequestContext = {
     ...requestContext,
     proxy: async (path) => {
       requested.push(path);
+      if (path.startsWith("/rest/v1/rounds?")) {
+        return Response.json([{
+          id: roundId,
+          user_id: playerId,
+          played_at: "2026-09-09",
+          course_name: "Pebble Beach Golf Links",
+          tees: "White",
+          total_score: 92,
+          par: 72,
+          front_9: 46,
+          back_9: 46,
+          total_putts: 27,
+          total_penalties: 2,
+          fairways_hit: 8,
+          total_fairways: 14,
+          fairways_left: 2,
+          fairways_right: 2,
+          fairways_long: 1,
+          fairways_short: 1,
+          gir_hit: 5,
+          total_gir: 18,
+          gir_short: 4,
+          gir_long: 2,
+          gir_left: 4,
+          gir_right: 3,
+          scrambling_opportunities: 9,
+          successful_scrambles: 4,
+          three_putts: 2,
+          birdies: 1,
+          pars: 8,
+          bogeys: 7,
+          double_bogeys: 2,
+          input_method: "scorecard",
+        }]);
+      }
+      if (path.startsWith("/rest/v1/profiles?")) {
+        return Response.json([{ id: playerId, display_name: "Aaron" }]);
+      }
+      if (path.startsWith("/rest/v1/holes?")) {
+        return Response.json([
+          {
+            round_id: roundId,
+            hole_number: 2,
+            par: 3,
+            score: 4,
+            fairway_result: "none",
+            gir_result: "short",
+            putts: 2,
+            chip_count: 1,
+            bunker_shot: false,
+            sand_save: null,
+            penalty_strokes: 0,
+            player_notes: null,
+          },
+          {
+            round_id: roundId,
+            hole_number: 1,
+            par: 4,
+            score: 5,
+            fairway_result: "hit",
+            gir_result: "short",
+            putts: 2,
+            chip_count: 1,
+            bunker_shot: false,
+            sand_save: null,
+            penalty_strokes: 0,
+            player_notes: "Good drive, missed the green",
+          },
+        ]);
+      }
       return Response.json([
         {
           id: "11111111-1111-4111-8111-111111111111",
@@ -424,11 +500,40 @@ test("round retrieval returns production-shaped ideas without story or engine me
   assert.deepEqual(ideas.map((idea) => idea.category), ["Putting Insight", "Round Analysis"]);
   assert.ok(ideas.every((idea) => idea.story_id === base.storyId));
   assert.deepEqual(Object.keys(ideas[0] ?? {}).sort(), [
-    "category", "created_at", "hook", "id", "script", "story_id", "title",
+    "category", "created_at", "hook", "id", "round", "script", "story_id", "title",
   ]);
-  assert.ok(requested[0]?.includes(`round_id=eq.${roundId}`));
+  assert.equal(ideas[0]?.round?.player_display_name, "Aaron");
+  assert.equal(ideas[0]?.round?.course_par, 72);
+  assert.equal(ideas[0]?.round?.fairways_long, 1);
+  assert.equal(ideas[0]?.round?.fairways_short, 1);
+  assert.deepEqual(ideas[0]?.round?.scorecard.map((hole) => hole.hole), [1, 2]);
+  assert.equal(ideas[0]?.round?.scorecard[0]?.player_note, "Good drive, missed the green");
+  assert.ok(requested[0]?.includes(`round_id.eq.${roundId}`));
   assert.ok(!requested[0]?.includes("story_engine"));
   assert.ok(!requested[0]?.includes("creator_id"));
+});
+
+test("legacy ideas without a round return a null round and linked rounds preserve nullable fields", async () => {
+  const context: SupabaseRequestContext = {
+    ...requestContext,
+    proxy: async (path) => {
+      assert.ok(path.startsWith("/rest/v1/content_ideas?"));
+      return Response.json([{
+        id: "33333333-3333-4333-8333-333333333333",
+        round_id: null,
+        story_id: base.storyId,
+        category: "Round Analysis",
+        title: "Legacy idea",
+        hook: "A stored idea.",
+        script: "Legacy script.",
+        created_at: "2026-09-09T12:00:00Z",
+      }]);
+    },
+  };
+
+  const ideas = await fetchPersistedCandidates(context, base.storyId, "unused-round-id");
+  assert.equal(ideas.length, 1);
+  assert.equal(ideas[0]?.round, null);
 });
 
 test("approval requests reuse the active pending permission and never approve it", async () => {

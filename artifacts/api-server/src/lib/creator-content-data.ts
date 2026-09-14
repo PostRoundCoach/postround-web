@@ -360,7 +360,7 @@ export async function persistCandidates(
 
 type ContentIdeaRow = {
   id: string;
-  round_id: string;
+  round_id: string | null;
   story_id: string | null;
   category: string;
   title: string;
@@ -371,6 +371,107 @@ type ContentIdeaRow = {
   created_at: string;
 };
 
+type DbIdeaRound = {
+  id: string;
+  user_id: string;
+  played_at: string | null;
+  course_name: string | null;
+  tees: string | null;
+  total_score: number | null;
+  // The connected database calls this column `par`; the API contract calls it
+  // `course_par`.
+  par: number | null;
+  front_9: number | null;
+  back_9: number | null;
+  total_putts: number | null;
+  total_penalties: number | null;
+  fairways_hit: number | null;
+  total_fairways: number | null;
+  fairways_left: number | null;
+  fairways_right: number | null;
+  // These are present in some round schemas, but not in the connected
+  // project. Keep them optional so the response remains contract-shaped.
+  fairways_long?: number | null;
+  fairways_short?: number | null;
+  gir_hit: number | null;
+  total_gir: number | null;
+  gir_short: number | null;
+  gir_long: number | null;
+  gir_left: number | null;
+  gir_right: number | null;
+  scrambling_opportunities: number | null;
+  successful_scrambles: number | null;
+  three_putts: number | null;
+  birdies: number | null;
+  pars: number | null;
+  bogeys: number | null;
+  double_bogeys: number | null;
+  input_method: string | null;
+};
+
+type DbIdeaHole = {
+  round_id?: string;
+  hole_number: number;
+  par: number | null;
+  score: number | null;
+  fairway_result: string | null;
+  gir_result: string | null;
+  putts: number | null;
+  chip_count: number | null;
+  bunker_shot: boolean | null;
+  sand_save: boolean | null;
+  penalty_strokes: number | null;
+  player_notes: string | null;
+};
+
+type IdeaScorecardHole = {
+  hole: number;
+  par: number | null;
+  score: number | null;
+  fairway: string | null;
+  gir: string | null;
+  putts: number | null;
+  chips: number | null;
+  bunker: boolean | null;
+  sand_save: boolean | null;
+  penalties: number | null;
+  player_note: string | null;
+};
+
+export interface CreatorContentIdeaRound {
+  player_display_name: string | null;
+  played_at: string | null;
+  course_name: string | null;
+  tees: string | null;
+  total_score: number | null;
+  course_par: number | null;
+  front_9: number | null;
+  back_9: number | null;
+  total_putts: number | null;
+  total_penalties: number | null;
+  fairways_hit: number | null;
+  total_fairways: number | null;
+  fairways_left: number | null;
+  fairways_right: number | null;
+  fairways_long: number | null;
+  fairways_short: number | null;
+  gir_hit: number | null;
+  total_gir: number | null;
+  gir_short: number | null;
+  gir_long: number | null;
+  gir_left: number | null;
+  gir_right: number | null;
+  scrambling_opportunities: number | null;
+  successful_scrambles: number | null;
+  three_putts: number | null;
+  birdies: number | null;
+  pars: number | null;
+  bogeys: number | null;
+  double_bogeys: number | null;
+  input_method: string | null;
+  scorecard: IdeaScorecardHole[];
+}
+
 export interface CreatorContentIdea {
   id: string;
   story_id: string;
@@ -379,17 +480,116 @@ export interface CreatorContentIdea {
   hook: string;
   script: string;
   created_at: string;
+  round: CreatorContentIdeaRound | null;
 }
 
 export async function fetchPersistedCandidates(
   context: SupabaseRequestContext,
   storyId: string,
   roundId: string,
+  playerId?: string,
 ): Promise<CreatorContentIdea[]> {
   const rows = await rest<ContentIdeaRow[]>(
     context,
-    `content_ideas?select=id,story_id,category,title,hook,script,created_at&round_id=eq.${encodeURIComponent(roundId)}&order=created_at.asc,id.asc`,
+    `content_ideas?select=id,round_id,story_id,category,title,hook,script,created_at`
+      + `&or=(round_id.eq.${encodeURIComponent(roundId)},and(round_id.is.null,story_id.eq.${encodeURIComponent(storyId)}))`
+      + "&order=created_at.asc,id.asc",
   );
+
+  const linkedRoundIds = [...new Set(
+    rows
+      .map((row) => row.round_id)
+      .filter((id): id is string => typeof id === "string" && id.length > 0),
+  )];
+  const roundFilter = linkedRoundIds.map((id) => encodeURIComponent(id)).join(",");
+  const rounds = linkedRoundIds.length === 0
+    ? []
+    : await rest<DbIdeaRound[]>(
+      context,
+      `rounds?select=id,user_id,played_at,course_name,tees,total_score,par,front_9,back_9,total_putts,total_penalties,fairways_hit,total_fairways,fairways_left,fairways_right,gir_hit,total_gir,gir_short,gir_long,gir_left,gir_right,scrambling_opportunities,successful_scrambles,three_putts,birdies,pars,bogeys,double_bogeys,input_method&id=in.(${roundFilter})`
+        + (playerId ? `&user_id=eq.${encodeURIComponent(playerId)}` : ""),
+    );
+  const profileIds = [...new Set(
+    rounds
+      .map((round) => round.user_id)
+      .filter((id): id is string => typeof id === "string" && id.length > 0),
+  )];
+  const profileFilter = profileIds.map((id) => encodeURIComponent(id)).join(",");
+  const profiles = profileIds.length === 0
+    ? []
+    : await rest<Array<{ id: string; display_name: string | null }>>(
+      context,
+      `profiles?select=id,display_name&id=in.(${profileFilter})`,
+    );
+  const holes = linkedRoundIds.length === 0
+    ? []
+    : await rest<DbIdeaHole[]>(
+      context,
+      `holes?select=round_id,hole_number,par,score,fairway_result,gir_result,putts,chip_count,bunker_shot,sand_save,penalty_strokes,player_notes&round_id=in.(${roundFilter})&order=hole_number.asc`,
+    );
+  const profileNames = new Map(profiles.map((profile) => [profile.id, profile.display_name]));
+  const holesByRound = new Map<string, DbIdeaHole[]>();
+  for (const hole of holes) {
+    // `round_id` is selected for multi-round responses. A few older test and
+    // proxy responses omit it; a single requested round is unambiguous there.
+    const holeRoundId = hole.round_id ?? (linkedRoundIds.length === 1 ? linkedRoundIds[0] : undefined);
+    if (!holeRoundId) continue;
+    const roundHoles = holesByRound.get(holeRoundId) ?? [];
+    roundHoles.push(hole);
+    holesByRound.set(holeRoundId, roundHoles);
+  }
+  const roundData = new Map(rounds.map((round) => {
+    const scorecard = (holesByRound.get(round.id) ?? [])
+      .sort((a, b) => a.hole_number - b.hole_number)
+      .map((hole) => ({
+        hole: hole.hole_number,
+        par: hole.par ?? null,
+        score: hole.score ?? null,
+        fairway: hole.fairway_result ?? null,
+        gir: hole.gir_result ?? null,
+        putts: hole.putts ?? null,
+        chips: hole.chip_count ?? null,
+        bunker: hole.bunker_shot ?? null,
+        sand_save: hole.sand_save ?? null,
+        penalties: hole.penalty_strokes ?? null,
+        player_note: hole.player_notes ?? null,
+      }));
+    const mapped: CreatorContentIdeaRound = {
+      player_display_name: profileNames.get(round.user_id) ?? null,
+      played_at: round.played_at ?? null,
+      course_name: round.course_name ?? null,
+      tees: round.tees ?? null,
+      total_score: round.total_score ?? null,
+      course_par: round.par ?? null,
+      front_9: round.front_9 ?? null,
+      back_9: round.back_9 ?? null,
+      total_putts: round.total_putts ?? null,
+      total_penalties: round.total_penalties ?? null,
+      fairways_hit: round.fairways_hit ?? null,
+      total_fairways: round.total_fairways ?? null,
+      fairways_left: round.fairways_left ?? null,
+      fairways_right: round.fairways_right ?? null,
+      fairways_long: round.fairways_long ?? null,
+      fairways_short: round.fairways_short ?? null,
+      gir_hit: round.gir_hit ?? null,
+      total_gir: round.total_gir ?? null,
+      gir_short: round.gir_short ?? null,
+      gir_long: round.gir_long ?? null,
+      gir_left: round.gir_left ?? null,
+      gir_right: round.gir_right ?? null,
+      scrambling_opportunities: round.scrambling_opportunities ?? null,
+      successful_scrambles: round.successful_scrambles ?? null,
+      three_putts: round.three_putts ?? null,
+      birdies: round.birdies ?? null,
+      pars: round.pars ?? null,
+      bogeys: round.bogeys ?? null,
+      double_bogeys: round.double_bogeys ?? null,
+      input_method: round.input_method ?? null,
+      scorecard,
+    };
+    return [round.id, mapped] as const;
+  }));
+
   return rows.map((row) => ({
     id: row.id,
     story_id: storyId,
@@ -398,6 +598,7 @@ export async function fetchPersistedCandidates(
     hook: row.hook,
     script: row.script,
     created_at: row.created_at,
+    round: row.round_id ? roundData.get(row.round_id) ?? null : null,
   }));
 }
 

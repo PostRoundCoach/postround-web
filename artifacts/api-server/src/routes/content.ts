@@ -84,7 +84,7 @@ router.get("/content/ideas", async (req, res): Promise<void> => {
   try {
     const access = await authorized(req, id);
     stage = "refresh";
-    const ideas = await fetchPersistedCandidates(access.context, id, access.roundId);
+    const ideas = await fetchPersistedCandidates(access.context, id, access.roundId, access.playerId);
     req.log.info(
       { stage: "refresh", storyId: id, roundId: access.roundId, ideaCount: ideas.length },
       "Retrieved existing creator content ideas for authorized story round",

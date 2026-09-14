@@ -21,6 +21,53 @@ const contentIdea = {
   hook: 'Only 11 putts over 9 holes?',
   script: 'Stored production script.',
   created_at: '2026-09-09T17:56:36.250057+00:00',
+  round: {
+    player_display_name: 'Aaron',
+    played_at: '2026-09-01',
+    course_name: 'Pebble Beach',
+    tees: 'White',
+    total_score: 92,
+    course_par: 72,
+    front_9: 46,
+    back_9: 46,
+    total_putts: 27,
+    total_penalties: 2,
+    fairways_hit: 8,
+    total_fairways: 14,
+    fairways_left: 2,
+    fairways_right: 2,
+    fairways_long: 1,
+    fairways_short: 1,
+    gir_hit: 5,
+    total_gir: 18,
+    gir_short: 4,
+    gir_long: 2,
+    gir_left: 4,
+    gir_right: 3,
+    scrambling_opportunities: 9,
+    successful_scrambles: 4,
+    three_putts: 2,
+    birdies: 1,
+    pars: 8,
+    bogeys: 7,
+    double_bogeys: 2,
+    input_method: 'scorecard',
+    scorecard: [
+      {
+        hole: 1,
+        par: 4,
+        score: 5,
+        fairway: 'hit',
+        gir: 'short',
+        putts: 2,
+        chips: 1,
+        bunker: false,
+        sand_save: null,
+        penalties: 0,
+        player_note: 'Good drive, missed the green'
+      }
+    ]
+  }
 }
 
 test('projects only approved story fields and safely parses optional story data', () => {
@@ -348,7 +395,7 @@ test('authenticated retrieval loads persisted round ideas without regeneration',
     assert.equal(retrieval.story_id, 'story-1')
     assert.equal(retrieval.ideas[0]?.title, '11 Putts: A Recipe for Par')
     assert.deepEqual(Object.keys(retrieval.ideas[0] ?? {}).sort(), [
-      'category', 'created_at', 'hook', 'id', 'script', 'story_id', 'title',
+      'category', 'created_at', 'hook', 'id', 'round', 'script', 'story_id', 'title',
     ])
     assert.deepEqual(requests, [
       {
@@ -431,13 +478,6 @@ test('rejects malformed generated ideas instead of fabricating content', async (
   const originalFetch = globalThis.fetch
   const originalApiBase = process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL
   process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL = 'https://api.postround.test'
-  globalThis.fetch = (async () => new Response(JSON.stringify({
-    ok: true,
-    ideas: [{ id: 'candidate-without-evidence' }],
-  }), {
-    status: 200,
-    headers: { 'Content-Type': 'application/json' },
-  })) as typeof fetch
 
   const supabase = {
     auth: {
@@ -450,11 +490,47 @@ test('rejects malformed generated ideas instead of fabricating content', async (
     },
   } as unknown as SupabaseClient
 
-  try {
+  const runRejectionTest = async (ideas: unknown[]) => {
+    globalThis.fetch = (async () => new Response(JSON.stringify({
+      ok: true, story_id: 'story-1', permission_status: 'pending', ideas,
+    }), {
+      status: 200, headers: { 'Content-Type': 'application/json' },
+    })) as typeof fetch
     await assert.rejects(
       fetchStoryCandidates(supabase, 'story-1'),
       CreatorStoryApiError,
     )
+  }
+
+  try {
+    await runRejectionTest([{ id: 'candidate-without-evidence' }])
+
+    // Malformed required enum
+    await runRejectionTest([{ ...contentIdea, round: { ...contentIdea.round, scorecard: [{ ...contentIdea.round.scorecard[0], fairway: 'middle' }] } }])
+
+    // Malformed hole number (string instead of int)
+    await runRejectionTest([{ ...contentIdea, round: { ...contentIdea.round, scorecard: [{ ...contentIdea.round.scorecard[0], hole: '1' }] } }])
+
+    // Unsorted holes
+    await runRejectionTest([{ ...contentIdea, round: { ...contentIdea.round, scorecard: [
+      { ...contentIdea.round.scorecard[0], hole: 2 },
+      { ...contentIdea.round.scorecard[0], hole: 1 },
+    ] } }])
+
+    // Missing required key on round object
+    const missingKeyRound = { ...contentIdea.round } as any
+    delete missingKeyRound.total_score
+    await runRejectionTest([{ ...contentIdea, round: missingKeyRound }])
+
+    // Accept perfectly valid legacy null round
+    globalThis.fetch = (async () => new Response(JSON.stringify({
+      ok: true, story_id: 'story-1', permission_status: 'pending', ideas: [{ ...contentIdea, round: null }],
+    }), {
+      status: 200, headers: { 'Content-Type': 'application/json' },
+    })) as typeof fetch
+    const result = await fetchStoryCandidates(supabase, 'story-1')
+    assert.equal(result.ideas[0]?.round, null)
+
   } finally {
     globalThis.fetch = originalFetch
     if (originalApiBase === undefined) {

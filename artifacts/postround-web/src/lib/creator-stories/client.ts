@@ -76,8 +76,11 @@ function contentApiBase(): string {
 
   try {
     const url = new URL(apiBase)
+    const isLocalDevelopmentOrigin = process.env.NODE_ENV !== 'production'
+      && url.protocol === 'http:'
+      && (url.hostname === '127.0.0.1' || url.hostname === 'localhost')
     if (
-      url.protocol !== 'https:' ||
+      (url.protocol !== 'https:' && !isLocalDevelopmentOrigin) ||
       url.username ||
       url.password ||
       url.search ||
@@ -160,11 +163,135 @@ function stringList(
   return []
 }
 
+function isIntOrNull(v: unknown): v is number | null {
+  return v === null || (typeof v === 'number' && Number.isInteger(v))
+}
+
+function isBooleanOrNull(v: unknown): v is boolean | null {
+  return v === null || typeof v === 'boolean'
+}
+
+function isStringOrNull(v: unknown): v is string | null {
+  return v === null || typeof v === 'string'
+}
+
+function isInputMethod(v: unknown): v is 'scorecard' | 'voice_recap' | 'guided_ai' | null {
+  return v === null || v === 'scorecard' || v === 'voice_recap' || v === 'guided_ai'
+}
+
+function isFairway(v: unknown): v is 'hit' | 'left' | 'right' | 'short' | 'none' | null {
+  return v === null || v === 'hit' || v === 'left' || v === 'right' || v === 'short' || v === 'none'
+}
+
+function isGir(v: unknown): v is 'hit' | 'short' | 'long' | 'left' | 'right' | 'none' | null {
+  return v === null || v === 'hit' || v === 'short' || v === 'long' || v === 'left' || v === 'right' || v === 'none'
+}
+
 function toContentIdea(value: unknown): CreatorContentIdea | null {
   const idea = asObject(value)
   if (!idea) return null
   const strings = ['id', 'story_id', 'category', 'title', 'hook', 'script', 'created_at'] as const
   if (strings.some((field) => typeof idea[field] !== 'string')) return null
+
+  let round: CreatorContentIdea['round'] = null
+
+  if ('round' in idea && idea.round !== null) {
+    const r = asObject(idea.round)
+    if (!r) return null
+
+    if (!('player_display_name' in r) || !isStringOrNull(r.player_display_name)) return null
+    if (typeof r.played_at !== 'string') return null
+    if (!('course_name' in r) || !isStringOrNull(r.course_name)) return null
+    if (!('tees' in r) || !isStringOrNull(r.tees)) return null
+
+    const intKeys = [
+      'total_score', 'course_par', 'front_9', 'back_9', 'total_putts', 'total_penalties',
+      'fairways_hit', 'total_fairways', 'fairways_left', 'fairways_right', 'fairways_long', 'fairways_short',
+      'gir_hit', 'total_gir', 'gir_short', 'gir_long', 'gir_left', 'gir_right',
+      'scrambling_opportunities', 'successful_scrambles', 'three_putts', 'birdies', 'pars', 'bogeys', 'double_bogeys'
+    ] as const
+
+    for (const key of intKeys) {
+      if (!(key in r) || !isIntOrNull(r[key])) return null
+    }
+
+    if (!('input_method' in r) || !isInputMethod(r.input_method)) return null
+    if (!Array.isArray(r.scorecard)) return null
+
+    const parsedScorecard: NonNullable<CreatorContentIdea['round']>['scorecard'] = []
+    let prevHole = -1
+
+    for (const h of r.scorecard) {
+      const hole = asObject(h)
+      if (!hole) return null
+
+      if (typeof hole.hole !== 'number' || !Number.isInteger(hole.hole)) return null
+      if (hole.hole <= prevHole) return null
+      prevHole = hole.hole
+
+      if (!('par' in hole) || !isIntOrNull(hole.par)) return null
+      if (!('score' in hole) || !isIntOrNull(hole.score)) return null
+      if (!('putts' in hole) || !isIntOrNull(hole.putts)) return null
+      if (!('chips' in hole) || !isIntOrNull(hole.chips)) return null
+      if (!('penalties' in hole) || !isIntOrNull(hole.penalties)) return null
+
+      if (!('fairway' in hole) || !isFairway(hole.fairway)) return null
+      if (!('gir' in hole) || !isGir(hole.gir)) return null
+
+      if (!('bunker' in hole) || !isBooleanOrNull(hole.bunker)) return null
+      if (!('sand_save' in hole) || !isBooleanOrNull(hole.sand_save)) return null
+      if (!('player_note' in hole) || !isStringOrNull(hole.player_note)) return null
+
+      parsedScorecard.push({
+        hole: hole.hole,
+        par: hole.par,
+        score: hole.score,
+        fairway: hole.fairway,
+        gir: hole.gir,
+        putts: hole.putts,
+        chips: hole.chips,
+        bunker: hole.bunker,
+        sand_save: hole.sand_save,
+        penalties: hole.penalties,
+        player_note: hole.player_note,
+      })
+    }
+
+    round = {
+      player_display_name: r.player_display_name as string | null,
+      played_at: r.played_at as string,
+      course_name: r.course_name as string | null,
+      tees: r.tees as string | null,
+      total_score: r.total_score as number | null,
+      course_par: r.course_par as number | null,
+      front_9: r.front_9 as number | null,
+      back_9: r.back_9 as number | null,
+      total_putts: r.total_putts as number | null,
+      total_penalties: r.total_penalties as number | null,
+      fairways_hit: r.fairways_hit as number | null,
+      total_fairways: r.total_fairways as number | null,
+      fairways_left: r.fairways_left as number | null,
+      fairways_right: r.fairways_right as number | null,
+      fairways_long: r.fairways_long as number | null,
+      fairways_short: r.fairways_short as number | null,
+      gir_hit: r.gir_hit as number | null,
+      total_gir: r.total_gir as number | null,
+      gir_short: r.gir_short as number | null,
+      gir_long: r.gir_long as number | null,
+      gir_left: r.gir_left as number | null,
+      gir_right: r.gir_right as number | null,
+      scrambling_opportunities: r.scrambling_opportunities as number | null,
+      successful_scrambles: r.successful_scrambles as number | null,
+      three_putts: r.three_putts as number | null,
+      birdies: r.birdies as number | null,
+      pars: r.pars as number | null,
+      bogeys: r.bogeys as number | null,
+      double_bogeys: r.double_bogeys as number | null,
+      input_method: r.input_method as NonNullable<CreatorContentIdea['round']>['input_method'],
+      scorecard: parsedScorecard
+    }
+  }
+
   return {
     id: idea.id as string,
     story_id: idea.story_id as string,
@@ -173,6 +300,7 @@ function toContentIdea(value: unknown): CreatorContentIdea | null {
     hook: idea.hook as string,
     script: idea.script as string,
     created_at: idea.created_at as string,
+    round,
   }
 }
 

@@ -141,6 +141,51 @@ export interface CreatorContentIdea {
   hook: string
   script: string
   created_at: string
+  round: {
+    player_display_name: string | null
+    played_at: string
+    course_name: string | null
+    tees: string | null
+    total_score: number | null
+    course_par: number | null
+    front_9: number | null
+    back_9: number | null
+    total_putts: number | null
+    total_penalties: number | null
+    fairways_hit: number | null
+    total_fairways: number | null
+    fairways_left: number | null
+    fairways_right: number | null
+    fairways_long: number | null
+    fairways_short: number | null
+    gir_hit: number | null
+    total_gir: number | null
+    gir_short: number | null
+    gir_long: number | null
+    gir_left: number | null
+    gir_right: number | null
+    scrambling_opportunities: number | null
+    successful_scrambles: number | null
+    three_putts: number | null
+    birdies: number | null
+    pars: number | null
+    bogeys: number | null
+    double_bogeys: number | null
+    input_method: 'scorecard' | 'voice_recap' | 'guided_ai' | null
+    scorecard: {
+      hole: number
+      par: number | null
+      score: number | null
+      fairway: 'hit' | 'left' | 'right' | 'short' | 'none' | null
+      gir: 'hit' | 'short' | 'long' | 'left' | 'right' | 'none' | null
+      putts: number | null
+      chips: number | null
+      bunker: boolean | null
+      sand_save: boolean | null
+      penalties: number | null
+      player_note: string | null
+    }[]
+  } | null
 }
 
 export interface DismissCreatorStoryResponse {

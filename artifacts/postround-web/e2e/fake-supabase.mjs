@@ -43,6 +43,53 @@ const candidate = {
   script: 'Fixture candidate summary.',
   status: 'draft',
   created_at: '2026-01-02T00:00:00.000Z',
+  round: {
+    player_display_name: 'Fixture Golfer',
+    played_at: '2026-01-02',
+    course_name: 'Fixture Golf Club',
+    tees: 'White',
+    total_score: 85,
+    course_par: 72,
+    front_9: 45,
+    back_9: 40,
+    total_putts: 31,
+    total_penalties: 1,
+    fairways_hit: 8,
+    total_fairways: 14,
+    fairways_left: 3,
+    fairways_right: 2,
+    fairways_long: null,
+    fairways_short: 1,
+    gir_hit: 7,
+    total_gir: 18,
+    gir_short: 4,
+    gir_long: 2,
+    gir_left: 3,
+    gir_right: 2,
+    scrambling_opportunities: 11,
+    successful_scrambles: 5,
+    three_putts: 2,
+    birdies: 1,
+    pars: 7,
+    bogeys: 8,
+    double_bogeys: 2,
+    input_method: 'voice_recap',
+    scorecard: [
+      {
+        hole: 1,
+        par: 4,
+        score: 4,
+        fairway: 'hit',
+        gir: 'hit',
+        putts: 2,
+        chips: null,
+        bunker: null,
+        sand_save: null,
+        penalties: null,
+        player_note: 'Stayed patient after the approach finished short.'
+      }
+    ]
+  }
 }
 
 function encode(value) {

@@ -25,6 +25,20 @@ test('creator story queue persists candidates, approval, and dismissal state', a
   await expect(page.getByTestId(`card-story-${storyId}`)).toBeVisible()
   await page.getByTestId(`card-story-candidate-${candidateId}`).waitFor()
   await expect(page.getByText('Player approval required')).toBeVisible()
+  await page.getByTestId(`card-story-candidate-${candidateId}`).getByText('View full details and context').click()
+  await expect(page.getByTestId('scorecard-player-name')).toHaveText(/Fixture Golfer/)
+  await expect(page.getByTestId('scorecard-front-9')).toHaveText('45')
+  await expect(page.getByTestId('scorecard-back-9')).toHaveText('40')
+  await expect(page.getByTestId('scorecard-hole-note-1')).toHaveText(
+    /Stayed patient after the approach finished short/,
+  )
+
+  await page.setViewportSize({ width: 390, height: 844 })
+  await expect(page.getByTestId('scorecard-hole-1')).toBeVisible()
+  const hasHorizontalOverflow = await page.evaluate(
+    () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
+  )
+  expect(hasHorizontalOverflow).toBe(false)
 
   await page.getByTestId(`button-request-approval-${storyId}`).click()
   await expect(page.getByText('Player approval required')).toBeVisible()

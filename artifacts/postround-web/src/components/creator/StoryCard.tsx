@@ -7,12 +7,9 @@ import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { createClient } from '@/lib/supabase/client'
 import type { CreatorContentIdea, CreatorStory } from '@/lib/creator-stories/contracts'
-import {
-  fetchStoryCandidates,
-  dismissCreatorStory,
-  requestStoryApproval,
-} from '@/lib/creator-stories/client'
+import { fetchStoryCandidates, dismissCreatorStory, requestStoryApproval } from '@/lib/creator-stories/client'
 import { StoryCandidateCard } from './StoryCandidateCard'
+import { CreatorRoundScorecard } from './CreatorRoundScorecard'
 
 export function StoryCard({
   story,
@@ -352,13 +349,15 @@ export function StoryCard({
               </p>
             </div>
           ) : (
-            <div className="grid gap-4 lg:grid-cols-2">
-              {candidates.map((candidate) => (
-                <StoryCandidateCard
-                  key={candidate.id}
-                  candidate={candidate}
-                />
-              ))}
+            <div className="space-y-6">
+              <div className="grid gap-6">
+                {candidates.map((candidate) => (
+                  <StoryCandidateCard
+                    key={candidate.id}
+                    candidate={candidate}
+                  />
+                ))}
+              </div>
             </div>
           )}
         </div>
