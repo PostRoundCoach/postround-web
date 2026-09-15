@@ -66,7 +66,7 @@ router.post("/content/generate", async (req, res): Promise<void> => {
     stage = "generation";
     const candidates = generateStoryCandidates({
       storyId: id, ownerId: access.creatorId, playerName: access.playerName, totalScore: loaded.round.total_score,
-      coursePar: loaded.round.par, holes: loaded.holes, historicalToPar: loaded.historicalToPar,
+      coursePar: loaded.round.course_par, holes: loaded.holes, historicalToPar: loaded.historicalToPar,
       aiSummary: loaded.round.ai_summary, playerNotes: loaded.round.player_notes, holeNotes: loaded.holeNotes,
     });
     req.log.info({ stage: "generation", storyId: id, candidateCount: candidates.length }, "Generated evidence-backed candidates");

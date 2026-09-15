@@ -28,6 +28,7 @@ This is the single API call the Web Creator Dashboard needs to render a complete
         "tees": "White",
         "total_score": 92,
         "course_par": 72,
+        "score_to_par": 20,
         "front_9": 46,
         "back_9": 46,
         "total_putts": 27,
@@ -51,7 +52,16 @@ This is the single API call the Web Creator Dashboard needs to render a complete
         "pars": 8,
         "bogeys": 7,
         "double_bogeys": 2,
-        "input_method": "scorecard",
+        "triple_bogeys": 0,
+        "eagles": 0,
+        "albatrosses": 0,
+        "hole_in_one": 0,
+        "fairways_missed": 6,
+        "fairways_playable": 4,
+        "gir_missed": 13,
+        "gir_playable": 7,
+        "sand_save_opportunities": 3,
+        "successful_sand_saves": 2,
         "scorecard": [
           {
             "hole": 1,
@@ -100,6 +110,7 @@ This is the single API call the Web Creator Dashboard needs to render a complete
 | `tees` | string \| null | `rounds.tees` |
 | `total_score` | integer \| null | `rounds.total_score` |
 | `course_par` | integer \| null | `rounds.course_par` |
+| `score_to_par` | integer \| null | Database-generated `rounds.score_to_par`; passed through without web/API recalculation |
 | `front_9` | integer \| null | `rounds.front_9` |
 | `back_9` | integer \| null | `rounds.back_9` |
 | `total_putts` | integer \| null | `rounds.total_putts` |
@@ -110,20 +121,29 @@ This is the single API call the Web Creator Dashboard needs to render a complete
 | `fairways_right` | integer \| null | `rounds.fairways_right` |
 | `fairways_long` | integer \| null | `rounds.fairways_long` |
 | `fairways_short` | integer \| null | `rounds.fairways_short` |
+| `fairways_missed` | integer \| null | `rounds.fairways_missed` |
+| `fairways_playable` | integer \| null | `rounds.fairways_playable` |
 | `gir_hit` | integer \| null | `rounds.gir_hit` |
 | `total_gir` | integer \| null | `rounds.total_gir` |
 | `gir_short` | integer \| null | `rounds.gir_short` |
 | `gir_long` | integer \| null | `rounds.gir_long` |
 | `gir_left` | integer \| null | `rounds.gir_left` |
 | `gir_right` | integer \| null | `rounds.gir_right` |
+| `gir_missed` | integer \| null | `rounds.gir_missed` |
+| `gir_playable` | integer \| null | `rounds.gir_playable` |
 | `scrambling_opportunities` | integer \| null | `rounds.scrambling_opportunities` |
 | `successful_scrambles` | integer \| null | `rounds.successful_scrambles` |
 | `three_putts` | integer \| null | `rounds.three_putts` |
+| `eagles` | integer \| null | `rounds.eagles`; holes where `par - score >= 2` |
+| `albatrosses` | integer \| null | `rounds.albatrosses`; holes where `par - score === 3` |
+| `hole_in_one` | integer \| null | `rounds.hole_in_one`; holes where `score === 1` |
 | `birdies` | integer \| null | `rounds.birdies` |
 | `pars` | integer \| null | `rounds.pars` |
 | `bogeys` | integer \| null | `rounds.bogeys` |
 | `double_bogeys` | integer \| null | `rounds.double_bogeys` |
-| `input_method` | `"scorecard"` \| `"voice_recap"` \| `"guided_ai"` \| null | `rounds.input_method` |
+| `triple_bogeys` | integer \| null | `rounds.triple_bogeys`; holes where `score - par === 3` |
+| `sand_save_opportunities` | integer \| null | `rounds.sand_save_opportunities` |
+| `successful_sand_saves` | integer \| null | `rounds.successful_sand_saves` |
 | `scorecard` | array | See below; sorted ascending by hole number |
 
 ### `round.scorecard[]` entries
@@ -133,7 +153,7 @@ This is the single API call the Web Creator Dashboard needs to render a complete
 | `hole` | integer | `holes.hole_number` |
 | `par` | integer \| null | `holes.par` |
 | `score` | integer \| null | `holes.score` |
-| `fairway` | `"hit"` \| `"left"` \| `"right"` \| `"short"` \| `"none"` \| null | `holes.fairway_result` |
+| `fairway` | `"hit"` \| `"left"` \| `"right"` \| `"short"` \| `"long"` \| `"none"` \| null | `holes.fairway_result` |
 | `gir` | `"hit"` \| `"short"` \| `"long"` \| `"left"` \| `"right"` \| `"none"` \| null | `holes.gir_result` |
 | `putts` | integer \| null | `holes.putts` |
 | `chips` | integer \| null | `holes.chip_count` |
@@ -145,6 +165,10 @@ This is the single API call the Web Creator Dashboard needs to render a complete
 ---
 
 ## Backward compatibility
+
+- `three_putts = null` means per-hole putting data was unavailable. `three_putts = 0` means putting data was available and no three-putts occurred. The API and client preserve this distinction.
+- `eagles`, `albatrosses`, and `hole_in_one` intentionally overlap under their canonical definitions and are not mutually exclusive categories.
+- `input_method` is intentionally absent. Connected-schema verification found no `rounds.input_method` column, so the creator contract does not invent or infer it.
 
 - Ideas with no linked round (`round_id IS NULL`) return `round: null`. All idea-level fields are unaffected.
 - If the player's profile row is missing, `player_display_name` is `null`; the rest of the round object is returned normally.

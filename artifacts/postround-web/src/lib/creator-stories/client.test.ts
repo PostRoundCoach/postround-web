@@ -28,6 +28,7 @@ const contentIdea = {
     tees: 'White',
     total_score: 92,
     course_par: 72,
+    score_to_par: 20,
     front_9: 46,
     back_9: 46,
     total_putts: 27,
@@ -38,12 +39,16 @@ const contentIdea = {
     fairways_right: 2,
     fairways_long: 1,
     fairways_short: 1,
+    fairways_missed: 6,
+    fairways_playable: 4,
     gir_hit: 5,
     total_gir: 18,
     gir_short: 4,
     gir_long: 2,
     gir_left: 4,
     gir_right: 3,
+    gir_missed: 13,
+    gir_playable: 7,
     scrambling_opportunities: 9,
     successful_scrambles: 4,
     three_putts: 2,
@@ -51,14 +56,19 @@ const contentIdea = {
     pars: 8,
     bogeys: 7,
     double_bogeys: 2,
-    input_method: 'scorecard',
+    triple_bogeys: 1,
+    eagles: 2,
+    albatrosses: 1,
+    hole_in_one: 1,
+    sand_save_opportunities: 3,
+    successful_sand_saves: 2,
     scorecard: [
       {
         hole: 1,
         par: 4,
         score: 5,
-        fairway: 'hit',
-        gir: 'short',
+        fairway: 'long',
+        gir: 'long',
         putts: 2,
         chips: 1,
         bunker: false,
@@ -394,6 +404,9 @@ test('authenticated retrieval loads persisted round ideas without regeneration',
 
     assert.equal(retrieval.story_id, 'story-1')
     assert.equal(retrieval.ideas[0]?.title, '11 Putts: A Recipe for Par')
+    assert.equal(retrieval.ideas[0]?.round?.score_to_par, 20)
+    assert.equal(retrieval.ideas[0]?.round?.scorecard[0]?.fairway, 'long')
+    assert.equal(retrieval.ideas[0]?.round?.scorecard[0]?.player_note, 'Good drive, missed the green')
     assert.deepEqual(Object.keys(retrieval.ideas[0] ?? {}).sort(), [
       'category', 'created_at', 'hook', 'id', 'round', 'script', 'story_id', 'title',
     ])
@@ -507,7 +520,6 @@ test('rejects malformed generated ideas instead of fabricating content', async (
 
     // Malformed required enum
     await runRejectionTest([{ ...contentIdea, round: { ...contentIdea.round, scorecard: [{ ...contentIdea.round.scorecard[0], fairway: 'middle' }] } }])
-
     // Malformed hole number (string instead of int)
     await runRejectionTest([{ ...contentIdea, round: { ...contentIdea.round, scorecard: [{ ...contentIdea.round.scorecard[0], hole: '1' }] } }])
 
@@ -538,6 +550,29 @@ test('rejects malformed generated ideas instead of fabricating content', async (
     } else {
       process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL = originalApiBase
     }
+  }
+})
+
+test('preserves canonical nullable metrics and accepts zero separately', async () => {
+  const originalFetch = globalThis.fetch
+  const originalApiBase = process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL
+  process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL = 'https://api.postround.test'
+  const supabase = { auth: { async getSession() {
+    return { data: { session: { access_token: 'test-access-token' } }, error: null }
+  } } } as unknown as SupabaseClient
+  try {
+    for (const value of [null, 0]) {
+      globalThis.fetch = (async () => Response.json({
+        ok: true, story_id: 'story-1', permission_status: 'pending',
+        ideas: [{ ...contentIdea, round: { ...contentIdea.round, three_putts: value } }],
+      })) as typeof fetch
+      const result = await fetchStoryCandidates(supabase, 'story-1')
+      assert.equal(result.ideas[0]?.round?.three_putts, value)
+    }
+  } finally {
+    globalThis.fetch = originalFetch
+    if (originalApiBase === undefined) delete process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL
+    else process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL = originalApiBase
   }
 })
 

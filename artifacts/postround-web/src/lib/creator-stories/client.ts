@@ -175,12 +175,8 @@ function isStringOrNull(v: unknown): v is string | null {
   return v === null || typeof v === 'string'
 }
 
-function isInputMethod(v: unknown): v is 'scorecard' | 'voice_recap' | 'guided_ai' | null {
-  return v === null || v === 'scorecard' || v === 'voice_recap' || v === 'guided_ai'
-}
-
-function isFairway(v: unknown): v is 'hit' | 'left' | 'right' | 'short' | 'none' | null {
-  return v === null || v === 'hit' || v === 'left' || v === 'right' || v === 'short' || v === 'none'
+function isFairway(v: unknown): v is 'hit' | 'left' | 'right' | 'short' | 'long' | 'none' | null {
+  return v === null || v === 'hit' || v === 'left' || v === 'right' || v === 'short' || v === 'long' || v === 'none'
 }
 
 function isGir(v: unknown): v is 'hit' | 'short' | 'long' | 'left' | 'right' | 'none' | null {
@@ -205,17 +201,18 @@ function toContentIdea(value: unknown): CreatorContentIdea | null {
     if (!('tees' in r) || !isStringOrNull(r.tees)) return null
 
     const intKeys = [
-      'total_score', 'course_par', 'front_9', 'back_9', 'total_putts', 'total_penalties',
+      'total_score', 'course_par', 'score_to_par', 'front_9', 'back_9', 'total_putts', 'total_penalties',
       'fairways_hit', 'total_fairways', 'fairways_left', 'fairways_right', 'fairways_long', 'fairways_short',
-      'gir_hit', 'total_gir', 'gir_short', 'gir_long', 'gir_left', 'gir_right',
-      'scrambling_opportunities', 'successful_scrambles', 'three_putts', 'birdies', 'pars', 'bogeys', 'double_bogeys'
+      'fairways_missed', 'fairways_playable', 'gir_hit', 'total_gir', 'gir_short', 'gir_long', 'gir_left', 'gir_right',
+      'gir_missed', 'gir_playable', 'scrambling_opportunities', 'successful_scrambles', 'three_putts',
+      'birdies', 'pars', 'bogeys', 'double_bogeys', 'triple_bogeys', 'eagles', 'albatrosses', 'hole_in_one',
+      'sand_save_opportunities', 'successful_sand_saves'
     ] as const
 
     for (const key of intKeys) {
       if (!(key in r) || !isIntOrNull(r[key])) return null
     }
 
-    if (!('input_method' in r) || !isInputMethod(r.input_method)) return null
     if (!Array.isArray(r.scorecard)) return null
 
     const parsedScorecard: NonNullable<CreatorContentIdea['round']>['scorecard'] = []
@@ -264,6 +261,7 @@ function toContentIdea(value: unknown): CreatorContentIdea | null {
       tees: r.tees as string | null,
       total_score: r.total_score as number | null,
       course_par: r.course_par as number | null,
+      score_to_par: r.score_to_par as number | null,
       front_9: r.front_9 as number | null,
       back_9: r.back_9 as number | null,
       total_putts: r.total_putts as number | null,
@@ -274,12 +272,16 @@ function toContentIdea(value: unknown): CreatorContentIdea | null {
       fairways_right: r.fairways_right as number | null,
       fairways_long: r.fairways_long as number | null,
       fairways_short: r.fairways_short as number | null,
+      fairways_missed: r.fairways_missed as number | null,
+      fairways_playable: r.fairways_playable as number | null,
       gir_hit: r.gir_hit as number | null,
       total_gir: r.total_gir as number | null,
       gir_short: r.gir_short as number | null,
       gir_long: r.gir_long as number | null,
       gir_left: r.gir_left as number | null,
       gir_right: r.gir_right as number | null,
+      gir_missed: r.gir_missed as number | null,
+      gir_playable: r.gir_playable as number | null,
       scrambling_opportunities: r.scrambling_opportunities as number | null,
       successful_scrambles: r.successful_scrambles as number | null,
       three_putts: r.three_putts as number | null,
@@ -287,7 +289,12 @@ function toContentIdea(value: unknown): CreatorContentIdea | null {
       pars: r.pars as number | null,
       bogeys: r.bogeys as number | null,
       double_bogeys: r.double_bogeys as number | null,
-      input_method: r.input_method as NonNullable<CreatorContentIdea['round']>['input_method'],
+      triple_bogeys: r.triple_bogeys as number | null,
+      eagles: r.eagles as number | null,
+      albatrosses: r.albatrosses as number | null,
+      hole_in_one: r.hole_in_one as number | null,
+      sand_save_opportunities: r.sand_save_opportunities as number | null,
+      successful_sand_saves: r.successful_sand_saves as number | null,
       scorecard: parsedScorecard
     }
   }

@@ -269,13 +269,11 @@ type DbHole = {
 };
 
 type DbRound = {
-  // Connected qualifying-round verification proves `par` exists while
-  // `course_par` returns Postgres 42703; see story-engine.live.test.ts.
   id: string;
   user_id: string;
   played_at: string;
   total_score: number | null;
-  par: number | null;
+  course_par: number | null;
   ai_summary: string | null;
   player_notes: string | null;
 };
@@ -287,7 +285,7 @@ export async function loadRoundEvidence(
 ) {
   const rounds = await rest<DbRound[]>(
     context,
-    `rounds?select=id,user_id,played_at,total_score,par,ai_summary,player_notes&id=eq.${encodeURIComponent(roundId)}&user_id=eq.${encodeURIComponent(playerId)}&limit=1`,
+    `rounds?select=id,user_id,played_at,total_score,course_par,ai_summary,player_notes&id=eq.${encodeURIComponent(roundId)}&user_id=eq.${encodeURIComponent(playerId)}&limit=1`,
   );
   const round = rounds[0];
   if (!round) throw new CreatorContentError(404, "The round for this story no longer exists.");
@@ -296,9 +294,9 @@ export async function loadRoundEvidence(
       context,
       `holes?select=hole_number,distance_to_pin_yards,par,score,fairway_result,gir_result,scramble_opportunity,chip_count,putts,bunker_shot,penalty_strokes,player_notes,ai_feedback&round_id=eq.${encodeURIComponent(roundId)}&order=hole_number.asc`,
     ),
-    rest<Array<{ total_score: number; par: number }>>(
+    rest<Array<{ score_to_par: number }>>(
       context,
-      `rounds?select=total_score,par&user_id=eq.${encodeURIComponent(playerId)}&played_at=lt.${encodeURIComponent(round.played_at)}&total_score=not.is.null&par=not.is.null&order=played_at.desc&limit=20`,
+      `rounds?select=score_to_par&user_id=eq.${encodeURIComponent(playerId)}&played_at=lt.${encodeURIComponent(round.played_at)}&score_to_par=not.is.null&order=played_at.desc&limit=20`,
     ),
   ]);
   const holes: ScorecardHole[] = holeRows.map((hole) => ({
@@ -309,7 +307,7 @@ export async function loadRoundEvidence(
   return {
     round,
     holes,
-    historicalToPar: historyRows.map((item) => item.total_score - item.par),
+    historicalToPar: historyRows.map((item) => item.score_to_par),
     holeNotes: holeRows.flatMap((hole) =>
       [hole.ai_feedback, hole.player_notes].filter((note): note is string => typeof note === "string" && note.trim() !== "")
         .map((note) => ({ hole: hole.hole_number, note })),
@@ -378,9 +376,8 @@ type DbIdeaRound = {
   course_name: string | null;
   tees: string | null;
   total_score: number | null;
-  // The connected database calls this column `par`; the API contract calls it
-  // `course_par`.
-  par: number | null;
+  course_par: number | null;
+  score_to_par: number | null;
   front_9: number | null;
   back_9: number | null;
   total_putts: number | null;
@@ -389,16 +386,18 @@ type DbIdeaRound = {
   total_fairways: number | null;
   fairways_left: number | null;
   fairways_right: number | null;
-  // These are present in some round schemas, but not in the connected
-  // project. Keep them optional so the response remains contract-shaped.
-  fairways_long?: number | null;
-  fairways_short?: number | null;
+  fairways_long: number | null;
+  fairways_short: number | null;
+  fairways_missed: number | null;
+  fairways_playable: number | null;
   gir_hit: number | null;
   total_gir: number | null;
   gir_short: number | null;
   gir_long: number | null;
   gir_left: number | null;
   gir_right: number | null;
+  gir_missed: number | null;
+  gir_playable: number | null;
   scrambling_opportunities: number | null;
   successful_scrambles: number | null;
   three_putts: number | null;
@@ -406,7 +405,12 @@ type DbIdeaRound = {
   pars: number | null;
   bogeys: number | null;
   double_bogeys: number | null;
-  input_method: string | null;
+  triple_bogeys: number | null;
+  eagles: number | null;
+  albatrosses: number | null;
+  hole_in_one: number | null;
+  sand_save_opportunities: number | null;
+  successful_sand_saves: number | null;
 };
 
 type DbIdeaHole = {
@@ -445,6 +449,7 @@ export interface CreatorContentIdeaRound {
   tees: string | null;
   total_score: number | null;
   course_par: number | null;
+  score_to_par: number | null;
   front_9: number | null;
   back_9: number | null;
   total_putts: number | null;
@@ -455,12 +460,16 @@ export interface CreatorContentIdeaRound {
   fairways_right: number | null;
   fairways_long: number | null;
   fairways_short: number | null;
+  fairways_missed: number | null;
+  fairways_playable: number | null;
   gir_hit: number | null;
   total_gir: number | null;
   gir_short: number | null;
   gir_long: number | null;
   gir_left: number | null;
   gir_right: number | null;
+  gir_missed: number | null;
+  gir_playable: number | null;
   scrambling_opportunities: number | null;
   successful_scrambles: number | null;
   three_putts: number | null;
@@ -468,7 +477,12 @@ export interface CreatorContentIdeaRound {
   pars: number | null;
   bogeys: number | null;
   double_bogeys: number | null;
-  input_method: string | null;
+  triple_bogeys: number | null;
+  eagles: number | null;
+  albatrosses: number | null;
+  hole_in_one: number | null;
+  sand_save_opportunities: number | null;
+  successful_sand_saves: number | null;
   scorecard: IdeaScorecardHole[];
 }
 
@@ -506,7 +520,7 @@ export async function fetchPersistedCandidates(
     ? []
     : await rest<DbIdeaRound[]>(
       context,
-      `rounds?select=id,user_id,played_at,course_name,tees,total_score,par,front_9,back_9,total_putts,total_penalties,fairways_hit,total_fairways,fairways_left,fairways_right,gir_hit,total_gir,gir_short,gir_long,gir_left,gir_right,scrambling_opportunities,successful_scrambles,three_putts,birdies,pars,bogeys,double_bogeys,input_method&id=in.(${roundFilter})`
+      `rounds?select=id,user_id,played_at,course_name,tees,total_score,course_par,score_to_par,front_9,back_9,total_putts,total_penalties,eagles,albatrosses,hole_in_one,birdies,pars,bogeys,double_bogeys,triple_bogeys,fairways_hit,total_fairways,fairways_left,fairways_right,fairways_long,fairways_short,fairways_missed,fairways_playable,gir_hit,total_gir,gir_short,gir_long,gir_left,gir_right,gir_missed,gir_playable,scrambling_opportunities,successful_scrambles,sand_save_opportunities,successful_sand_saves,three_putts&id=in.(${roundFilter})`
         + (playerId ? `&user_id=eq.${encodeURIComponent(playerId)}` : ""),
     );
   const profileIds = [...new Set(
@@ -560,7 +574,8 @@ export async function fetchPersistedCandidates(
       course_name: round.course_name ?? null,
       tees: round.tees ?? null,
       total_score: round.total_score ?? null,
-      course_par: round.par ?? null,
+      course_par: round.course_par ?? null,
+      score_to_par: round.score_to_par ?? null,
       front_9: round.front_9 ?? null,
       back_9: round.back_9 ?? null,
       total_putts: round.total_putts ?? null,
@@ -571,12 +586,16 @@ export async function fetchPersistedCandidates(
       fairways_right: round.fairways_right ?? null,
       fairways_long: round.fairways_long ?? null,
       fairways_short: round.fairways_short ?? null,
+      fairways_missed: round.fairways_missed ?? null,
+      fairways_playable: round.fairways_playable ?? null,
       gir_hit: round.gir_hit ?? null,
       total_gir: round.total_gir ?? null,
       gir_short: round.gir_short ?? null,
       gir_long: round.gir_long ?? null,
       gir_left: round.gir_left ?? null,
       gir_right: round.gir_right ?? null,
+      gir_missed: round.gir_missed ?? null,
+      gir_playable: round.gir_playable ?? null,
       scrambling_opportunities: round.scrambling_opportunities ?? null,
       successful_scrambles: round.successful_scrambles ?? null,
       three_putts: round.three_putts ?? null,
@@ -584,7 +603,12 @@ export async function fetchPersistedCandidates(
       pars: round.pars ?? null,
       bogeys: round.bogeys ?? null,
       double_bogeys: round.double_bogeys ?? null,
-      input_method: round.input_method ?? null,
+      triple_bogeys: round.triple_bogeys ?? null,
+      eagles: round.eagles ?? null,
+      albatrosses: round.albatrosses ?? null,
+      hole_in_one: round.hole_in_one ?? null,
+      sand_save_opportunities: round.sand_save_opportunities ?? null,
+      successful_sand_saves: round.successful_sand_saves ?? null,
       scorecard,
     };
     return [round.id, mapped] as const;

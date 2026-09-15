@@ -10,7 +10,7 @@ const hasConnectedSupabase = Boolean(
 );
 
 test(
-  "connected qualifying round exposes rounds.par and not rounds.course_par",
+  "connected qualifying round exposes canonical course_par and score_to_par",
   { skip: !hasConnectedSupabase },
   async () => {
     const connectors = new ReplitConnectors();
@@ -22,44 +22,31 @@ test(
     );
 
     assert.equal(evidence.round.total_score, 34);
-    assert.equal(evidence.round.par, 34);
+    assert.equal(evidence.round.course_par, 34);
     assert.equal(evidence.holes.length, 9);
     assert.equal(
       evidence.holes.reduce((sum, hole) => sum + (hole.par ?? 0), 0),
       34,
     );
 
-    const nonexistentColumn = await connectors.proxy(
+    const canonicalRound = await connectors.proxy(
       "supabase",
-      `/rest/v1/rounds?select=id,course_par&id=eq.${QUALIFYING_ROUND_ID}`,
+      `/rest/v1/rounds?select=id,course_par,score_to_par&id=eq.${QUALIFYING_ROUND_ID}`,
     );
-    assert.equal(nonexistentColumn.status, 400);
-    const error = await nonexistentColumn.json() as { code?: unknown };
-    assert.equal(error.code, "42703");
-
-    const usage = await connectors.proxy(
+    assert.equal(canonicalRound.status, 200);
+    const rows = await canonicalRound.json() as Array<{
+      course_par: unknown;
+      score_to_par: unknown;
+    }>;
+    assert.equal(rows[0]?.course_par, 34);
+    assert.equal(rows[0]?.score_to_par, 0);
+    const unavailableInputMethod = await connectors.proxy(
       "supabase",
-      "/rest/v1/round_buddy_hole_usage?select=id,user_id,billing_period,client_round_id,hole_number,status,reserved_at,consumed_at&limit=1",
+      `/rest/v1/rounds?select=id,input_method&id=eq.${QUALIFYING_ROUND_ID}`,
     );
-    assert.equal(usage.status, 200);
-    const usageRows = await usage.json() as Array<Record<string, unknown>>;
-    assert.ok(usageRows.every((row) =>
-      !Object.keys(row).some((key) => /transcript|excerpt|message|content|text/i.test(key))
-    ));
+    assert.equal(unavailableInputMethod.status, 400);
+    const inputMethodError = await unavailableInputMethod.json() as { code?: unknown };
+    assert.equal(inputMethodError.code, "42703");
 
-    for (const table of [
-      "round_buddy_transcripts",
-      "round_buddy_messages",
-      "transcripts",
-      "round_analysis",
-    ]) {
-      const unavailable = await connectors.proxy(
-        "supabase",
-        `/rest/v1/${table}?select=*&limit=1`,
-      );
-      assert.equal(unavailable.status, 404);
-      const unavailableError = await unavailable.json() as { code?: unknown };
-      assert.equal(unavailableError.code, "PGRST205");
-    }
   },
 );

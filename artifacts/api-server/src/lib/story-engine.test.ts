@@ -201,6 +201,47 @@ test("authorization denies a creator without an active permission", async () => 
   );
 });
 
+test("authorization retains active creator, permission, revocation, and story status guards", async () => {
+  const scenarios = [
+    { name: "missing creator", profiles: [], permissions: [], stories: [] },
+    { name: "missing or revoked permission", profiles: [{ id: base.ownerId }], permissions: [], stories: [] },
+    {
+      name: "invalid story status",
+      profiles: [{ id: base.ownerId }],
+      permissions: [{
+        id: "permission", story_id: base.storyId,
+        user_id: "dddddddd-dddd-dddd-dddd-dddddddddddd",
+        permission_granted: true, approval_requested_at: null, granted_at: null, revoked_at: null,
+      }],
+      stories: [],
+    },
+  ];
+  for (const scenario of scenarios) {
+    const paths: string[] = [];
+    const context: SupabaseRequestContext = {
+      ...requestContext,
+      proxy: async (path) => {
+        paths.push(path);
+        if (path.includes("creator_profiles?")) return Response.json(scenario.profiles);
+        if (path.includes("story_permissions?")) return Response.json(scenario.permissions);
+        return Response.json(scenario.stories);
+      },
+    };
+    await assert.rejects(
+      authorizeCreatorStory(context, base.storyId),
+      (error: unknown) => error instanceof CreatorContentError && error.status === 403,
+      scenario.name,
+    );
+    if (scenario.permissions.length) {
+      assert.ok(paths.some((path) => path.includes("status=in.(offered,shared)")));
+    }
+    if (scenario.profiles.length) {
+      assert.ok(paths.some((path) => path.includes("permission_granted=eq.true")));
+      assert.ok(paths.some((path) => path.includes("revoked_at=is.null")));
+    }
+  }
+});
+
 test("creator queue reload uses the authoritative active permission store", async () => {
   const paths: string[] = [];
   const context: SupabaseRequestContext = {
@@ -231,19 +272,19 @@ test("creator queue reload uses the authoritative active permission store", asyn
   assert.ok(paths[1]?.includes("revoked_at=is.null"));
 });
 
-test("live round lookup contract uses rounds.par and maps it to course par", async () => {
+test("round evidence uses canonical course par and stored historical score to par", async () => {
   const paths: string[] = [];
   const context: SupabaseRequestContext = {
     userId: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
     proxy: async (path) => {
       paths.push(path);
-      if (path.startsWith("/rest/v1/rounds?select=id,user_id,played_at,total_score,par,")) {
+      if (path.startsWith("/rest/v1/rounds?select=id,user_id,played_at,total_score,course_par,")) {
         return Response.json([{
           id: "cccccccc-cccc-cccc-cccc-cccccccccccc",
           user_id: "dddddddd-dddd-dddd-dddd-dddddddddddd",
           played_at: "2026-09-07",
           total_score: 34,
-          par: 34,
+          course_par: 34,
           ai_summary: null,
           player_notes: null,
         }]);
@@ -267,6 +308,7 @@ test("live round lookup contract uses rounds.par and maps it to course par", asy
           },
         ]);
       }
+      if (path.includes("select=score_to_par")) return Response.json([{ score_to_par: -3 }]);
       return Response.json([]);
     },
   };
@@ -276,9 +318,10 @@ test("live round lookup contract uses rounds.par and maps it to course par", asy
     "cccccccc-cccc-cccc-cccc-cccccccccccc",
     "dddddddd-dddd-dddd-dddd-dddddddddddd",
   );
-  assert.equal(evidence.round.par, 34);
-  assert.ok(paths.some((path) => path.includes("total_score,par,ai_summary")));
-  assert.ok(paths.every((path) => !path.includes("course_par")));
+  assert.equal(evidence.round.course_par, 34);
+  assert.deepEqual(evidence.historicalToPar, [-3]);
+  assert.ok(paths.some((path) => path.includes("total_score,course_par,ai_summary")));
+  assert.ok(paths.some((path) => path.includes("select=score_to_par")));
 });
 
 test("persistence replaces candidates and refreshes the structured result", async () => {
@@ -405,7 +448,8 @@ test("round retrieval returns production-shaped ideas without story or engine me
           course_name: "Pebble Beach Golf Links",
           tees: "White",
           total_score: 92,
-          par: 72,
+          course_par: 72,
+          score_to_par: 19,
           front_9: 46,
           back_9: 46,
           total_putts: 27,
@@ -416,12 +460,16 @@ test("round retrieval returns production-shaped ideas without story or engine me
           fairways_right: 2,
           fairways_long: 1,
           fairways_short: 1,
+          fairways_missed: 6,
+          fairways_playable: 4,
           gir_hit: 5,
           total_gir: 18,
           gir_short: 4,
           gir_long: 2,
           gir_left: 4,
           gir_right: 3,
+          gir_missed: 13,
+          gir_playable: 7,
           scrambling_opportunities: 9,
           successful_scrambles: 4,
           three_putts: 2,
@@ -429,7 +477,12 @@ test("round retrieval returns production-shaped ideas without story or engine me
           pars: 8,
           bogeys: 7,
           double_bogeys: 2,
-          input_method: "scorecard",
+          triple_bogeys: 1,
+          eagles: 2,
+          albatrosses: 1,
+          hole_in_one: 1,
+          sand_save_opportunities: 3,
+          successful_sand_saves: 2,
         }]);
       }
       if (path.startsWith("/rest/v1/profiles?")) {
@@ -456,8 +509,8 @@ test("round retrieval returns production-shaped ideas without story or engine me
             hole_number: 1,
             par: 4,
             score: 5,
-            fairway_result: "hit",
-            gir_result: "short",
+            fairway_result: "long",
+            gir_result: "long",
             putts: 2,
             chip_count: 1,
             bunker_shot: false,
@@ -504,13 +557,73 @@ test("round retrieval returns production-shaped ideas without story or engine me
   ]);
   assert.equal(ideas[0]?.round?.player_display_name, "Aaron");
   assert.equal(ideas[0]?.round?.course_par, 72);
+  assert.equal(ideas[0]?.round?.score_to_par, 19);
+  assert.equal(ideas[0]?.round?.three_putts, 2);
+  assert.equal(ideas[0]?.round?.triple_bogeys, 1);
+  assert.equal(ideas[0]?.round?.eagles, 2);
+  assert.equal(ideas[0]?.round?.albatrosses, 1);
+  assert.equal(ideas[0]?.round?.hole_in_one, 1);
+  assert.equal(ideas[0]?.round?.fairways_missed, 6);
+  assert.equal(ideas[0]?.round?.fairways_playable, 4);
+  assert.equal(ideas[0]?.round?.gir_missed, 13);
+  assert.equal(ideas[0]?.round?.gir_playable, 7);
+  assert.equal(ideas[0]?.round?.sand_save_opportunities, 3);
+  assert.equal(ideas[0]?.round?.successful_sand_saves, 2);
   assert.equal(ideas[0]?.round?.fairways_long, 1);
   assert.equal(ideas[0]?.round?.fairways_short, 1);
   assert.deepEqual(ideas[0]?.round?.scorecard.map((hole) => hole.hole), [1, 2]);
   assert.equal(ideas[0]?.round?.scorecard[0]?.player_note, "Good drive, missed the green");
+  assert.equal(ideas[0]?.round?.scorecard[0]?.fairway, "long");
+  assert.equal(ideas[0]?.round?.scorecard[0]?.gir, "long");
+  assert.deepEqual(Object.keys(ideas[0]?.round ?? {}).sort(), [
+    "albatrosses", "back_9", "birdies", "bogeys", "course_name", "course_par",
+    "double_bogeys", "eagles", "fairways_hit", "fairways_left", "fairways_long",
+    "fairways_missed", "fairways_playable", "fairways_right", "fairways_short",
+    "front_9", "gir_hit", "gir_left", "gir_long", "gir_missed", "gir_playable",
+    "gir_right", "gir_short", "hole_in_one", "pars", "played_at",
+    "player_display_name", "sand_save_opportunities", "score_to_par", "scorecard",
+    "scrambling_opportunities", "successful_sand_saves", "successful_scrambles",
+    "tees", "three_putts", "total_fairways", "total_gir", "total_penalties",
+    "total_putts", "total_score", "triple_bogeys",
+  ]);
   assert.ok(requested[0]?.includes(`round_id.eq.${roundId}`));
   assert.ok(!requested[0]?.includes("story_engine"));
   assert.ok(!requested[0]?.includes("creator_id"));
+  assert.ok(requested.every((path) => !path.includes("player_stories")));
+});
+
+test("round retrieval preserves null and zero three-putt values without recalculation", async () => {
+  const roundIds = ["round-null", "round-zero"];
+  const context: SupabaseRequestContext = {
+    ...requestContext,
+    proxy: async (path) => {
+      if (path.startsWith("/rest/v1/content_ideas?")) {
+        return Response.json(roundIds.map((round_id, index) => ({
+          id: `idea-${index}`, round_id, story_id: base.storyId, category: "Round Analysis",
+          title: "Stored", hook: "Stored", script: "Stored", created_at: "2026-09-09T12:00:00Z",
+        })));
+      }
+      if (path.startsWith("/rest/v1/rounds?")) {
+        return Response.json(roundIds.map((id, index) => ({
+          id, user_id: "player", played_at: "2026-09-09", course_name: null, tees: null,
+          total_score: 80, course_par: 72, score_to_par: index === 0 ? 99 : -7,
+          front_9: null, back_9: null, total_putts: null, total_penalties: null,
+          eagles: null, albatrosses: null, hole_in_one: null, birdies: null, pars: null,
+          bogeys: null, double_bogeys: null, triple_bogeys: null, fairways_hit: null,
+          total_fairways: null, fairways_left: null, fairways_right: null, fairways_long: null,
+          fairways_short: null, fairways_missed: null, fairways_playable: null, gir_hit: null,
+          total_gir: null, gir_short: null, gir_long: null, gir_left: null, gir_right: null,
+          gir_missed: null, gir_playable: null, scrambling_opportunities: null,
+          successful_scrambles: null, sand_save_opportunities: null, successful_sand_saves: null,
+          three_putts: index === 0 ? null : 0,
+        })));
+      }
+      return Response.json([]);
+    },
+  };
+  const ideas = await fetchPersistedCandidates(context, base.storyId, "authorized-round");
+  assert.deepEqual(ideas.map((idea) => idea.round?.three_putts), [null, 0]);
+  assert.deepEqual(ideas.map((idea) => idea.round?.score_to_par), [99, -7]);
 });
 
 test("legacy ideas without a round return a null round and linked rounds preserve nullable fields", async () => {

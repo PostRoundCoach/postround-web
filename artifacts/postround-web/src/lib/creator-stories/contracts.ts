@@ -148,6 +148,7 @@ export interface CreatorContentIdea {
     tees: string | null
     total_score: number | null
     course_par: number | null
+    score_to_par: number | null
     front_9: number | null
     back_9: number | null
     total_putts: number | null
@@ -158,12 +159,16 @@ export interface CreatorContentIdea {
     fairways_right: number | null
     fairways_long: number | null
     fairways_short: number | null
+    fairways_missed: number | null
+    fairways_playable: number | null
     gir_hit: number | null
     total_gir: number | null
     gir_short: number | null
     gir_long: number | null
     gir_left: number | null
     gir_right: number | null
+    gir_missed: number | null
+    gir_playable: number | null
     scrambling_opportunities: number | null
     successful_scrambles: number | null
     three_putts: number | null
@@ -171,12 +176,17 @@ export interface CreatorContentIdea {
     pars: number | null
     bogeys: number | null
     double_bogeys: number | null
-    input_method: 'scorecard' | 'voice_recap' | 'guided_ai' | null
+    triple_bogeys: number | null
+    eagles: number | null
+    albatrosses: number | null
+    hole_in_one: number | null
+    sand_save_opportunities: number | null
+    successful_sand_saves: number | null
     scorecard: {
       hole: number
       par: number | null
       score: number | null
-      fairway: 'hit' | 'left' | 'right' | 'short' | 'none' | null
+      fairway: 'hit' | 'left' | 'right' | 'short' | 'long' | 'none' | null
       gir: 'hit' | 'short' | 'long' | 'left' | 'right' | 'none' | null
       putts: number | null
       chips: number | null
