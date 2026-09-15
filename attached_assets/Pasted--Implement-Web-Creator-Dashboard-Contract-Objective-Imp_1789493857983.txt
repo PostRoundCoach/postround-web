@@ -1,0 +1,554 @@
+# Implement Web Creator Dashboard Contract
+
+## Objective
+
+Implement the web/API changes identified by the completed **Web Creator Dashboard Contract Audit**.
+
+The audit document is:
+
+`docs/web-creator-dashboard-contract-audit.md`
+
+The canonical app-side scoring contract is:
+
+`docs/rounds-scoring-audit.md`
+
+The existing web dashboard contract is:
+
+`CREATOR_DASHBOARD_ROUND_CONTRACT.md`
+
+The audit was performed before the app-side Rounds Scoring Contract implementation was completed. **Task #954 is now complete.** Therefore, do not blindly reproduce the audit's historical "pending migration" state. Reconcile the web implementation against the **current canonical schema and app-side contract**.
+
+This task is an **implementation task**, not another audit.
+
+---
+
+# Critical Rules
+
+## 1. `docs/rounds-scoring-audit.md` is the canonical scoring contract
+
+The app-side contract is authoritative for:
+
+* field names
+* field meanings
+* nullability
+* scoring definitions
+* overlap semantics
+* input methods
+* round-level vs hole-level fields
+
+Do not invent alternate definitions on the web side.
+
+## 2. `score_to_par` is now a database-generated column
+
+Task #954 implemented the canonical generated field:
+
+`rounds.score_to_par`
+
+It represents:
+
+`total_score - course_par`
+
+**Do NOT calculate `score_to_par` in the web application.**
+
+The API should SELECT the database-generated value and pass it through to the dashboard.
+
+There must be one canonical calculation: PostgreSQL.
+
+## 3. `course_par` is now canonical
+
+The app-side contract changed the round-level field from:
+
+`rounds.par`
+
+to:
+
+`rounds.course_par`
+
+The coordinated schema migration has been completed by Task #954.
+
+Do not revert the API or web code back to round-level `par`.
+
+Important distinction:
+
+* `rounds.course_par` = course/round-level par
+* `holes.par` = individual hole par
+
+The hole-level `par` field is correct and must remain `par`.
+
+## 4. Do NOT involve `player_stories`
+
+This is extremely important.
+
+`player_stories` is a separate player-facing product.
+
+It is NOT a creator-content source.
+
+The creator pipeline remains:
+
+`story_candidates`
+→ `story_permissions`
+→ `content_ideas`
+→ `GET /api/content/ideas`
+→ Creator Dashboard
+
+Do not add:
+
+* `player_stories` joins
+* `player_stories` fallbacks
+* Player Story data to creator approval
+* Player Story data to creator content
+* Player Story data to `content_ideas`
+* Player Story data to the Creator Dashboard
+
+The existing isolation identified by the audit is correct and must remain intact.
+
+## 5. Do not modify unrelated product behavior
+
+This task is specifically about bringing the web Creator Dashboard/API into alignment with the canonical rounds contract.
+
+Do not:
+
+* redesign the dashboard
+* change creator permissions
+* change story qualification
+* change Player Stories
+* change AI generation
+* change scoring calculations in the app
+* change mobile behavior
+* reintroduce Voice Recap
+* add new product features
+
+Keep the change tightly scoped.
+
+---
+
+# Required Implementation
+
+## A. Update `GET /api/content/ideas`
+
+Locate the rounds SELECT in:
+
+`artifacts/api-server/src/routes/content.ts`
+
+The rounds SELECT currently retrieves the scoring/context fields used by the Creator Dashboard.
+
+Update it so the API exposes the canonical fields required by the web contract.
+
+Ensure the SELECT includes:
+
+### Top-line
+
+* `total_score`
+* `front_9`
+* `back_9`
+* `course_par`
+* `score_to_par`
+* `played_at`
+* `course_name`
+* `tees`
+
+### Score distribution
+
+* `eagles`
+* `albatrosses`
+* `hole_in_one`
+* `birdies`
+* `pars`
+* `bogeys`
+* `double_bogeys`
+* `triple_bogeys`
+
+### Putting
+
+* `total_putts`
+* `three_putts`
+
+### Fairway accuracy
+
+* `fairways_hit`
+* `total_fairways`
+* `fairways_left`
+* `fairways_right`
+* `fairways_long`
+* `fairways_short`
+* `fairways_missed`
+* `fairways_playable`
+
+### GIR
+
+* `gir_hit`
+* `total_gir`
+* `gir_short`
+* `gir_long`
+* `gir_left`
+* `gir_right`
+* `gir_missed`
+* `gir_playable`
+
+### Scrambling
+
+* `scrambling_opportunities`
+* `successful_scrambles`
+
+### Sand saves
+
+* `sand_save_opportunities`
+* `successful_sand_saves`
+
+Do not remove currently valid fields merely because they were previously undocumented.
+
+---
+
+# B. Reconcile `input_method`
+
+The old dashboard contract declares:
+
+`"scorecard" | "voice_recap" | "guided_ai" | null`
+
+This is incorrect according to the canonical app contract.
+
+The canonical supported values are:
+
+`"scorecard" | "round_buddy"`
+
+Voice Recap is deprecated and has been removed from the active product UI.
+
+Before changing anything, inspect the **current database schema** and existing application code to determine whether `rounds.input_method` actually exists and is populated.
+
+Then:
+
+### If `rounds.input_method` exists and is an intended canonical field:
+
+* SELECT it in `GET /api/content/ideas`
+* expose it to the web
+* update the dashboard contract to:
+
+`"scorecard" | "round_buddy" | null`
+
+### If `rounds.input_method` does not exist / is not part of the current canonical schema:
+
+* do NOT create a new database column solely for this web task
+* remove it from the dashboard contract rather than documenting a field the API cannot provide
+
+Do not add `"voice_recap"` or `"guided_ai"`.
+
+Do not invent a value.
+
+---
+
+# C. Update `CREATOR_DASHBOARD_ROUND_CONTRACT.md`
+
+Bring the contract into alignment with the canonical app-side contract and the actual API response.
+
+Add/document:
+
+* `score_to_par`
+* `eagles`
+* `albatrosses`
+* `hole_in_one`
+* `triple_bogeys`
+* `fairways_missed`
+* `fairways_playable`
+* `gir_missed`
+* `gir_playable`
+* `sand_save_opportunities`
+* `successful_sand_saves`
+
+Make sure the contract accurately describes their:
+
+* type
+* nullability
+* meaning
+* source
+
+Document the intentional overlap between:
+
+* `eagles`
+* `albatrosses`
+* `hole_in_one`
+
+The canonical semantics are:
+
+* `eagles`: `par - score >= 2`
+* `albatrosses`: `par - score === 3`
+* `hole_in_one`: `score === 1`
+
+Therefore these values may overlap intentionally.
+
+Also document:
+
+* `triple_bogeys`: `score - par === 3`
+
+Do not describe these as mutually exclusive categories.
+
+---
+
+# D. Update `three_putts` semantics
+
+The dashboard contract must explicitly preserve the canonical null semantics:
+
+* `three_putts = null` means per-hole putting data was unavailable
+* `three_putts = 0` means putting data was available and there were zero three-putts
+* a positive value means that many three-putts occurred
+
+Do not convert `null` to `0`.
+
+Do not use `|| 0` or equivalent behavior that destroys this distinction.
+
+---
+
+# E. Update the hole-level `fairway` contract
+
+The current dashboard contract omits a valid value.
+
+The canonical `holes.fairway_result` values are:
+
+`"hit" | "left" | "right" | "short" | "long" | "none" | null`
+
+Add:
+
+`"long"`
+
+Do not alter the actual database value.
+
+The API already maps:
+
+`holes.fairway_result → scorecard[].fairway`
+
+That mapping should remain.
+
+---
+
+# F. Preserve the existing hole-level contract
+
+The following mappings are already correct and should remain unchanged:
+
+| Response      | DB source               |
+| ------------- | ----------------------- |
+| `hole`        | `holes.hole_number`     |
+| `par`         | `holes.par`             |
+| `score`       | `holes.score`           |
+| `fairway`     | `holes.fairway_result`  |
+| `gir`         | `holes.gir_result`      |
+| `putts`       | `holes.putts`           |
+| `chips`       | `holes.chip_count`      |
+| `bunker`      | `holes.bunker_shot`     |
+| `sand_save`   | `holes.sand_save`       |
+| `penalties`   | `holes.penalty_strokes` |
+| `player_note` | `holes.player_notes`    |
+
+Do not rename hole-level `par` to `course_par`.
+
+`holes.par` is intentionally different from `rounds.course_par`.
+
+`player_note` must continue to come from `holes.player_notes`, as this is the per-hole player context/notable-moment information used by creator content.
+
+---
+
+# G. Review response shaping
+
+The current implementation spreads selected round fields into the response using the `roundStats` pattern.
+
+Review this carefully.
+
+The final `round` object returned by `GET /api/content/ideas` must expose the canonical fields intentionally.
+
+Do not accidentally expose:
+
+* internal IDs
+* unrelated database columns
+* Player Story fields
+* internal hole fields
+
+At the same time, make sure all required canonical creator-content fields listed above are actually present.
+
+If the existing spread pattern is retained, verify that it does not cause an unintended contract expansion.
+
+Prefer an explicit, understandable API contract over accidental behavior if changing the shaper is necessary.
+
+---
+
+# H. Creator permission behavior must remain unchanged
+
+Do not modify the existing security model.
+
+`GET /api/content/ideas` must continue to:
+
+1. Require authentication.
+2. Resolve the creator from the authenticated bearer token.
+3. Require an active `creator_profiles` record.
+4. Require valid `story_permissions`.
+5. Require `permission_granted = true`.
+6. Require `revoked_at IS NULL`.
+7. Require the appropriate story candidate status.
+
+The client must NOT be able to provide an arbitrary `creator_id` to impersonate another creator.
+
+Do not weaken any of these checks while modifying the response contract.
+
+---
+
+# I. Preserve the creator pipeline
+
+Verify that the implementation still uses:
+
+`story_candidates`
+→ `story_permissions`
+→ `content_ideas`
+→ `GET /api/content/ideas`
+
+The GET endpoint should continue reading creator content from:
+
+`content_ideas`
+
+joined with:
+
+`rounds`
+
+and:
+
+`holes`
+
+with the existing profile lookup for `player_display_name`.
+
+There should be no `player_stories` dependency.
+
+---
+
+# Tests / Verification
+
+Do not stop after making the SELECT changes.
+
+Add or update tests so the implementation proves the contract.
+
+At minimum verify:
+
+## Round contract
+
+* `course_par` is returned
+* `score_to_par` is returned
+* `triple_bogeys` is returned
+* `eagles` is returned
+* `albatrosses` is returned
+* `hole_in_one` is returned
+* `fairways_missed` is returned
+* `fairways_playable` is returned
+* `gir_missed` is returned
+* `gir_playable` is returned
+* `sand_save_opportunities` is returned
+* `successful_sand_saves` is returned
+
+## Score semantics
+
+Verify that the API passes through database values rather than recalculating them.
+
+Especially verify:
+
+`score_to_par === total_score - course_par`
+
+using the database-generated value.
+
+Do not implement a second calculation in TypeScript.
+
+## Putting
+
+Test both:
+
+`three_putts = null`
+
+and:
+
+`three_putts = 0`
+
+and confirm the distinction survives the API response.
+
+## Hole contract
+
+Verify:
+
+* hole-level `par` remains `par`
+* `fairway = "long"` is accepted and returned
+* `gir` supports its full canonical enum
+* `player_note` comes from `holes.player_notes`
+
+## Security
+
+Verify existing permission behavior still works:
+
+* unauthenticated → 401
+* inactive/missing creator → 403
+* missing permission → 403
+* revoked permission → 403
+* invalid story status → 403
+
+## Player Story isolation
+
+Add/retain a regression assertion that the creator content endpoint does not query or depend on `player_stories`.
+
+The creator dashboard must never receive a Player Story as its content artifact.
+
+---
+
+# Important reconciliation with the completed app work
+
+The audit document contains historical statements such as:
+
+* "`course_par` currently returns null because DB column is still `par`"
+* "`score_to_par` pending migration"
+* "`triple_bogeys` does not yet exist"
+* Round Buddy fairway/GIR aggregate gaps
+
+Those statements describe the state **before Task #954**.
+
+Task #954 has now implemented the revised Rounds Scoring Contract.
+
+Therefore, before changing anything:
+
+1. Inspect the current schema.
+2. Inspect the current `content.ts`.
+3. Inspect the current canonical `docs/rounds-scoring-audit.md`.
+4. Reconcile the audit against the current state.
+5. Implement only the remaining web-side contract gaps.
+
+Do NOT:
+
+* rename `course_par` back to `par`
+* calculate `score_to_par` in TypeScript
+* recreate triple-bogey logic on the web
+* add Voice Recap back into the contract
+* introduce Player Stories into creator content
+* create a second source of truth for scoring
+
+---
+
+# Completion Criteria
+
+This task is complete only when:
+
+1. `GET /api/content/ideas` returns the complete canonical creator round contract.
+2. `score_to_par` is consumed from the database-generated column.
+3. `triple_bogeys` is exposed.
+4. All canonical fairway/GIR aggregates are exposed.
+5. Sand-save aggregates are exposed.
+6. `eagles`, `albatrosses`, and `hole_in_one` are formally documented.
+7. `three_putts` null semantics are preserved.
+8. The hole-level `fairway` enum includes `"long"`.
+9. `input_method` is either correctly implemented according to the current schema or removed from the contract if it is not a real canonical field.
+10. `player_stories` remains completely isolated.
+11. Existing creator permission/security behavior is unchanged.
+12. Tests pass.
+13. Type checking/build passes.
+14. No unrelated product behavior is changed.
+
+At the end, provide a concise implementation report containing:
+
+* files changed
+* fields added to the API
+* contract changes
+* tests added/updated
+* confirmation that `score_to_par` is database-generated and not recalculated on web
+* confirmation that `player_stories` remains isolated
+* test/build results
+* any remaining discrepancy that requires a separate task
+
+Do not mark the task complete if any completion criterion above is unresolved.
