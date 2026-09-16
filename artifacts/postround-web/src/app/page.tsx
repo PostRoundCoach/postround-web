@@ -1,13 +1,18 @@
 "use client"
 
 import { useState } from 'react'
+import dynamic from 'next/dynamic'
 import Image from 'next/image'
 import Link from 'next/link'
 import { ArrowRight, BookOpen, Brain, Flag, Menu, MessageSquareText, Share2, Sparkles, Target, TrendingUp, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { EmailCaptureModal } from '@/components/EmailCaptureModal'
 import { Footer } from '@/components/Footer'
 import { FadeIn, StaggerContainer, StaggerItem } from '@/components/motion/FadeIn'
+
+const EmailCaptureModal = dynamic(
+  () => import('@/components/EmailCaptureModal').then((module) => module.EmailCaptureModal),
+  { ssr: false },
+)
 
 const steps = [
   {
