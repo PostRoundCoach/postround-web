@@ -487,6 +487,159 @@ test('retrieval retry calls only the creator ideas endpoint and never regenerate
   }
 })
 
+test('initial retrieval waits for browser session hydration before issuing the GET', async () => {
+  const originalFetch = globalThis.fetch
+  const originalApiBase = process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL
+  process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL = 'https://api.postround.test'
+  const requests: Array<{ url: string; method: string }> = []
+  const hydrate: Array<(session: { access_token: string }) => void> = []
+  let unsubscribed = false
+  globalThis.fetch = (async (url, init) => {
+    requests.push({ url: String(url), method: init?.method ?? 'GET' })
+    return Response.json({
+      ok: true,
+      story_id: 'story-1',
+      ideas: [contentIdea],
+      permission_status: 'pending',
+    })
+  }) as typeof fetch
+  const supabase = {
+    auth: {
+      async getSession() {
+        return { data: { session: null }, error: null }
+      },
+      onAuthStateChange(callback: (_event: string, session: { access_token: string }) => void) {
+        hydrate.push((session) => callback('INITIAL_SESSION', session))
+        return { data: { subscription: { unsubscribe() { unsubscribed = true } } } }
+      },
+    },
+  } as unknown as SupabaseClient
+
+  try {
+    const retrieval = fetchStoryCandidates(supabase, 'story-1')
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    assert.deepEqual(requests, [])
+    hydrate.forEach((callback) => callback({ access_token: 'hydrated-token' }))
+    assert.equal((await retrieval).ideas[0]?.id, 'idea-1')
+    assert.deepEqual(requests, [{
+      url: 'https://api.postround.test/api/content/ideas?story_id=story-1',
+      method: 'GET',
+    }])
+    assert.equal(unsubscribed, true)
+  } finally {
+    globalThis.fetch = originalFetch
+    if (originalApiBase === undefined) delete process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL
+    else process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL = originalApiBase
+  }
+})
+
+test('concurrent story retrieval stays isolated and an aborted stale request cannot fetch', async () => {
+  const originalFetch = globalThis.fetch
+  const originalApiBase = process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL
+  process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL = 'https://api.postround.test'
+  const requestedStories: string[] = []
+  const hydrate: Array<(session: { access_token: string }) => void> = []
+  const supabase = {
+    auth: {
+      async getSession() {
+        return { data: { session: null }, error: null }
+      },
+      onAuthStateChange(callback: (_event: string, session: { access_token: string }) => void) {
+        hydrate.push((session) => callback('INITIAL_SESSION', session))
+        return { data: { subscription: { unsubscribe() {} } } }
+      },
+    },
+  } as unknown as SupabaseClient
+  globalThis.fetch = (async (url) => {
+    const id = new URL(String(url)).searchParams.get('story_id')!
+    requestedStories.push(id)
+    if (id === 'story-failed') {
+      return Response.json({ error: 'Story access changed.', stage: 'authorization' }, { status: 403 })
+    }
+    return Response.json({ ok: true, story_id: id, ideas: [], permission_status: 'pending' })
+  }) as typeof fetch
+
+  try {
+    const aborted = new AbortController()
+    const stale = fetchStoryCandidates(supabase, 'story-stale', { signal: aborted.signal })
+    aborted.abort()
+    await assert.rejects(stale, (error: unknown) => error instanceof Error && error.name === 'AbortError')
+
+    const failed = fetchStoryCandidates(supabase, 'story-failed')
+    const successful = fetchStoryCandidates(supabase, 'story-success')
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    hydrate.forEach((callback) => callback({ access_token: 'hydrated-token' }))
+    await assert.rejects(
+      failed,
+      (error: unknown) => error instanceof CreatorStoryApiError
+        && error.status === 403
+        && error.stage === 'authorization'
+        && error.message === 'Story access changed.',
+    )
+    assert.equal((await successful).story_id, 'story-success')
+    assert.deepEqual(requestedStories.sort(), ['story-failed', 'story-success'])
+  } finally {
+    globalThis.fetch = originalFetch
+    if (originalApiBase === undefined) delete process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL
+    else process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL = originalApiBase
+  }
+})
+
+test('initial card requests are bounded and a transient 429 retries through the same GET', async () => {
+  const originalFetch = globalThis.fetch
+  const originalApiBase = process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL
+  process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL = 'https://api.postround.test'
+  let active = 0
+  let peakActive = 0
+  const attempts = new Map<string, number>()
+  globalThis.fetch = (async (url, init) => {
+    const storyId = new URL(String(url)).searchParams.get('story_id')!
+    assert.equal(init?.method, 'GET')
+    active += 1
+    peakActive = Math.max(peakActive, active)
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    active -= 1
+    const attempt = (attempts.get(storyId) ?? 0) + 1
+    attempts.set(storyId, attempt)
+    if (storyId === 'story-2' && attempt === 1) {
+      return Response.json({
+        error: 'The Story Engine data source could not complete this request.',
+        stage: 'authorization',
+      }, { status: 429 })
+    }
+    return Response.json({
+      ok: true,
+      story_id: storyId,
+      ideas: [],
+      permission_status: 'pending',
+    })
+  }) as typeof fetch
+  const supabase = {
+    auth: {
+      async getSession() {
+        return { data: { session: { access_token: 'test-access-token' } }, error: null }
+      },
+    },
+  } as unknown as SupabaseClient
+
+  try {
+    const results = await Promise.all(
+      ['story-1', 'story-2', 'story-3', 'story-4'].map((id) =>
+        fetchStoryCandidates(supabase, id)),
+    )
+    assert.deepEqual(results.map(({ story_id }) => story_id), [
+      'story-1', 'story-2', 'story-3', 'story-4',
+    ])
+    assert.equal(peakActive, 2)
+    assert.equal(attempts.get('story-2'), 2)
+    assert.equal([...attempts.values()].reduce((sum, count) => sum + count, 0), 5)
+  } finally {
+    globalThis.fetch = originalFetch
+    if (originalApiBase === undefined) delete process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL
+    else process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL = originalApiBase
+  }
+})
+
 test('rejects malformed generated ideas instead of fabricating content', async () => {
   const originalFetch = globalThis.fetch
   const originalApiBase = process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL

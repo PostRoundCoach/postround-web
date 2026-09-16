@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Calendar, CircleCheck, Clock3, Loader2, MapPin, RefreshCw, Send, Sparkles, Trash2, User } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -26,31 +26,54 @@ export function StoryCard({
   const [permissionStatus, setPermissionStatus] = useState(story.permissionStatus)
   const [isRequestingApproval, setIsRequestingApproval] = useState(false)
   const [approvalRequestFailed, setApprovalRequestFailed] = useState(false)
+  const requestSequence = useRef(0)
+  const activeRequest = useRef<AbortController | null>(null)
 
-  const loadCandidates = async (
+  const loadCandidates = useCallback(async (
     supabase: NonNullable<ReturnType<typeof createClient>>,
+    trigger: 'initial' | 'retry',
   ) => {
+    const sequence = ++requestSequence.current
+    activeRequest.current?.abort()
+    const controller = new AbortController()
+    activeRequest.current = controller
     setIsFetchingIdeas(true)
     setRetrievalFailed(false)
 
     try {
-      const result = await fetchStoryCandidates(supabase, story.id)
+      const result = await fetchStoryCandidates(supabase, story.id, {
+        signal: controller.signal,
+      })
+      if (sequence !== requestSequence.current) return
       setCandidates(result.ideas)
       setPermissionStatus(result.permission_status)
-    } catch {
+    } catch (error) {
+      if (controller.signal.aborted || sequence !== requestSequence.current) return
+      console.warn('[Creator ideas] Retrieval failed', {
+        storyId: story.id,
+        trigger,
+        status: error instanceof Error && 'status' in error ? error.status : null,
+        stage: error instanceof Error && 'stage' in error ? error.stage : null,
+        message: error instanceof Error ? error.message : 'Unknown retrieval failure',
+      })
       setRetrievalFailed(true)
     } finally {
+      if (sequence !== requestSequence.current) return
+      activeRequest.current = null
       setIsFetchingIdeas(false)
     }
-  }
+  }, [story.id])
 
   useEffect(() => {
     const supabase = createClient()
     if (!supabase) return
-    void loadCandidates(supabase)
-    // The story ID is stable for the lifetime of this card.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [story.id])
+    void loadCandidates(supabase, 'initial')
+    return () => {
+      requestSequence.current += 1
+      activeRequest.current?.abort()
+      activeRequest.current = null
+    }
+  }, [loadCandidates])
 
   const handleRetryIdeas = async () => {
     if (isFetchingIdeas) return
@@ -61,7 +84,7 @@ export function StoryCard({
       return
     }
 
-    await loadCandidates(supabase)
+    await loadCandidates(supabase, 'retry')
   }
 
   const handleDismiss = async () => {

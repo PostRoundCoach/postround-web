@@ -40,6 +40,7 @@ export default defineConfig({
         NEXT_PUBLIC_SUPABASE_URL: fixtureUrl,
         NEXT_PUBLIC_SUPABASE_ANON_KEY: 'e2e-anon-key',
         NEXT_PUBLIC_POSTROUND_API_BASE_URL: fixtureUrl,
+        NEXT_PUBLIC_POSTROUND_ALLOW_LOCAL_API: 'true',
       },
       timeout: 180_000,
     },

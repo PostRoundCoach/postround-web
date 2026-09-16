@@ -70,13 +70,64 @@ export class CreatorStoryConfigurationError extends Error {
   }
 }
 
+const MAX_CONCURRENT_IDEA_REQUESTS = 2
+let activeIdeaRequests = 0
+const ideaRequestWaiters: Array<() => void> = []
+
+async function acquireIdeaRequestSlot(signal?: AbortSignal): Promise<() => void> {
+  if (signal?.aborted) throw abortError()
+
+  if (activeIdeaRequests >= MAX_CONCURRENT_IDEA_REQUESTS) {
+    await new Promise<void>((resolve, reject) => {
+      const enter = () => {
+        signal?.removeEventListener('abort', onAbort)
+        resolve()
+      }
+      const onAbort = () => {
+        const index = ideaRequestWaiters.indexOf(enter)
+        if (index >= 0) ideaRequestWaiters.splice(index, 1)
+        reject(abortError())
+      }
+      ideaRequestWaiters.push(enter)
+      signal?.addEventListener('abort', onAbort, { once: true })
+    })
+  }
+
+  activeIdeaRequests += 1
+  let released = false
+  return () => {
+    if (released) return
+    released = true
+    activeIdeaRequests -= 1
+    ideaRequestWaiters.shift()?.()
+  }
+}
+
+async function abortableDelay(milliseconds: number, signal?: AbortSignal): Promise<void> {
+  if (signal?.aborted) throw abortError()
+  await new Promise<void>((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      signal?.removeEventListener('abort', onAbort)
+      resolve()
+    }, milliseconds)
+    const onAbort = () => {
+      clearTimeout(timeout)
+      reject(abortError())
+    }
+    signal?.addEventListener('abort', onAbort, { once: true })
+  })
+}
+
 function contentApiBase(): string {
   const apiBase = process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL?.trim()
   if (!apiBase) throw new CreatorStoryConfigurationError()
 
   try {
     const url = new URL(apiBase)
-    const isLocalDevelopmentOrigin = process.env.NODE_ENV !== 'production'
+    const isLocalDevelopmentOrigin = (
+      process.env.NODE_ENV !== 'production'
+      || process.env.NEXT_PUBLIC_POSTROUND_ALLOW_LOCAL_API === 'true'
+    )
       && url.protocol === 'http:'
       && (url.hostname === '127.0.0.1' || url.hostname === 'localhost')
     if (
@@ -311,15 +362,53 @@ function toContentIdea(value: unknown): CreatorContentIdea | null {
   }
 }
 
-async function authenticatedAccessToken(supabase: SupabaseClient): Promise<string> {
+function abortError(): Error {
+  return new DOMException('The request was aborted.', 'AbortError')
+}
+
+async function authenticatedAccessToken(
+  supabase: SupabaseClient,
+  options: { signal?: AbortSignal } = {},
+): Promise<string> {
   const { data: { session }, error: sessionError } = await supabase.auth.getSession()
   const accessToken = session?.access_token
 
-  if (sessionError || !accessToken) {
+  if (sessionError) {
     throw new CreatorStoryApiError(401)
   }
+  if (accessToken) return accessToken
+  if (options.signal?.aborted) throw abortError()
 
-  return accessToken
+  // Browser auth hydration can finish after the first client render. Waiting for
+  // INITIAL_SESSION avoids turning that transient state into a permanent card error.
+  return await new Promise<string>((resolve, reject) => {
+    let settled = false
+    let subscription: { unsubscribe(): void } | undefined
+    const finish = (token?: string) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timeout)
+      options.signal?.removeEventListener('abort', onAbort)
+      subscription?.unsubscribe()
+      token ? resolve(token) : reject(new CreatorStoryApiError(401))
+    }
+    const onAbort = () => {
+      if (settled) return
+      settled = true
+      clearTimeout(timeout)
+      subscription?.unsubscribe()
+      reject(abortError())
+    }
+    const timeout = setTimeout(() => finish(), 5_000)
+    const authListener = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      const token = nextSession?.access_token
+      if (token) finish(token)
+    })
+    subscription = authListener.data.subscription
+    if (settled) subscription.unsubscribe()
+    options.signal?.addEventListener('abort', onAbort, { once: true })
+    if (options.signal?.aborted) onAbort()
+  })
 }
 
 async function apiFailure(response: Response, fallback: string): Promise<CreatorStoryApiError> {
@@ -448,38 +537,51 @@ export async function fetchStoryCandidates(
   storyId: string,
   options: { signal?: AbortSignal } = {},
 ): Promise<FetchStoryCandidatesResponse> {
-  const accessToken = await authenticatedAccessToken(supabase)
-  const response = await fetch(generatedIdeasUrl(storyId), {
-    method: 'GET',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-    },
-    signal: options.signal,
-  })
+  const release = await acquireIdeaRequestSlot(options.signal)
+  try {
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const accessToken = await authenticatedAccessToken(supabase, options)
+      const response = await fetch(generatedIdeasUrl(storyId), {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+        signal: options.signal,
+      })
 
-  if (!response.ok) {
-    throw await apiFailure(response, 'Generated content could not be loaded.')
-  }
+      if (!response.ok) {
+        const error = await apiFailure(response, 'Generated content could not be loaded.')
+        if (error.status === 429 && attempt === 0) {
+          await abortableDelay(300, options.signal)
+          continue
+        }
+        throw error
+      }
 
-  const payload: unknown = await response.json()
-  const result = asObject(payload)
-  if (result?.ok !== true
-    || result.story_id !== storyId
-    || !Array.isArray(result.ideas)
-    || !isStoryPermissionStatus(result.permission_status)) {
+      const payload: unknown = await response.json()
+      const result = asObject(payload)
+      if (result?.ok !== true
+        || result.story_id !== storyId
+        || !Array.isArray(result.ideas)
+        || !isStoryPermissionStatus(result.permission_status)) {
+        throw new CreatorStoryApiError(500, 'Generated content could not be loaded.')
+      }
+
+      const ideas = result.ideas.map(toContentIdea)
+      if (ideas.some((idea) => idea === null || idea.story_id !== storyId)) {
+        throw new CreatorStoryApiError(500, 'Generated content could not be loaded.')
+      }
+
+      return {
+        ok: true,
+        story_id: storyId,
+        ideas: ideas as CreatorContentIdea[],
+        permission_status: result.permission_status,
+      }
+    }
     throw new CreatorStoryApiError(500, 'Generated content could not be loaded.')
-  }
-
-  const ideas = result.ideas.map(toContentIdea)
-  if (ideas.some((idea) => idea === null || idea.story_id !== storyId)) {
-    throw new CreatorStoryApiError(500, 'Generated content could not be loaded.')
-  }
-
-  return {
-    ok: true,
-    story_id: storyId,
-    ideas: ideas as CreatorContentIdea[],
-    permission_status: result.permission_status,
+  } finally {
+    release()
   }
 }
 

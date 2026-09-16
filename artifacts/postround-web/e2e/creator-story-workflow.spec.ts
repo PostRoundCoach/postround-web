@@ -19,11 +19,23 @@ async function signIn(page: import('@playwright/test').Page) {
 }
 
 test('creator story queue persists candidates, approval, and dismissal state', async ({ page }) => {
+  const contentRequests: Array<{ method: string; pathname: string }> = []
+  page.on('request', (request) => {
+    const url = new URL(request.url())
+    if (url.pathname.startsWith('/api/content/')) {
+      contentRequests.push({ method: request.method(), pathname: url.pathname })
+    }
+  })
+
   await signIn(page)
   await page.goto('/creator')
 
   await expect(page.getByTestId(`card-story-${storyId}`)).toBeVisible()
   await page.getByTestId(`card-story-candidate-${candidateId}`).waitFor()
+  expect(contentRequests).toContainEqual({ method: 'GET', pathname: '/api/content/stories' })
+  expect(contentRequests).toContainEqual({ method: 'GET', pathname: '/api/content/ideas' })
+  expect(contentRequests).not.toContainEqual({ method: 'POST', pathname: '/api/content/generate' })
+  expect(contentRequests.every(({ pathname }) => !pathname.includes('player_stories'))).toBe(true)
   await expect(page.getByText('Player approval required')).toBeVisible()
   await page.getByTestId(`card-story-candidate-${candidateId}`).getByText('View full details and context').click()
   await expect(page.getByTestId('scorecard-player-name')).toHaveText(/Fixture Golfer/)
