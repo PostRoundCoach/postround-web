@@ -1,0 +1,45 @@
+Creator Dashboard: Debug initial content_ideas retrieval failure
+
+In Creator Dashboard, newly available Stories are displaying “Ideas couldn’t be loaded” on the initial dashboard load, even though the underlying content_ideas exist and clicking Retry on each individual Story immediately loads the correct generated content.
+
+Reproduce and trace the initial dashboard loading lifecycle.
+
+Observed behavior
+Complete a qualifying scorecard round.
+Select Create & Share.
+Story appears in Creator Dashboard.
+On initial dashboard load, Stories display:
+“Ideas couldn’t be loaded”
+Click Retry on an individual Story.
+Existing generated content_ideas load successfully.
+No new generation occurs.
+Required investigation
+
+Trace:
+
+Creator Dashboard initial story fetch.
+When GET /api/content/ideas?story_id=... is called.
+The exact request/response/status for the initial load.
+Whether the request is being made before the creator/story/permission/round state required by the API is available.
+Whether multiple story retrieval requests are racing during initial render.
+Whether React state/effect dependencies cause the initial request to use stale or incomplete story data.
+Whether an error from one story is incorrectly setting shared/global retrieval failure state for all stories.
+Compare the exact request made during initial load with the request made by the working Retry action.
+Capture the backend response body for both cases.
+Important
+
+Do not change story generation, story_candidates, story_permissions, player_stories, or the content-generation engine.
+
+Do not regenerate content as part of the fix.
+
+The existing content_ideas are being successfully retrieved by Retry, so identify why the same retrieval path does not reliably succeed on initial dashboard load.
+
+Preserve the current Creator Studio contract:
+
+story → active permission → content_ideas
+
+player_stories must remain completely outside the creator approval/retrieval path.
+
+Success condition
+
+On the first Creator Dashboard load, every Story whose content_ideas already exist should display its generated content immediately, without requiring the creator to manually press Retry.
