@@ -1,5 +1,16 @@
 import { ReplitConnectors } from "@replit/connectors-sdk";
 import type { ScorecardHole, StoryCandidate } from "./story-engine";
+import type {
+  CoachingReflectionContent,
+  CreatorContentIdeaSummary,
+  CreatorContentStory,
+  RoundHighlights,
+  RoundSummary,
+  RoundWebContract,
+  ScorecardEntry,
+  StoryCandidateSummary,
+  StoryPermissionTimestamps,
+} from "./roundWebContract";
 
 export class CreatorContentError extends Error {
   readonly status: number;
@@ -259,6 +270,255 @@ export async function fetchCreatorStoryQueue(context: SupabaseRequestContext) {
         : "pending";
     return stories.map((story) => ({ ...story, permission_status: permissionStatus }));
   });
+}
+
+type RoundContractRow = {
+  id: string;
+  user_id: string;
+  played_at: string;
+  course_name: string | null;
+  tees: string | null;
+  input_method: string | null;
+  total_score: number | null;
+  course_par: number | null;
+  front_9: number | null;
+  back_9: number | null;
+  total_putts: number | null;
+  total_penalties: number | null;
+  fairways_hit: number | null;
+  total_fairways: number | null;
+  fairways_left: number | null;
+  fairways_right: number | null;
+  fairways_long: number | null;
+  fairways_short: number | null;
+  gir_hit: number | null;
+  total_gir: number | null;
+  gir_short: number | null;
+  gir_long: number | null;
+  gir_left: number | null;
+  gir_right: number | null;
+  scrambling_opportunities: number | null;
+  successful_scrambles: number | null;
+  three_putts: number | null;
+  birdies: number | null;
+  pars: number | null;
+  bogeys: number | null;
+  double_bogeys: number | null;
+  eagles: number | null;
+  albatrosses: number | null;
+  hole_in_one: number | null;
+};
+
+type RoundCandidateRow = StoryCandidateSummary & { user_id: string };
+type RoundPermissionRow = PermissionRow;
+type RoundProfileRow = { display_name: string | null };
+type RoundHoleRow = {
+  hole_number: number;
+  par: number | null;
+  score: number | null;
+  fairway_result: string | null;
+  gir_result: string | null;
+  putts: number | null;
+  chip_count: number | null;
+  bunker_shot: boolean | null;
+  sand_save: boolean | null;
+  penalty_strokes: number | null;
+  player_notes: string | null;
+};
+type RoundContentIdeaRow = {
+  id: string;
+  category: string;
+  title: string;
+  hook: string;
+  script: string | null;
+  story_angle: string | null;
+  why_interesting: string | null;
+  reflection: string | null;
+  created_at: string;
+  status: string;
+  content_type: string | null;
+};
+
+const roundSelect = [
+  "id", "user_id", "played_at", "course_name", "tees", "input_method",
+  "total_score", "course_par", "front_9", "back_9", "total_putts", "total_penalties",
+  "fairways_hit", "total_fairways", "fairways_left", "fairways_right", "fairways_long",
+  "fairways_short", "gir_hit", "total_gir", "gir_short", "gir_long", "gir_left", "gir_right",
+  "scrambling_opportunities", "successful_scrambles", "three_putts", "birdies", "pars",
+  "bogeys", "double_bogeys", "eagles", "albatrosses", "hole_in_one",
+].join(",");
+
+function nullableString(value: unknown): string | null {
+  return typeof value === "string" ? value : null;
+}
+
+function roundInputMethod(value: string | null): RoundSummary["input_method"] {
+  return value === "scorecard" || value === "round_buddy" ? value : null;
+}
+
+function fairwayResult(value: string | null): ScorecardEntry["fairway"] {
+  return value === "hit" || value === "left" || value === "right"
+    || value === "short" || value === "long" || value === "none"
+    ? value
+    : null;
+}
+
+function girResult(value: string | null): ScorecardEntry["gir"] {
+  return value === "hit" || value === "short" || value === "long"
+    || value === "left" || value === "right" || value === "none"
+    ? value
+    : null;
+}
+
+function mapRoundHighlights(round: RoundContractRow): RoundHighlights {
+  return {
+    total_score: round.total_score, course_par: round.course_par, front_9: round.front_9,
+    back_9: round.back_9, total_putts: round.total_putts, total_penalties: round.total_penalties,
+    fairways_hit: round.fairways_hit, total_fairways: round.total_fairways,
+    fairways_left: round.fairways_left, fairways_right: round.fairways_right,
+    fairways_long: round.fairways_long, fairways_short: round.fairways_short,
+    gir_hit: round.gir_hit, total_gir: round.total_gir, gir_short: round.gir_short,
+    gir_long: round.gir_long, gir_left: round.gir_left, gir_right: round.gir_right,
+    scrambling_opportunities: round.scrambling_opportunities,
+    successful_scrambles: round.successful_scrambles, three_putts: round.three_putts,
+    birdies: round.birdies, pars: round.pars, bogeys: round.bogeys,
+    double_bogeys: round.double_bogeys, eagles: round.eagles,
+    albatrosses: round.albatrosses, hole_in_one: round.hole_in_one,
+  };
+}
+
+function mapPermission(permission: RoundPermissionRow): StoryPermissionTimestamps {
+  return {
+    granted_at: permission.granted_at,
+    revoked_at: permission.revoked_at,
+    approval_requested_at: permission.approval_requested_at,
+  };
+}
+
+function mapContentIdea(row: RoundContentIdeaRow): CreatorContentIdeaSummary {
+  return {
+    id: row.id, category: row.category, title: row.title, hook: row.hook,
+    script: nullableString(row.script), story_angle: nullableString(row.story_angle),
+    why_interesting: nullableString(row.why_interesting), created_at: row.created_at,
+  };
+}
+
+/**
+ * Loads the unified round contract only after resolving the creator, eligible
+ * candidate, and active permission from server-side identity.
+ */
+async function fetchRoundWebContractData(
+  context: SupabaseRequestContext,
+  roundId: string,
+): Promise<RoundWebContract> {
+  const profiles = await rest<CreatorRow[]>(
+    context,
+    `creator_profiles?select=id&user_id=eq.${encodeURIComponent(context.userId)}&status=eq.active&limit=1`,
+  );
+  const creator = profiles[0];
+  if (!creator) throw new CreatorContentError(403, "This account does not control an active creator profile.");
+
+  const candidates = await rest<RoundCandidateRow[]>(
+    context,
+    `story_candidates?select=id,story_type,headline,summary,status,user_id&round_id=eq.${encodeURIComponent(roundId)}&status=in.(offered,shared)`,
+  );
+  if (candidates.length === 0) {
+    throw new CreatorContentError(403, "This creator is not permitted to access the round.");
+  }
+
+  const permissions = await rest<RoundPermissionRow[]>(
+    context,
+    `story_permissions?select=id,story_id,user_id,permission_granted,approval_requested_at,granted_at,revoked_at&creator_id=eq.${encodeURIComponent(creator.id)}&story_id=in.(${candidates.map((item) => encodeURIComponent(item.id)).join(",")})&permission_granted=eq.true&revoked_at=is.null&limit=1`,
+  );
+  const permission = permissions[0];
+  const candidate = permission
+    ? candidates.find((item) => item.id === permission.story_id && item.user_id === permission.user_id)
+    : undefined;
+  if (!permission || !candidate) {
+    throw new CreatorContentError(403, "This creator is not permitted to access the round.");
+  }
+
+  const rounds = await rest<RoundContractRow[]>(
+    context,
+    `rounds?select=${roundSelect}&id=eq.${encodeURIComponent(roundId)}&user_id=eq.${encodeURIComponent(candidate.user_id)}&limit=1`,
+  );
+  const round = rounds[0];
+  if (!round) throw new CreatorContentError(404, "The requested round does not exist.");
+
+  const [profilesForRound, holes, creatorIdeas, coachingIdeas] = await Promise.all([
+    rest<RoundProfileRow[]>(
+      context,
+      `profiles?select=display_name&id=eq.${encodeURIComponent(round.user_id)}&limit=1`,
+    ),
+    rest<RoundHoleRow[]>(
+      context,
+      `holes?select=hole_number,par,score,fairway_result,gir_result,putts,chip_count,bunker_shot,sand_save,penalty_strokes,player_notes&round_id=eq.${encodeURIComponent(roundId)}&order=hole_number.asc`,
+    ),
+    rest<RoundContentIdeaRow[]>(
+      context,
+      `content_ideas?select=id,category,title,hook,script,story_angle,why_interesting,reflection,created_at,status,content_type&round_id=eq.${encodeURIComponent(roundId)}&story_id=eq.${encodeURIComponent(candidate.id)}&content_type=eq.creator_story&status=neq.generating&order=created_at.asc,id.asc&limit=1`,
+    ),
+    rest<RoundContentIdeaRow[]>(
+      context,
+      `content_ideas?select=id,category,title,hook,script,story_angle,why_interesting,reflection,created_at,status,content_type&round_id=eq.${encodeURIComponent(roundId)}&story_id=eq.${encodeURIComponent(candidate.id)}&category=eq.coaching_reflection&status=neq.generating&order=created_at.asc,id.asc&limit=1`,
+    ),
+  ]);
+
+  const candidateSummary: StoryCandidateSummary = {
+    id: candidate.id, story_type: candidate.story_type, headline: candidate.headline,
+    summary: candidate.summary, status: candidate.status,
+  };
+  const creatorContentStory: CreatorContentStory = {
+    available: true, permissionState: "granted", permission: mapPermission(permission),
+    candidate: candidateSummary,
+    contentIdea: creatorIdeas[0] ? mapContentIdea(creatorIdeas[0]) : null,
+  };
+  const coaching = coachingIdeas[0];
+  const coachingReflection = coaching
+    ? {
+        available: true as const,
+        content: {
+          id: coaching.id, title: coaching.title, hook: coaching.hook,
+          reflection: nullableString(coaching.reflection), script: nullableString(coaching.script),
+          created_at: coaching.created_at,
+        } satisfies CoachingReflectionContent,
+      }
+    : { available: false as const };
+  const scorecard: ScorecardEntry[] = holes
+    .sort((a, b) => a.hole_number - b.hole_number)
+    .map((hole) => ({
+      hole: hole.hole_number, par: hole.par, score: hole.score,
+      fairway: fairwayResult(hole.fairway_result),
+      gir: girResult(hole.gir_result),
+      putts: hole.putts, chips: hole.chip_count, bunker: hole.bunker_shot,
+      sand_save: hole.sand_save, penalties: hole.penalty_strokes, player_note: hole.player_notes,
+    }));
+
+  return {
+    round: {
+      played_at: round.played_at, course_name: round.course_name, tees: round.tees,
+      player_display_name: profilesForRound[0]?.display_name ?? null,
+      input_method: roundInputMethod(round.input_method),
+    },
+    roundHighlights: mapRoundHighlights(round),
+    scorecard,
+    creatorContentStory,
+    coachingReflection,
+  };
+}
+
+export async function fetchRoundWebContract(
+  context: SupabaseRequestContext,
+  roundId: string,
+): Promise<RoundWebContract> {
+  try {
+    return await fetchRoundWebContractData(context, roundId);
+  } catch (error) {
+    if (error instanceof CreatorContentError && error.status === 502) {
+      throw new CreatorContentError(500, error.message, error.diagnostic);
+    }
+    throw error;
+  }
 }
 
 type DbHole = {

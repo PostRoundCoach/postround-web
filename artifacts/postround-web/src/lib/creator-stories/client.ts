@@ -12,6 +12,13 @@ import type {
   FetchStoryCandidatesResponse,
   DismissCreatorStoryResponse,
   RequestStoryApprovalResponse,
+  FetchRoundContractResponse,
+  RoundWebContract,
+  RoundHighlights,
+  RoundScorecardEntry,
+  RoundContentIdea,
+  RoundCreatorContentStory,
+  RoundCoachingReflection,
 } from './contracts'
 
 const CREATOR_PROFILE_SELECT = `
@@ -172,6 +179,10 @@ function requestStoryApprovalUrl(storyId: string): string {
   return `${contentApiBase()}/api/content/stories/${encodeURIComponent(storyId)}/approval-request`
 }
 
+function roundContractUrl(roundId: string): string {
+  return `${contentApiBase()}/api/content/round/${encodeURIComponent(roundId)}`
+}
+
 function asObject(value: unknown): Record<string, unknown> | null {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
     ? value as Record<string, unknown>
@@ -224,6 +235,119 @@ function isBooleanOrNull(v: unknown): v is boolean | null {
 
 function isStringOrNull(v: unknown): v is string | null {
   return v === null || typeof v === 'string'
+}
+
+function parseRoundScorecard(value: unknown): RoundScorecardEntry[] | null {
+  if (!Array.isArray(value)) return null
+  let previous = 0
+  const result: RoundScorecardEntry[] = []
+  for (const item of value) {
+    const hole = asObject(item)
+    if (!hole || typeof hole.hole !== 'number' || !Number.isInteger(hole.hole) || hole.hole <= previous) return null
+    previous = hole.hole
+    if (!isIntOrNull(hole.par) || !isIntOrNull(hole.score) || !isIntOrNull(hole.putts)
+      || !isIntOrNull(hole.chips) || !isIntOrNull(hole.penalties)
+      || !isFairway(hole.fairway) || !isGir(hole.gir)
+      || !isBooleanOrNull(hole.bunker) || !isBooleanOrNull(hole.sand_save)
+      || !isStringOrNull(hole.player_note)) return null
+    result.push({
+      hole: hole.hole, par: hole.par, score: hole.score, fairway: hole.fairway,
+      gir: hole.gir, putts: hole.putts, chips: hole.chips, bunker: hole.bunker,
+      sand_save: hole.sand_save, penalties: hole.penalties, player_note: hole.player_note,
+    })
+  }
+  return result
+}
+
+const ROUND_HIGHLIGHT_KEYS = [
+  'total_score', 'course_par', 'front_9', 'back_9', 'total_putts', 'total_penalties',
+  'fairways_hit', 'total_fairways', 'fairways_left', 'fairways_right', 'fairways_long',
+  'fairways_short', 'gir_hit', 'total_gir', 'gir_short', 'gir_long', 'gir_left',
+  'gir_right', 'scrambling_opportunities', 'successful_scrambles', 'three_putts',
+  'birdies', 'pars', 'bogeys', 'double_bogeys', 'eagles', 'albatrosses', 'hole_in_one',
+] as const
+
+function parseRoundHighlights(value: unknown): RoundHighlights | null {
+  const object = asObject(value)
+  if (!object || ROUND_HIGHLIGHT_KEYS.some((key) => !isIntOrNull(object[key]))) return null
+  return Object.fromEntries(ROUND_HIGHLIGHT_KEYS.map((key) => [key, object[key]])) as unknown as RoundHighlights
+}
+
+function parseRoundContentIdea(value: unknown): RoundContentIdea | null {
+  const object = asObject(value)
+  if (!object
+    || typeof object.id !== 'string' || typeof object.category !== 'string'
+    || typeof object.title !== 'string' || typeof object.hook !== 'string'
+    || !isStringOrNull(object.script) || !isStringOrNull(object.story_angle)
+    || !isStringOrNull(object.why_interesting) || typeof object.created_at !== 'string') return null
+  return {
+    id: object.id, category: object.category, title: object.title, hook: object.hook,
+    script: object.script, story_angle: object.story_angle, why_interesting: object.why_interesting,
+    created_at: object.created_at,
+  }
+}
+
+function parseRoundContract(value: unknown): RoundWebContract | null {
+  const root = asObject(value)
+  const round = asObject(root?.round)
+  const highlights = parseRoundHighlights(root?.roundHighlights)
+  const scorecard = parseRoundScorecard(root?.scorecard)
+  if (!round || !highlights || !scorecard
+    || typeof round.played_at !== 'string' || !isStringOrNull(round.course_name)
+    || !isStringOrNull(round.tees) || !isStringOrNull(round.player_display_name)
+    || !(round.input_method === null || round.input_method === 'scorecard' || round.input_method === 'round_buddy')) return null
+
+  const creator = asObject(root?.creatorContentStory)
+  const coaching = asObject(root?.coachingReflection)
+  if (!creator || !coaching || typeof creator.available !== 'boolean' || typeof coaching.available !== 'boolean') return null
+  let creatorContentStory: RoundCreatorContentStory
+  if (!creator.available) creatorContentStory = { available: false }
+  else {
+    const permission = asObject(creator.permission)
+    const candidate = asObject(creator.candidate)
+    if (creator.permissionState !== 'granted' || !permission || !candidate
+      || !isStringOrNull(permission.granted_at) || !isStringOrNull(permission.revoked_at)
+      || !isStringOrNull(permission.approval_requested_at)
+      || typeof candidate.id !== 'string' || typeof candidate.story_type !== 'string'
+      || typeof candidate.headline !== 'string' || typeof candidate.summary !== 'string'
+      || (candidate.status !== 'offered' && candidate.status !== 'shared')) return null
+    const contentIdea = creator.contentIdea === null ? null : parseRoundContentIdea(creator.contentIdea)
+    if (creator.contentIdea !== null && !contentIdea) return null
+    creatorContentStory = {
+      available: true, permissionState: 'granted',
+      permission: {
+        granted_at: permission.granted_at, revoked_at: permission.revoked_at,
+        approval_requested_at: permission.approval_requested_at,
+      },
+      candidate: {
+        id: candidate.id, story_type: candidate.story_type, headline: candidate.headline,
+        summary: candidate.summary, status: candidate.status,
+      },
+      contentIdea,
+    }
+  }
+  let coachingReflection: RoundCoachingReflection
+  if (!coaching.available) coachingReflection = { available: false }
+  else {
+    const content = asObject(coaching.content)
+    if (!content || typeof content.id !== 'string' || typeof content.title !== 'string'
+      || typeof content.hook !== 'string' || !isStringOrNull(content.reflection)
+      || !isStringOrNull(content.script) || typeof content.created_at !== 'string') return null
+    coachingReflection = {
+      available: true,
+      content: {
+        id: content.id, title: content.title, hook: content.hook,
+        reflection: content.reflection, script: content.script, created_at: content.created_at,
+      },
+    }
+  }
+  return {
+    round: {
+      played_at: round.played_at, course_name: round.course_name, tees: round.tees,
+      player_display_name: round.player_display_name, input_method: round.input_method,
+    },
+    roundHighlights: highlights, scorecard, creatorContentStory, coachingReflection,
+  }
 }
 
 function isFairway(v: unknown): v is 'hit' | 'left' | 'right' | 'short' | 'long' | 'none' | null {
@@ -433,6 +557,7 @@ export function toCreatorStory(
 
   return {
     id: record.id,
+    roundId: record.round_id,
     storyType: record.story_type,
     headline: record.headline,
     summary: record.summary,
@@ -451,6 +576,27 @@ export function toCreatorStory(
     ]),
     permissionStatus,
   }
+}
+
+export async function fetchRoundContract(
+  supabase: SupabaseClient,
+  roundId: string,
+  options: { signal?: AbortSignal } = {},
+): Promise<FetchRoundContractResponse> {
+  const accessToken = await authenticatedAccessToken(supabase, options)
+  const response = await fetch(roundContractUrl(roundId), {
+    method: 'GET',
+    headers: { Authorization: `Bearer ${accessToken}` },
+    signal: options.signal,
+  })
+  if (!response.ok) throw await apiFailure(response, 'The round could not be loaded.')
+  const payload: unknown = await response.json()
+  const result = asObject(payload)
+  const contract = parseRoundContract(result?.contract)
+  if (result?.ok !== true || !contract) {
+    throw new CreatorStoryApiError(500, 'The round could not be loaded.')
+  }
+  return { ok: true, contract }
 }
 
 export async function fetchOwnedActiveCreatorProfile(

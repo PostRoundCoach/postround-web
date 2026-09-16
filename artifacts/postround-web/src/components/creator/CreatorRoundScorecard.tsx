@@ -1,7 +1,8 @@
 import { Calendar, MapPin, User } from 'lucide-react'
-import type { CreatorContentIdea } from '@/lib/creator-stories/contracts'
+import type { CreatorContentIdea, RoundHighlights, RoundScorecardEntry, RoundSummary } from '@/lib/creator-stories/contracts'
 
 type Round = NonNullable<CreatorContentIdea['round']>
+type RoundContext = { round: RoundSummary; roundHighlights: RoundHighlights; scorecard: RoundScorecardEntry[] }
 
 function getGirColor(gir: string | null) {
   if (gir === 'hit') return 'bg-green-500/10 text-green-700'
@@ -24,9 +25,13 @@ function ScoreRelative({ score, par }: { score: number | null; par: number | nul
   return <span className="inline-flex items-center justify-center w-6 h-6 rounded-sm border-2 border-muted-foreground text-foreground">{score}</span>
 }
 
-export function CreatorRoundScorecard({ round }: { round: Round }) {
-  const front9 = round.scorecard.filter(h => h.hole >= 1 && h.hole <= 9).sort((a, b) => a.hole - b.hole)
-  const back9 = round.scorecard.filter(h => h.hole >= 10 && h.hole <= 18).sort((a, b) => a.hole - b.hole)
+export function CreatorRoundScorecard(props: { round: Round } | RoundContext) {
+  const isContract = 'roundHighlights' in props
+  const summary = props.round
+  const holes = isContract ? props.scorecard : props.round.scorecard
+  const highlights = isContract ? props.roundHighlights : props.round
+  const front9 = holes.filter(h => h.hole >= 1 && h.hole <= 9).sort((a, b) => a.hole - b.hole)
+  const back9 = holes.filter(h => h.hole >= 10 && h.hole <= 18).sort((a, b) => a.hole - b.hole)
 
   return (
     <div className="space-y-6">
@@ -35,39 +40,39 @@ export function CreatorRoundScorecard({ round }: { round: Round }) {
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="space-y-1">
             <h3 className="font-serif text-2xl font-bold text-foreground" data-testid="scorecard-course-name">
-              {round.course_name || 'Unknown Course'}
+              {summary.course_name || 'Unknown Course'}
             </h3>
             <div className="flex flex-wrap gap-x-4 gap-y-2 text-sm text-muted-foreground">
-              {round.player_display_name && (
+              {summary.player_display_name && (
                 <span className="flex items-center gap-1.5" data-testid="scorecard-player-name">
-                  <User className="h-4 w-4" /> {round.player_display_name}
+                  <User className="h-4 w-4" /> {summary.player_display_name}
                 </span>
               )}
-              {round.played_at && (
+              {summary.played_at && (
                 <span className="flex items-center gap-1.5" data-testid="scorecard-played-at">
-                  <Calendar className="h-4 w-4" /> {round.played_at}
+                  <Calendar className="h-4 w-4" /> {summary.played_at}
                 </span>
               )}
-              {round.tees && (
+              {summary.tees && (
                 <span className="flex items-center gap-1.5" data-testid="scorecard-tees">
-                  <MapPin className="h-4 w-4" /> {round.tees} Tees
+                  <MapPin className="h-4 w-4" /> {summary.tees} Tees
                 </span>
               )}
             </div>
           </div>
           
-          {(round.total_score !== null || round.total_putts !== null) && (
+          {(highlights.total_score !== null || highlights.total_putts !== null) && (
             <div className="flex gap-4 text-center">
-              {round.total_score !== null && (
+              {highlights.total_score !== null && (
                 <div className="bg-primary/5 px-4 py-2 rounded-lg border border-primary/10">
                   <div className="text-xs font-bold uppercase tracking-wider text-primary mb-1">Score</div>
-                  <div className="text-2xl font-bold text-primary" data-testid="scorecard-total-score">{round.total_score}</div>
+                  <div className="text-2xl font-bold text-primary" data-testid="scorecard-total-score">{highlights.total_score}</div>
                 </div>
               )}
-              {round.total_putts !== null && (
+              {highlights.total_putts !== null && (
                 <div className="bg-muted px-4 py-2 rounded-lg">
                   <div className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1">Putts</div>
-                  <div className="text-2xl font-bold text-foreground" data-testid="scorecard-total-putts">{round.total_putts}</div>
+                  <div className="text-2xl font-bold text-foreground" data-testid="scorecard-total-putts">{highlights.total_putts}</div>
                 </div>
               )}
             </div>
@@ -75,13 +80,13 @@ export function CreatorRoundScorecard({ round }: { round: Round }) {
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 border-t border-border pt-4 text-sm">
-          {round.front_9 !== null && <div><span className="text-muted-foreground">Front 9:</span> <span className="font-medium" data-testid="scorecard-front-9">{round.front_9}</span></div>}
-          {round.back_9 !== null && <div><span className="text-muted-foreground">Back 9:</span> <span className="font-medium" data-testid="scorecard-back-9">{round.back_9}</span></div>}
-          {round.fairways_hit !== null && round.total_fairways !== null && (
-            <div><span className="text-muted-foreground">Fairways:</span> <span className="font-medium" data-testid="scorecard-fairways-hit">{round.fairways_hit} / {round.total_fairways}</span></div>
+           {highlights.front_9 !== null && <div><span className="text-muted-foreground">Front 9:</span> <span className="font-medium" data-testid="scorecard-front-9">{highlights.front_9}</span></div>}
+           {highlights.back_9 !== null && <div><span className="text-muted-foreground">Back 9:</span> <span className="font-medium" data-testid="scorecard-back-9">{highlights.back_9}</span></div>}
+           {highlights.fairways_hit !== null && highlights.total_fairways !== null && (
+             <div><span className="text-muted-foreground">Fairways:</span> <span className="font-medium" data-testid="scorecard-fairways-hit">{highlights.fairways_hit} / {highlights.total_fairways}</span></div>
           )}
-          {round.gir_hit !== null && round.total_gir !== null && (
-            <div><span className="text-muted-foreground">GIR:</span> <span className="font-medium" data-testid="scorecard-gir-hit">{round.gir_hit} / {round.total_gir}</span></div>
+           {highlights.gir_hit !== null && highlights.total_gir !== null && (
+             <div><span className="text-muted-foreground">GIR:</span> <span className="font-medium" data-testid="scorecard-gir-hit">{highlights.gir_hit} / {highlights.total_gir}</span></div>
           )}
         </div>
       </div>
@@ -91,7 +96,7 @@ export function CreatorRoundScorecard({ round }: { round: Round }) {
         <h4 className="font-serif text-lg font-bold text-foreground px-1 sr-only">Scorecard Details</h4>
         
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3" role="list" aria-label="Scorecard Details">
-          {round.scorecard.map(hole => (
+           {holes.map(hole => (
             <div key={hole.hole} role="listitem" className="rounded-xl border border-border bg-card p-4 shadow-sm flex flex-col justify-between group hover:border-primary/30 transition-colors" data-testid={`scorecard-hole-${hole.hole}`}>
               <div>
                 <div className="flex justify-between items-start mb-3 border-b border-border/50 pb-3">

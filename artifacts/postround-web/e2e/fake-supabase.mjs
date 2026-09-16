@@ -102,6 +102,84 @@ const candidate = {
   }
 }
 
+const roundContract = {
+  round: {
+    played_at: candidate.round.played_at,
+    course_name: candidate.round.course_name,
+    tees: candidate.round.tees,
+    player_display_name: candidate.round.player_display_name,
+    input_method: 'round_buddy',
+  },
+  roundHighlights: {
+    total_score: candidate.round.total_score,
+    course_par: candidate.round.course_par,
+    front_9: candidate.round.front_9,
+    back_9: candidate.round.back_9,
+    total_putts: candidate.round.total_putts,
+    total_penalties: candidate.round.total_penalties,
+    fairways_hit: candidate.round.fairways_hit,
+    total_fairways: candidate.round.total_fairways,
+    fairways_left: candidate.round.fairways_left,
+    fairways_right: candidate.round.fairways_right,
+    fairways_long: candidate.round.fairways_long,
+    fairways_short: candidate.round.fairways_short,
+    gir_hit: candidate.round.gir_hit,
+    total_gir: candidate.round.total_gir,
+    gir_short: candidate.round.gir_short,
+    gir_long: candidate.round.gir_long,
+    gir_left: candidate.round.gir_left,
+    gir_right: candidate.round.gir_right,
+    scrambling_opportunities: candidate.round.scrambling_opportunities,
+    successful_scrambles: candidate.round.successful_scrambles,
+    three_putts: candidate.round.three_putts,
+    birdies: candidate.round.birdies,
+    pars: candidate.round.pars,
+    bogeys: candidate.round.bogeys,
+    double_bogeys: candidate.round.double_bogeys,
+    eagles: candidate.round.eagles,
+    albatrosses: candidate.round.albatrosses,
+    hole_in_one: candidate.round.hole_in_one,
+  },
+  scorecard: candidate.round.scorecard,
+  creatorContentStory: {
+    available: true,
+    permissionState: 'granted',
+    permission: {
+      granted_at: approved ? '2026-01-03T00:00:00.000Z' : null,
+      revoked_at: null,
+      approval_requested_at: approvalRequested ? '2026-01-03T00:00:00.000Z' : null,
+    },
+    candidate: {
+      id: story.id,
+      story_type: story.story_type,
+      headline: story.headline,
+      summary: story.summary,
+      status: story.status,
+    },
+    contentIdea: {
+      id: candidate.id,
+      category: candidate.category,
+      title: candidate.title,
+      hook: candidate.hook,
+      script: candidate.script,
+      story_angle: null,
+      why_interesting: null,
+      created_at: candidate.created_at,
+    },
+  },
+  coachingReflection: {
+    available: true,
+    content: {
+      id: '50000000-0000-4000-8000-000000000001',
+      title: 'Patience changed the back nine',
+      hook: 'The response after the turn mattered most.',
+      reflection: 'The round stabilized when the player stayed patient.',
+      script: null,
+      created_at: '2026-01-02T00:05:00.000Z',
+    },
+  },
+}
+
 function encode(value) {
   return Buffer.from(JSON.stringify(value)).toString('base64url')
 }
@@ -206,13 +284,15 @@ const server = http.createServer((request, response) => {
     })
   }
 
-  if (request.method === 'GET' && url.pathname === '/api/content/ideas') {
+  if (request.method === 'GET' && url.pathname === `/api/content/round/${story.round_id}`) {
+    roundContract.creatorContentStory.permission = {
+      granted_at: approved ? '2026-01-03T00:00:00.000Z' : null,
+      revoked_at: null,
+      approval_requested_at: approvalRequested ? '2026-01-03T00:00:00.000Z' : null,
+    }
     return send(response, 200, {
       ok: true,
-      story_id: storyId,
-      round_id: story.round_id,
-      ideas: dismissed ? [] : [candidate],
-      permission_status: approved ? 'approved' : approvalRequested ? 'requested' : 'pending',
+      contract: roundContract,
     })
   }
 

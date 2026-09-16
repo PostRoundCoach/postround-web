@@ -2,6 +2,7 @@ import { Router, type IRouter, type Request, type Response } from "express";
 import {
   authenticateSupabaseBearer, authorizeCreatorStory, CreatorContentError, fetchPersistedCandidates,
   dismissCreatorStory, fetchCreatorStoryQueue, fetchPersistedCandidate, loadRoundEvidence, persistCandidates, requestStoryApproval,
+  fetchRoundWebContract,
 } from "../lib/creator-content-data";
 import { generateStoryCandidates, generateStoryDraft, STORY_DRAFT_FORMATS, type StoryDraftFormat } from "../lib/story-engine";
 
@@ -96,6 +97,18 @@ router.get("/content/ideas", async (req, res): Promise<void> => {
       permission_status: access.permissionStatus,
     });
   } catch (error) { failure(req, res, error, stage); }
+});
+
+router.get("/content/round/:round_id", async (req, res): Promise<void> => {
+  const raw = Array.isArray(req.params.round_id) ? req.params.round_id[0] : req.params.round_id;
+  const id = storyId(raw);
+  if (!id) { res.status(400).json({ error: "A valid round_id is required." }); return; }
+  try {
+    const context = await authenticateSupabaseBearer(req.header("authorization"));
+    const contract = await fetchRoundWebContract(context, id);
+    req.log.info({ stage: "round_contract", roundId: id }, "Retrieved authorized round web contract");
+    res.json({ ok: true, contract });
+  } catch (error) { failure(req, res, error, "round_contract"); }
 });
 
 router.post("/content/draft", async (req, res): Promise<void> => {

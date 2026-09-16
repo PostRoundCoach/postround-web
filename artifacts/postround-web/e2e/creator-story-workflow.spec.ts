@@ -33,7 +33,11 @@ test('creator story queue persists candidates, approval, and dismissal state', a
   await expect(page.getByTestId(`card-story-${storyId}`)).toBeVisible()
   await page.getByTestId(`card-story-candidate-${candidateId}`).waitFor()
   expect(contentRequests).toContainEqual({ method: 'GET', pathname: '/api/content/stories' })
-  expect(contentRequests).toContainEqual({ method: 'GET', pathname: '/api/content/ideas' })
+  expect(contentRequests).toContainEqual({
+    method: 'GET',
+    pathname: '/api/content/round/30000000-0000-4000-8000-000000000001',
+  })
+  expect(contentRequests).not.toContainEqual({ method: 'GET', pathname: '/api/content/ideas' })
   expect(contentRequests).not.toContainEqual({ method: 'POST', pathname: '/api/content/generate' })
   expect(contentRequests.every(({ pathname }) => !pathname.includes('player_stories'))).toBe(true)
   await expect(page.getByText('Player approval required')).toBeVisible()
@@ -43,6 +47,9 @@ test('creator story queue persists candidates, approval, and dismissal state', a
   await expect(page.getByTestId('scorecard-back-9')).toHaveText('40')
   await expect(page.getByTestId('scorecard-hole-note-1')).toHaveText(
     /Stayed patient after the approach finished short/,
+  )
+  await expect(page.getByTestId(`section-coaching-reflection-${storyId}`)).toContainText(
+    'The round stabilized when the player stayed patient.',
   )
 
   await page.setViewportSize({ width: 390, height: 844 })

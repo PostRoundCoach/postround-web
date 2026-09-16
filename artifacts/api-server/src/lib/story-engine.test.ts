@@ -11,6 +11,7 @@ import {
   persistCandidates,
   requestStoryApproval,
   dismissCreatorStory,
+  fetchRoundWebContract,
   type SupabaseRequestContext,
 } from "./creator-content-data.ts";
 
@@ -647,6 +648,85 @@ test("legacy ideas without a round return a null round and linked rounds preserv
   const ideas = await fetchPersistedCandidates(context, base.storyId, "unused-round-id");
   assert.equal(ideas.length, 1);
   assert.equal(ideas[0]?.round, null);
+});
+
+test("round web contract authorizes by round and returns isolated experiences", async () => {
+  const roundId = "cccccccc-cccc-cccc-cccc-cccccccccccc";
+  const storyId = "11111111-1111-1111-1111-111111111111";
+  const playerId = "dddddddd-dddd-dddd-dddd-dddddddddddd";
+  const paths: string[] = [];
+  const context: SupabaseRequestContext = {
+    ...requestContext,
+    proxy: async (path) => {
+      paths.push(path);
+      if (path.includes("creator_profiles?")) return Response.json([{ id: base.ownerId }]);
+      if (path.includes("story_candidates?")) return Response.json([{
+        id: storyId, story_type: "round_recap", headline: "A comeback", summary: "Stored summary",
+        status: "shared", user_id: playerId,
+      }]);
+      if (path.includes("story_permissions?")) return Response.json([{
+        id: "permission", story_id: storyId, user_id: playerId, permission_granted: true,
+        approval_requested_at: null, granted_at: "2026-09-10T12:00:00Z", revoked_at: null,
+      }]);
+      if (path.includes("rounds?")) return Response.json([{
+        id: roundId, user_id: playerId, played_at: "2026-09-09", course_name: "Pebble Beach",
+        tees: "White", input_method: "round_buddy", total_score: 92, course_par: 72, front_9: 46,
+        back_9: 46, total_putts: 27, total_penalties: 2, fairways_hit: 8, total_fairways: 14,
+        fairways_left: 2, fairways_right: 2, fairways_long: 1, fairways_short: 1, gir_hit: 5,
+        total_gir: 18, gir_short: 4, gir_long: 2, gir_left: 4, gir_right: 3,
+        scrambling_opportunities: 9, successful_scrambles: 4, three_putts: 2, birdies: 1,
+        pars: 8, bogeys: 7, double_bogeys: 2, eagles: 0, albatrosses: 0, hole_in_one: 0,
+      }]);
+      if (path.includes("profiles?")) return Response.json([{ display_name: "Aaron" }]);
+      if (path.includes("holes?")) return Response.json([
+        {
+          hole_number: 2, par: 3, score: 4, fairway_result: "none", gir_result: "short",
+          putts: 2, chip_count: 1, bunker_shot: false, sand_save: null, penalty_strokes: 0, player_notes: null,
+        },
+        {
+          hole_number: 1, par: 4, score: 5, fairway_result: "long", gir_result: "long",
+          putts: 2, chip_count: 1, bunker_shot: false, sand_save: null, penalty_strokes: 0,
+          player_notes: "Good drive",
+        },
+      ]);
+      if (path.includes("content_type=eq.creator_story")) return Response.json([{
+        id: "idea-1", category: "Surprise", title: "A turn", hook: "The turn changed everything",
+        script: null, story_angle: "The comeback", why_interesting: "Stored", created_at: "2026-09-10",
+      }]);
+      if (path.includes("category=eq.coaching_reflection")) return Response.json([{
+        id: "reflection-1", category: "coaching_reflection", title: "Reflection", hook: "What changed?",
+        reflection: "Stored reflection", script: "Alias", created_at: "2026-09-10",
+      }]);
+      return Response.json([]);
+    },
+  };
+  const contract = await fetchRoundWebContract(context, roundId);
+  assert.equal(contract.round.player_display_name, "Aaron");
+  assert.equal(contract.round.input_method, "round_buddy");
+  assert.deepEqual(contract.scorecard.map((hole) => hole.hole), [1, 2]);
+  assert.equal(contract.creatorContentStory.available, true);
+  assert.equal(contract.creatorContentStory.contentIdea?.id, "idea-1");
+  assert.equal(contract.coachingReflection.available, true);
+  assert.ok(paths.every((path) => !path.includes("player_stories")));
+  assert.ok(paths.some((path) => path.includes(`round_id=eq.${roundId}`)));
+});
+
+test("round web contract rejects an ineligible candidate before reading the round", async () => {
+  const paths: string[] = [];
+  const context: SupabaseRequestContext = {
+    ...requestContext,
+    proxy: async (path) => {
+      paths.push(path);
+      if (path.includes("creator_profiles?")) return Response.json([{ id: base.ownerId }]);
+      if (path.includes("story_candidates?")) return Response.json([]);
+      return Response.json([]);
+    },
+  };
+  await assert.rejects(
+    fetchRoundWebContract(context, "cccccccc-cccc-cccc-cccc-cccccccccccc"),
+    (error: unknown) => error instanceof CreatorContentError && error.status === 403,
+  );
+  assert.ok(!paths.some((path) => path.includes("/rounds?")));
 });
 
 test("approval requests reuse the active pending permission and never approve it", async () => {

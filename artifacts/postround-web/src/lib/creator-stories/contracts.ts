@@ -44,6 +44,7 @@ export type StoryPermissionStatus = 'pending' | 'requested' | 'approved'
 
 export interface CreatorStory {
   id: string
+  roundId: string
   storyType: string
   headline: string
   summary: string
@@ -131,6 +132,136 @@ export interface FetchStoryCandidatesResponse {
   story_id: string
   ideas: CreatorContentIdea[]
   permission_status: StoryPermissionStatus
+}
+
+export type RoundInputMethod = 'scorecard' | 'round_buddy'
+
+export interface RoundSummary {
+  played_at: string
+  course_name: string | null
+  tees: string | null
+  player_display_name: string | null
+  input_method: RoundInputMethod | null
+}
+
+export interface RoundHighlights {
+  total_score: number | null
+  course_par: number | null
+  front_9: number | null
+  back_9: number | null
+  total_putts: number | null
+  total_penalties: number | null
+  fairways_hit: number | null
+  total_fairways: number | null
+  fairways_left: number | null
+  fairways_right: number | null
+  fairways_long: number | null
+  fairways_short: number | null
+  gir_hit: number | null
+  total_gir: number | null
+  gir_short: number | null
+  gir_long: number | null
+  gir_left: number | null
+  gir_right: number | null
+  scrambling_opportunities: number | null
+  successful_scrambles: number | null
+  three_putts: number | null
+  birdies: number | null
+  pars: number | null
+  bogeys: number | null
+  double_bogeys: number | null
+  eagles: number | null
+  albatrosses: number | null
+  hole_in_one: number | null
+}
+
+export type ScorecardFairway = 'hit' | 'left' | 'right' | 'short' | 'long' | 'none'
+export type ScorecardGir = 'hit' | 'short' | 'long' | 'left' | 'right' | 'none'
+
+export interface RoundScorecardEntry {
+  hole: number
+  par: number | null
+  score: number | null
+  fairway: ScorecardFairway | null
+  gir: ScorecardGir | null
+  putts: number | null
+  chips: number | null
+  bunker: boolean | null
+  sand_save: boolean | null
+  penalties: number | null
+  player_note: string | null
+}
+
+export interface StoryPermissionTimestamps {
+  granted_at: string | null
+  revoked_at: string | null
+  approval_requested_at: string | null
+}
+
+export interface RoundStoryCandidate {
+  id: string
+  story_type: string
+  headline: string
+  summary: string
+  status: 'offered' | 'shared'
+}
+
+export interface RoundContentIdea {
+  id: string
+  category: string
+  title: string
+  hook: string
+  script: string | null
+  story_angle: string | null
+  why_interesting: string | null
+  created_at: string
+}
+
+export interface CreatorContentStoryAvailable {
+  available: true
+  permissionState: 'granted'
+  permission: StoryPermissionTimestamps
+  candidate: RoundStoryCandidate
+  contentIdea: RoundContentIdea | null
+}
+
+export interface CreatorContentStoryUnavailable {
+  available: false
+}
+
+export type RoundCreatorContentStory = CreatorContentStoryAvailable | CreatorContentStoryUnavailable
+
+export interface CoachingReflectionContent {
+  id: string
+  title: string
+  hook: string
+  reflection: string | null
+  script: string | null
+  created_at: string
+}
+
+export interface CoachingReflectionAvailable {
+  available: true
+  content: CoachingReflectionContent
+}
+
+export interface CoachingReflectionUnavailable {
+  available: false
+}
+
+export type RoundCoachingReflection = CoachingReflectionAvailable | CoachingReflectionUnavailable
+
+export interface RoundWebContract {
+  round: RoundSummary
+  roundHighlights: RoundHighlights
+  scorecard: RoundScorecardEntry[]
+  creatorContentStory: RoundCreatorContentStory
+  coachingReflection: RoundCoachingReflection
+}
+
+export interface FetchRoundContractResponse {
+  ok: true
+  contract: RoundWebContract
 }
 
 export interface CreatorContentIdea {

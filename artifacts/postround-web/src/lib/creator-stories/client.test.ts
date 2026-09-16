@@ -4,6 +4,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import {
   CreatorStoryApiError,
   CreatorStoryConfigurationError,
+  fetchRoundContract,
   fetchStoryCandidates,
   fetchOwnedActiveCreatorProfile,
   fetchPermissionedCreatorStories,
@@ -80,6 +81,109 @@ const contentIdea = {
   }
 }
 
+const roundContract = {
+  round: {
+    played_at: '2026-09-01',
+    course_name: 'Pebble Beach',
+    tees: 'White',
+    player_display_name: 'Aaron',
+    input_method: 'round_buddy',
+  },
+  roundHighlights: {
+    total_score: 92, course_par: 72, front_9: 46, back_9: 46, total_putts: 27,
+    total_penalties: 2, fairways_hit: 8, total_fairways: 14, fairways_left: 2,
+    fairways_right: 2, fairways_long: 1, fairways_short: 1, gir_hit: 5, total_gir: 18,
+    gir_short: 4, gir_long: 2, gir_left: 4, gir_right: 3, scrambling_opportunities: 9,
+    successful_scrambles: 4, three_putts: 2, birdies: 1, pars: 8, bogeys: 7,
+    double_bogeys: 2, eagles: 0, albatrosses: 0, hole_in_one: 0,
+  },
+  scorecard: [{
+    hole: 1, par: 4, score: 5, fairway: 'long', gir: 'long', putts: 2, chips: 1,
+    bunker: false, sand_save: null, penalties: 0, player_note: 'Good drive',
+  }],
+  creatorContentStory: {
+    available: true,
+    permissionState: 'granted',
+    permission: {
+      granted_at: null,
+      revoked_at: null,
+      approval_requested_at: '2026-09-10T12:00:00Z',
+    },
+    candidate: {
+      id: 'story-1', story_type: 'personal_best', headline: 'Shared headline',
+      summary: 'Shared summary', status: 'shared',
+    },
+    contentIdea: {
+      id: 'idea-1', category: 'Surprise', title: 'A turn', hook: 'The turn changed everything',
+      script: null, story_angle: 'The comeback', why_interesting: null, created_at: '2026-09-10',
+    },
+  },
+  coachingReflection: {
+    available: true,
+    content: {
+      id: 'reflection-1', title: 'Reflection', hook: 'What changed?',
+      reflection: 'Stored reflection', script: null, created_at: '2026-09-10',
+    },
+  },
+}
+
+test('loads and strictly parses the authenticated round contract', async () => {
+  const originalFetch = globalThis.fetch
+  const originalApiBase = process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL
+  process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL = 'https://api.postround.test'
+  let request: { url: string; authorization: string | null } | undefined
+  globalThis.fetch = (async (url, init) => {
+    request = {
+      url: String(url),
+      authorization: new Headers(init?.headers).get('authorization'),
+    }
+    return Response.json({ ok: true, contract: roundContract })
+  }) as typeof fetch
+  const supabase = { auth: { async getSession() {
+    return { data: { session: { access_token: 'round-token' } }, error: null }
+  } } } as unknown as SupabaseClient
+  try {
+    const result = await fetchRoundContract(supabase, 'round-1')
+    assert.equal(result.contract.creatorContentStory.available, true)
+    assert.equal(result.contract.coachingReflection.available, true)
+    assert.equal(result.contract.scorecard[0]?.player_note, 'Good drive')
+    assert.deepEqual(request, {
+      url: 'https://api.postround.test/api/content/round/round-1',
+      authorization: 'Bearer round-token',
+    })
+  } finally {
+    globalThis.fetch = originalFetch
+    if (originalApiBase === undefined) delete process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL
+    else process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL = originalApiBase
+  }
+})
+
+test('rejects malformed round contracts without weakening documented nullability', async () => {
+  const originalFetch = globalThis.fetch
+  const originalApiBase = process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL
+  process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL = 'https://api.postround.test'
+  globalThis.fetch = (async () => Response.json({
+    ok: true,
+    contract: {
+      ...roundContract,
+      round: { ...roundContract.round, played_at: null },
+    },
+  })) as typeof fetch
+  const supabase = { auth: { async getSession() {
+    return { data: { session: { access_token: 'round-token' } }, error: null }
+  } } } as unknown as SupabaseClient
+  try {
+    await assert.rejects(
+      fetchRoundContract(supabase, 'round-1'),
+      (error: unknown) => error instanceof CreatorStoryApiError && error.status === 500,
+    )
+  } finally {
+    globalThis.fetch = originalFetch
+    if (originalApiBase === undefined) delete process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL
+    else process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL = originalApiBase
+  }
+})
+
 test('projects only approved story fields and safely parses optional story data', () => {
   const story = toCreatorStory({
     id: 'story-1',
@@ -99,6 +203,7 @@ test('projects only approved story fields and safely parses optional story data'
 
   assert.deepEqual(story, {
     id: 'story-1',
+    roundId: 'round-private',
     storyType: 'personal_best',
     headline: 'A new personal best',
     summary: 'The approved summary',
@@ -109,7 +214,7 @@ test('projects only approved story fields and safely parses optional story data'
     supportingFacts: ['6/6 fairways'],
     permissionStatus: 'pending',
   })
-  assert.equal('round_id' in story, false)
+  assert.equal(story.roundId, 'round-private')
   assert.equal('private_notes' in story, false)
 })
 

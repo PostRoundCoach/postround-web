@@ -6,8 +6,8 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { createClient } from '@/lib/supabase/client'
-import type { CreatorContentIdea, CreatorStory } from '@/lib/creator-stories/contracts'
-import { fetchStoryCandidates, dismissCreatorStory, requestStoryApproval } from '@/lib/creator-stories/client'
+import type { CreatorContentIdea, CreatorStory, RoundWebContract } from '@/lib/creator-stories/contracts'
+import { fetchRoundContract, dismissCreatorStory, requestStoryApproval } from '@/lib/creator-stories/client'
 import { StoryCandidateCard } from './StoryCandidateCard'
 import { CreatorRoundScorecard } from './CreatorRoundScorecard'
 
@@ -20,6 +20,7 @@ export function StoryCard({
 }) {
   const [isFetchingIdeas, setIsFetchingIdeas] = useState(false)
   const [candidates, setCandidates] = useState<CreatorContentIdea[] | null>(null)
+  const [roundContract, setRoundContract] = useState<RoundWebContract | null>(null)
   const [retrievalFailed, setRetrievalFailed] = useState(false)
   const [isDismissing, setIsDismissing] = useState(false)
   const [dismissalFailed, setDismissalFailed] = useState(false)
@@ -41,12 +42,32 @@ export function StoryCard({
     setRetrievalFailed(false)
 
     try {
-      const result = await fetchStoryCandidates(supabase, story.id, {
+      const result = await fetchRoundContract(supabase, story.roundId, {
         signal: controller.signal,
       })
       if (sequence !== requestSequence.current) return
-      setCandidates(result.ideas)
-      setPermissionStatus(result.permission_status)
+      setRoundContract(result.contract)
+      const idea = result.contract.creatorContentStory.available
+        ? result.contract.creatorContentStory.contentIdea
+        : null
+      setCandidates(idea ? [{
+        id: idea.id,
+        story_id: story.id,
+        category: idea.category,
+        title: idea.title,
+        hook: idea.hook,
+        script: idea.script ?? '',
+        created_at: idea.created_at,
+        round: null,
+      }] : [])
+      const permission = result.contract.creatorContentStory.available
+        ? result.contract.creatorContentStory.permission
+        : null
+      setPermissionStatus(permission?.granted_at
+        ? 'approved'
+        : permission?.approval_requested_at
+          ? 'requested'
+          : 'pending')
     } catch (error) {
       if (controller.signal.aborted || sequence !== requestSequence.current) return
       console.warn('[Creator ideas] Retrieval failed', {
@@ -62,7 +83,7 @@ export function StoryCard({
       activeRequest.current = null
       setIsFetchingIdeas(false)
     }
-  }, [story.id])
+  }, [story.id, story.roundId])
 
   useEffect(() => {
     const supabase = createClient()
@@ -361,7 +382,34 @@ export function StoryCard({
             )}
           </div>
 
-          {candidates.length === 0 ? (
+             {roundContract && (
+               <div className="mb-8">
+                 <CreatorRoundScorecard
+                   round={roundContract.round}
+                   roundHighlights={roundContract.roundHighlights}
+                   scorecard={roundContract.scorecard}
+                 />
+               </div>
+             )}
+             {roundContract?.coachingReflection.available && (
+               <section className="mb-8 rounded-xl border border-border bg-background p-5" data-testid={`section-coaching-reflection-${story.id}`}>
+                 <p className="text-xs font-bold uppercase tracking-widest text-primary">Coaching reflection</p>
+                 <h3 className="mt-2 font-serif text-2xl font-bold">{roundContract.coachingReflection.content.title}</h3>
+                 <p className="mt-3 font-medium">{roundContract.coachingReflection.content.hook}</p>
+                 {(roundContract.coachingReflection.content.reflection ?? roundContract.coachingReflection.content.script) && (
+                   <p className="mt-4 whitespace-pre-wrap text-muted-foreground">
+                     {roundContract.coachingReflection.content.reflection ?? roundContract.coachingReflection.content.script}
+                   </p>
+                 )}
+               </section>
+             )}
+             {roundContract && !roundContract.coachingReflection.available && (
+               <div className="mb-8 rounded-xl border border-dashed border-border px-5 py-6" data-testid={`status-coaching-reflection-unavailable-${story.id}`}>
+                 <p className="font-medium">Coaching reflection is not available yet.</p>
+                 <p className="mt-1 text-sm text-muted-foreground">This experience is generated independently from Creator Content Story.</p>
+               </div>
+             )}
+             {candidates.length === 0 ? (
             <div
               className="rounded-xl border border-dashed border-border bg-background px-5 py-8 text-center"
               data-testid={`status-candidates-empty-${story.id}`}
