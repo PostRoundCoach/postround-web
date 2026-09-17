@@ -1,0 +1,44 @@
+Use the updated **Round Web Contract** below as the authoritative contract for the Creator Dashboard.
+
+Please update the web dashboard to consume:
+
+`GET /api/content/round/:round_id`
+
+instead of relying on the legacy `GET /api/content/ideas?story_id=<uuid>` endpoint for the round detail/dashboard rendering.
+
+### Requirements
+
+* Treat the contract below as authoritative for the request, authorization assumptions, response shape, and TypeScript types.
+* The dashboard already has `round_id` available from the creator queue; preserve and use it.
+* Fetch the complete round using the new round-scoped endpoint.
+* Render the returned:
+
+  * `round`
+  * `roundHighlights`
+  * `scorecard`
+  * `creatorContentStory`
+  * `coachingReflection`
+* `creatorContentStory.contentIdea` is the creator-facing content. **Do not query, render, or fall back to `player_stories`.**
+* Respect `available: false` and `contentIdea: null` states without treating them as API failures.
+* The existing `/api/content/ideas` contract remains supported for backward compatibility; do not modify it.
+* Do not invent or transform fields when the new contract already provides the required data.
+* Preserve the existing creator authorization/security model; `creator_id` must not be supplied by the client.
+* Use the contract's scorecard field names exactly (`hole`, `fairway`, `gir`, `chips`, `bunker`, `penalties`, `player_note`, etc.).
+* Keep the dashboard's existing visual design unless a field needs a small rendering adjustment to accommodate the new contract.
+* Add/update strict client-side validation for the new response shape.
+* Remove the old round-detail retrieval path from the active dashboard flow once the new contract is wired.
+* Run typecheck and the relevant web tests after implementation.
+
+### Critical isolation requirement
+
+The Creator Dashboard must display **Creator Content Engine output**, not Player Story Engine output.
+
+The expected relationship is:
+
+`round_id → story candidate → permission → creatorContentStory.contentIdea`
+
+`player_stories` must never be used as a fallback source for the Creator Dashboard.
+
+Use the complete Round Web Contract supplied below as the source of truth for implementation.
+
+[PASTE THE UPDATED CONTRACT HERE]
