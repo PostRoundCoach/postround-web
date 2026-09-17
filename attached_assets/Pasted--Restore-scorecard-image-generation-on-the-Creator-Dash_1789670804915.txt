@@ -1,0 +1,116 @@
+## Restore scorecard image generation on the Creator Dashboard
+
+The new Round Web Contract is working correctly. The Creator Dashboard now successfully renders:
+
+* the round
+* round stats
+* coaching reflection
+* creator content
+
+However, the **scorecard image generation/rendering that previously appeared on the dashboard is now missing**.
+
+### Objective
+
+Restore the existing scorecard image-generation and rendering behavior **without changing the new Round Web Contract and without replacing its data source**.
+
+This should be a targeted restoration of the previously working image path.
+
+### Requirements
+
+1. **Trace the previous scorecard image path first**
+
+   * Search git history, prior implementations, existing API routes, components, utilities, and tests for the scorecard image-generation functionality.
+   * Identify:
+
+     * where the scorecard image was generated
+     * what endpoint/function performed the generation
+     * what data it consumed
+     * where the resulting image/reference was stored or returned
+     * how the dashboard previously requested it
+     * how the dashboard rendered it
+   * Determine exactly what was lost or disconnected during the Round Web Contract migration.
+
+2. **Preserve the new Round Web Contract**
+
+   * Do **not** modify the Round Web Contract schema.
+   * Do **not** add scorecard-specific fields to the contract merely to make the image work.
+   * Do **not** revert the dashboard to the old round data source.
+   * Do **not** reintroduce removed fields or legacy contract properties.
+   * The dashboard must continue using the new Round Web Contract as its authoritative round data source.
+
+3. **Restore the scorecard image path**
+
+   * Reconnect the existing scorecard image-generation mechanism to the current dashboard flow.
+   * If the previous implementation generated the image through a separate API/function, retain that separation rather than coupling image generation into the Round Web Contract.
+   * Reuse existing storage, generation, and rendering infrastructure where possible.
+   * Do not create a second competing scorecard-generation implementation if the previous one still exists.
+
+4. **Preserve existing dashboard behavior**
+   The restored dashboard should continue to show:
+
+   `Round → Stats → Coaching Reflection → Creator Content → Scorecard Image`
+
+   without breaking any of the content that currently works.
+
+5. **Do not alter unrelated functionality**
+   In particular, do not modify:
+
+   * Player Story generation
+   * Creator Content Engine behavior
+   * story permissions
+   * story candidates
+   * creator approval flow
+   * Round Web Contract semantics
+   * entitlement/credit logic
+   * round retrieval logic unless absolutely required to reconnect the existing image path
+
+### Investigation before coding
+
+Before making changes, explicitly identify:
+
+* the previous scorecard image-generation route/function
+* the previous dashboard component/rendering path
+* the data dependency that supplied the scorecard information
+* the commit/change that caused the image to disappear
+* whether the image is generated server-side, client-side, or through an external image service
+* whether the generation still works independently but is simply no longer invoked/rendered
+
+Use git history where useful. Prefer restoring the smallest missing connection rather than rewriting the feature.
+
+### Important architectural constraint
+
+The **new Round Web Contract is not the problem** and should remain unchanged.
+
+If the scorecard requires data that is already available through the new contract, use that data.
+
+If the existing scorecard generator requires a separate input or endpoint, call that separately rather than expanding or replacing the Round Web Contract.
+
+The goal is:
+
+**New Round Web Contract remains authoritative for round data + existing scorecard image pipeline is restored alongside it.**
+
+### Testing
+
+Add or restore focused tests covering:
+
+1. The dashboard still retrieves and renders the round through the new Round Web Contract.
+2. Scorecard image generation/request is invoked when expected.
+3. A successfully generated scorecard image is rendered on the dashboard.
+4. A missing/failed scorecard image does not break the rest of the dashboard.
+5. Existing round/stats/coaching/creator-content rendering remains unaffected.
+6. The Round Web Contract itself is unchanged.
+
+Run the relevant test suite and report the results.
+
+### Done looks like
+
+On the Replit preview, an approved/shared round that currently displays:
+
+* round
+* stats
+* coaching reflection
+* creator content
+
+also once again displays the **scorecard image**, using the previously established generation/rendering path.
+
+Do not make broad architectural changes. Do not modify the new Round Web Contract unless investigation proves there is no alternative, and if that happens, stop and explain why before changing it.
