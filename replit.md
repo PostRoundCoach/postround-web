@@ -22,11 +22,16 @@ A marketing website for Post Round Coach, an AI golf coaching app that builds yo
 
 ## Where things live
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
+- External Supabase schema history: `artifacts/postround-web/supabase/migrations`
+- Supabase migration workflow and production baseline:
+  `artifacts/postround-web/supabase/README.md`
 
 ## Architecture decisions
 
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
+- Supabase production changes are reviewed migration files applied with the
+  Supabase CLI. The repository migration chain is the desired history and
+  Supabase's migration ledger is the application record; ad-hoc SQL editor and
+  startup-time DDL changes are not part of the supported workflow.
 
 ## Product
 
@@ -38,7 +43,10 @@ _Populate as you build — explicit user instructions worth remembering across s
 
 ## Gotchas
 
-_Populate as you build — sharp edges, "always run X before Y" rules._
+- The Supabase production schema predates the complete accessible migration
+  chain. Read its dated baseline before replaying or repairing legacy versions.
+- `rounds.input_method` is intentionally unresolved by the schema baseline; do
+  not infer a product decision from historical SQL or the current live shape.
 
 ## Pointers
 
