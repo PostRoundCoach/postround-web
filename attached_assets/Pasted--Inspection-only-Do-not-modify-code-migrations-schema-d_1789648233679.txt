@@ -1,0 +1,201 @@
+**Inspection only. Do not modify code, migrations, schema, database, contracts, or configuration.**
+
+Work **only in the `postround-web` project/repository** for this investigation. Do not inspect or change the mobile/Expo project yet.
+
+We are investigating the historical provenance of `rounds.input_method` because the current production Creator Dashboard API attempts to select it, but the current production `rounds` table does not contain that column.
+
+We already know:
+
+* `rounds.input_method` was originally created in `004_rounds.sql`.
+* The historical field allowed:
+
+  * `scorecard`
+  * `voice_recap`
+  * `guided_ai`
+* The previously working Creator Dashboard contract documented:
+  `input_method -> rounds.input_method`
+* The current production database reports:
+  `column rounds.input_method does not exist`
+* The current replacement endpoint `GET /api/content/round/:roundId` therefore returns HTTP 400 at the `round_contract` stage.
+* The old `GET /api/content/ideas?story_id=` endpoint appeared to work.
+
+### Investigation
+
+#### 1. Find what happened to `rounds.input_method`
+
+Starting from `004_rounds.sql`, inspect all subsequent migrations and Git history.
+
+Find any migration or commit that:
+
+* removed `rounds.input_method`
+* renamed it
+* recreated the `rounds` table without it
+* replaced the table/schema
+* changed the rounds schema in a way that would cause the column to disappear
+
+Do not assume a migration exists. Establish the actual history.
+
+#### 2. Check current Supabase migration history
+
+Determine whether the current migration history contains an explicit removal/rename/recreation that explains why:
+
+```text
+rounds.input_method
+```
+
+exists historically but not in the current production schema.
+
+If the migration history does NOT explain the disappearance, explicitly say so.
+
+#### 3. Find historical write paths
+
+Search the web project Git history and current code for code that populated `input_method` when creating/updating rounds.
+
+Search for:
+
+```text
+input_method
+inputMethod
+.from("rounds").insert
+.from("rounds").update
+input_method:
+inputMethod:
+```
+
+Determine:
+
+* where `input_method` was written
+* what values were written
+* whether this was server-side or client-side
+* whether that write path still exists
+* which commit removed or changed it, if applicable
+
+#### 4. Investigate the Round Buddy/input-flow changes
+
+Trace the historical changes around Round Buddy and the round input flow.
+
+We specifically want to know whether a change such as:
+
+* introducing Round Buddy
+* changing RoundInputScreen
+* changing scorecard/voice input
+* removing the old input method
+
+also removed the persistence of `rounds.input_method`.
+
+Do NOT assume the concepts are identical.
+
+There may be two separate concepts:
+
+**A. Round capture/input method**
+
+* scorecard
+* Round Buddy
+
+**B. Creator scorecard presentation**
+
+* whether Round Buddy comments/notes are included or removed from the scorecard image
+
+Determine whether the old Creator Dashboard toggle for adding/removing Round Buddy comments was technically connected to `input_method`, or whether it used a completely separate field/state.
+
+#### 5. Compare the last known-working Creator Dashboard endpoint
+
+Find the historical implementation of:
+
+```text
+GET /api/content/ideas?story_id=<uuid>
+```
+
+from the last known-working version.
+
+Determine exactly how it constructed:
+
+```text
+round.input_method
+```
+
+Answer specifically:
+
+* Did it directly query `rounds.input_method`?
+* Did it derive the value?
+* Did it get it from another table?
+* Did it use a view/RPC/helper?
+* Did it simply return a field that happened to exist in an older schema?
+* Was the contract documentation accurate?
+
+Compare that implementation with the current:
+
+```text
+GET /api/content/round/:roundId
+```
+
+implementation.
+
+### Important terminology constraint
+
+Do **not** conflate the historical values:
+
+```text
+scorecard
+voice_recap
+guided_ai
+```
+
+with current Creator Dashboard functionality.
+
+Voice Recap and Guided AI were historical round-input/product terminology. They were **not Creator Dashboard features**.
+
+The current product question is separate:
+
+> Should `input_method` now represent something like `scorecard` vs `round_buddy`, or should the Creator Dashboard be using another existing field entirely?
+
+Do not answer that question by assumption. Base the conclusion on the historical implementation and schema.
+
+### Deliverable
+
+Return a forensic report with these sections:
+
+**1. Schema timeline**
+
+* `004_rounds.sql`
+* subsequent relevant migrations/commits
+* when/how `input_method` disappeared
+
+**2. Write-path timeline**
+
+* where it was originally written
+* what values were written
+* when/why that path changed or disappeared
+
+**3. Old Creator Dashboard endpoint**
+
+* relevant historical commit
+* exact query/projection
+* exact way `input_method` was populated
+
+**4. Round Buddy changes**
+
+* relevant commits
+* whether they affected `input_method`
+* whether the scorecard-comment toggle was separate
+
+**5. Current-vs-historical discrepancy**
+Explain exactly why:
+
+```text
+historical contract → rounds.input_method
+```
+
+but:
+
+```text
+current production DB → no rounds.input_method
+```
+
+**6. Conclusion**
+
+Answer this exact question:
+
+> What happened to `rounds.input_method`, and what did the last known-working Creator Dashboard endpoint actually use to populate it?
+
+**No fixes yet. No migrations. No code changes. This is forensic investigation only.**

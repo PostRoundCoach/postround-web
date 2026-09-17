@@ -1,0 +1,226 @@
+Perform an **INSPECTION-ONLY contract audit** for the Creator Dashboard retrieval flow.
+
+**Do not modify code, database schema, API contracts, migrations, or configuration. Do not make any fixes yet.** I want a diagnosis only.
+
+Use this exact round ID:
+
+```text
+6a65c868-e13c-4cf4-8e1f-4c767c0d82c5
+```
+
+Trace this exact flow:
+
+```text
+Creator Dashboard
+    ↓
+GET /api/content/round/:roundId
+    ↓
+API contract/schema
+    ↓
+rounds table
+    ↓
+story_candidates
+    ↓
+content_ideas
+```
+
+### Key question
+
+Determine whether the **current contract for `GET /api/content/round/:roundId`**:
+
+1. Requires or expects `rounds`-table data.
+2. Defines the expected shape/schema of the `round` object.
+3. Matches the actual `rounds` data available for the round above.
+4. Is the same contract/schema that the **currently deployed Web API is actually using**.
+
+### Specifically inspect
+
+**1. Current contract**
+
+Find the current contract/API definition for:
+
+```text
+GET /api/content/round/:roundId
+```
+
+Report:
+
+* Expected path parameters
+* Authentication requirements
+* Expected request shape
+* Expected response shape
+* Expected `round` object fields
+* Any validation rules that can produce HTTP 400
+* Any required fields that could be missing/null
+* Whether the endpoint expects `rounds` data directly or derives it through another object/query
+
+**2. Compare against the actual `rounds` record**
+
+For round:
+
+```text
+6a65c868-e13c-4cf4-8e1f-4c767c0d82c5
+```
+
+Compare the contract's expected `round` object against the actual columns/data in Supabase.
+
+Do not merely say "the round exists." Identify any **field-by-field mismatch**, especially:
+
+* Missing fields
+* Unexpected fields
+* Nullable vs required fields
+* Type mismatches
+* Date/timestamp expectations
+* Numeric/string expectations
+* Arrays/JSON expectations
+* Any fields the contract requires that are currently `null`
+
+If the contract expects a transformed `round` object rather than the raw `rounds` row, show that transformation and identify where it could fail.
+
+**3. Trace the downstream data**
+
+Verify the contract/API logic expects the following relationships:
+
+```text
+rounds.id
+    ↓
+story_candidates.round_id
+    ↓
+story_permissions.story_id
+    ↓
+content_ideas.story_id
+```
+
+For this round, report whether the deployed API logic is actually using those relationships.
+
+Known data for this round:
+
+```text
+story_candidate:
+746028c7-fd10-4d6b-ae93-dd4c95d247de
+
+content_ideas:
+e23b94ff-90dd-4930-8a4a-646a1270c2ec
+28ba7b61-c5db-4ae1-a312-380d44d0952f
+```
+
+Both `content_ideas` rows have:
+
+```text
+story_id = 746028c7-fd10-4d6b-ae93-dd4c95d247de
+```
+
+**4. Most importantly: inspect the actual HTTP 400**
+
+Make the actual request against the currently deployed API for:
+
+```text
+GET /api/content/round/6a65c868-e13c-4cf4-8e1f-4c767c0d82c5
+```
+
+Capture and report the **complete response body/message accompanying the HTTP 400**, not just the status code.
+
+The browser currently only shows:
+
+```text
+400 Bad Request
+```
+
+I want to know exactly what the server is returning.
+
+If the response is JSON, report the relevant JSON fields/message.
+
+Also inspect the server-side logs for the same request if available. Identify:
+
+* Validation errors
+* Contract/schema errors
+* Auth/user mismatch
+* Database query errors
+* Missing relationships
+* Unexpected nulls
+* Any explicit `400` branch in the route
+
+**5. Verify the deployed contract/code**
+
+Determine:
+
+* What commit/version is currently deployed for the Web project.
+* Whether that deployed version contains the current `/api/content/round/:roundId` implementation.
+* Whether the contract being referenced by the implementation is the same contract/schema we believe was published yesterday.
+* Whether there is any stale deployment, cached build, old route, or old contract involved.
+
+### Important context
+
+We already have evidence that the underlying data exists:
+
+```text
+rounds
+  ✓ exists
+
+story_candidates
+  ✓ exists
+  ✓ status = shared
+
+story_permissions
+  ✓ permission_granted = true
+
+content_ideas
+  ✓ exists ×2
+  ✓ both have the correct story_id
+```
+
+The expected creator content for this round is:
+
+```text
+content_idea #1
+content_type = creator_story
+status = draft
+title = Two Birdies Highlight Challenging Round
+
+content_idea #2
+content_type = coaching_reflection
+status = draft
+title = Capitalizing on Birdie Opportunities
+```
+
+The Creator Dashboard successfully gets far enough to display the Story Candidate:
+
+```text
+Post Round follower story
+2 birdies in one round
+Made 2 birdies on holes 1, 8.
+```
+
+It then fails while retrieving the existing content and displays:
+
+```text
+Ideas couldn’t be loaded
+Existing content for this Story’s round could not be retrieved.
+```
+
+The browser has also shown repeated `429` responses on older rounds, but the current round eventually produces a **400**. Treat the 400 as the primary error to diagnose and the 429s as potentially secondary retry/rate-limit behavior.
+
+### What I want back
+
+Do **not** fix anything.
+
+Return an inspection report with exactly these sections:
+
+1. **Current Contract**
+2. **Expected `round` Object**
+3. **Actual `rounds` Data vs Contract**
+4. **Deployed Version / Contract Verification**
+5. **Actual HTTP 400 Response**
+6. **Likely Failure Point**
+7. **Confidence / Unknowns**
+8. **Recommended Next Diagnostic Step**
+
+The goal is to determine whether **yesterday's contract and today's deployed API actually agree** before we change anything.
+
+Do not re-architect the endpoint.
+Do not change the database.
+Do not modify the Creator Dashboard.
+Do not apply a migration.
+Do not commit changes.
+
+Inspection only.
