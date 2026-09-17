@@ -1,5 +1,4 @@
 export type PermissionState = "granted";
-export type InputMethod = "scorecard" | "round_buddy" | null;
 export type FairwayResult = "hit" | "left" | "right" | "short" | "long" | "none" | null;
 export type GirResult = "hit" | "short" | "long" | "left" | "right" | "none" | null;
 
@@ -8,7 +7,6 @@ export interface RoundSummary {
   course_name: string | null;
   tees: string | null;
   player_display_name: string | null;
-  input_method: InputMethod;
 }
 
 export interface RoundHighlights {

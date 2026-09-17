@@ -278,7 +278,6 @@ type RoundContractRow = {
   played_at: string;
   course_name: string | null;
   tees: string | null;
-  input_method: string | null;
   total_score: number | null;
   course_par: number | null;
   front_9: number | null;
@@ -340,7 +339,7 @@ type RoundContentIdeaRow = {
 };
 
 const roundSelect = [
-  "id", "user_id", "played_at", "course_name", "tees", "input_method",
+  "id", "user_id", "played_at", "course_name", "tees",
   "total_score", "course_par", "front_9", "back_9", "total_putts", "total_penalties",
   "fairways_hit", "total_fairways", "fairways_left", "fairways_right", "fairways_long",
   "fairways_short", "gir_hit", "total_gir", "gir_short", "gir_long", "gir_left", "gir_right",
@@ -350,10 +349,6 @@ const roundSelect = [
 
 function nullableString(value: unknown): string | null {
   return typeof value === "string" ? value : null;
-}
-
-function roundInputMethod(value: string | null): RoundSummary["input_method"] {
-  return value === "scorecard" || value === "round_buddy" ? value : null;
 }
 
 function fairwayResult(value: string | null): ScorecardEntry["fairway"] {
@@ -498,7 +493,6 @@ async function fetchRoundWebContractData(
     round: {
       played_at: round.played_at, course_name: round.course_name, tees: round.tees,
       player_display_name: profilesForRound[0]?.display_name ?? null,
-      input_method: roundInputMethod(round.input_method),
     },
     roundHighlights: mapRoundHighlights(round),
     scorecard,

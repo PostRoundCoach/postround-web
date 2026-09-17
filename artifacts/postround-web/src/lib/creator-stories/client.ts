@@ -294,8 +294,7 @@ function parseRoundContract(value: unknown): RoundWebContract | null {
   const scorecard = parseRoundScorecard(root?.scorecard)
   if (!round || !highlights || !scorecard
     || typeof round.played_at !== 'string' || !isStringOrNull(round.course_name)
-    || !isStringOrNull(round.tees) || !isStringOrNull(round.player_display_name)
-    || !(round.input_method === null || round.input_method === 'scorecard' || round.input_method === 'round_buddy')) return null
+    || !isStringOrNull(round.tees) || !isStringOrNull(round.player_display_name)) return null
 
   const creator = asObject(root?.creatorContentStory)
   const coaching = asObject(root?.coachingReflection)
@@ -344,7 +343,7 @@ function parseRoundContract(value: unknown): RoundWebContract | null {
   return {
     round: {
       played_at: round.played_at, course_name: round.course_name, tees: round.tees,
-      player_display_name: round.player_display_name, input_method: round.input_method,
+      player_display_name: round.player_display_name,
     },
     roundHighlights: highlights, scorecard, creatorContentStory, coachingReflection,
   }

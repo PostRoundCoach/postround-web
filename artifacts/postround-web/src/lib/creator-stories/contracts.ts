@@ -134,14 +134,11 @@ export interface FetchStoryCandidatesResponse {
   permission_status: StoryPermissionStatus
 }
 
-export type RoundInputMethod = 'scorecard' | 'round_buddy'
-
 export interface RoundSummary {
   played_at: string
   course_name: string | null
   tees: string | null
   player_display_name: string | null
-  input_method: RoundInputMethod | null
 }
 
 export interface RoundHighlights {

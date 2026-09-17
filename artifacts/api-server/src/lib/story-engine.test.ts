@@ -670,7 +670,7 @@ test("round web contract authorizes by round and returns isolated experiences", 
       }]);
       if (path.includes("rounds?")) return Response.json([{
         id: roundId, user_id: playerId, played_at: "2026-09-09", course_name: "Pebble Beach",
-        tees: "White", input_method: "round_buddy", total_score: 92, course_par: 72, front_9: 46,
+        tees: "White", total_score: 92, course_par: 72, front_9: 46,
         back_9: 46, total_putts: 27, total_penalties: 2, fairways_hit: 8, total_fairways: 14,
         fairways_left: 2, fairways_right: 2, fairways_long: 1, fairways_short: 1, gir_hit: 5,
         total_gir: 18, gir_short: 4, gir_long: 2, gir_left: 4, gir_right: 3,
@@ -702,7 +702,9 @@ test("round web contract authorizes by round and returns isolated experiences", 
   };
   const contract = await fetchRoundWebContract(context, roundId);
   assert.equal(contract.round.player_display_name, "Aaron");
-  assert.equal(contract.round.input_method, "round_buddy");
+  assert.deepEqual(Object.keys(contract.round).sort(), [
+    "course_name", "played_at", "player_display_name", "tees",
+  ]);
   assert.deepEqual(contract.scorecard.map((hole) => hole.hole), [1, 2]);
   assert.equal(contract.creatorContentStory.available, true);
   assert.equal(contract.creatorContentStory.contentIdea?.id, "idea-1");

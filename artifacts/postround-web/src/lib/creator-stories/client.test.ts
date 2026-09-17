@@ -87,7 +87,6 @@ const roundContract = {
     course_name: 'Pebble Beach',
     tees: 'White',
     player_display_name: 'Aaron',
-    input_method: 'round_buddy',
   },
   roundHighlights: {
     total_score: 92, course_par: 72, front_9: 46, back_9: 46, total_putts: 27,
