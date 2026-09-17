@@ -4,9 +4,12 @@ import { useMemo, useState } from 'react'
 import { Download, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
-import type { CreatorContentIdea, StoryPermissionStatus } from '@/lib/creator-stories/contracts'
-
-type Round = NonNullable<CreatorContentIdea['round']>
+import type {
+  RoundHighlights,
+  RoundScorecardEntry,
+  RoundSummary,
+  StoryPermissionStatus,
+} from '@/lib/creator-stories/contracts'
 
 const WIDTH = 1080
 const HEIGHT = 1350
@@ -15,9 +18,9 @@ function display(value: string | number | null) {
   return value === null || value === '' ? '—' : String(value)
 }
 
-function scoreToPar(round: Round) {
-  if (round.total_score === null || round.course_par === null) return null
-  const difference = round.total_score - round.course_par
+function scoreToPar(highlights: RoundHighlights) {
+  if (highlights.total_score === null || highlights.course_par === null) return null
+  const difference = highlights.total_score - highlights.course_par
   if (difference === 0) return 'E'
   return difference > 0 ? `+${difference}` : String(difference)
 }
@@ -31,23 +34,26 @@ function safeFilePart(value: string | null) {
 }
 
 export function ShareableScorecardGraphic({
-  idea,
+  graphicId,
+  round,
+  roundHighlights,
+  scorecard,
   permissionStatus,
 }: {
-  idea: CreatorContentIdea
+  graphicId: string
+  round: RoundSummary
+  roundHighlights: RoundHighlights
+  scorecard: RoundScorecardEntry[]
   permissionStatus: StoryPermissionStatus
 }) {
   const [includeNotes, setIncludeNotes] = useState(true)
   const [isDownloading, setIsDownloading] = useState(false)
   const [downloadFailed, setDownloadFailed] = useState(false)
-  const round = idea.round
   const canExport = permissionStatus === 'approved'
   const sortedHoles = useMemo(
-    () => [...(round?.scorecard ?? [])].sort((a, b) => a.hole - b.hole),
-    [round],
+    () => [...scorecard].sort((a, b) => a.hole - b.hole),
+    [scorecard],
   )
-
-  if (!round) return null
 
   const handleDownload = async () => {
     if (!canExport || isDownloading) return
@@ -55,7 +61,7 @@ export function ShareableScorecardGraphic({
     setDownloadFailed(false)
 
     try {
-      const svg = document.querySelector<SVGSVGElement>(`#share-scorecard-${idea.id}`)
+      const svg = document.querySelector<SVGSVGElement>(`#share-scorecard-${graphicId}`)
       if (!svg) throw new Error('Scorecard preview is unavailable')
 
       const serialized = new XMLSerializer().serializeToString(svg)
@@ -95,7 +101,7 @@ export function ShareableScorecardGraphic({
   }
 
   return (
-    <section className="space-y-4 rounded-xl border border-border bg-muted/20 p-4 sm:p-5" data-testid={`section-share-scorecard-${idea.id}`}>
+    <section className="space-y-4 rounded-xl border border-border bg-muted/20 p-4 sm:p-5" data-testid={`section-share-scorecard-${graphicId}`}>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="font-semibold">Share-ready scorecard</p>
@@ -104,25 +110,25 @@ export function ShareableScorecardGraphic({
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <label htmlFor={`notes-${idea.id}`} className="text-sm font-medium">Round Buddy notes</label>
+          <label htmlFor={`notes-${graphicId}`} className="text-sm font-medium">Round Buddy notes</label>
           <Switch
-            id={`notes-${idea.id}`}
+            id={`notes-${graphicId}`}
             checked={includeNotes}
             onCheckedChange={setIncludeNotes}
-            data-testid={`switch-scorecard-notes-${idea.id}`}
+            data-testid={`switch-scorecard-notes-${graphicId}`}
           />
         </div>
       </div>
 
       <div className="mx-auto w-full max-w-2xl overflow-hidden rounded-xl border border-border bg-white shadow-sm">
         <svg
-          id={`share-scorecard-${idea.id}`}
+          id={`share-scorecard-${graphicId}`}
           viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
           xmlns="http://www.w3.org/2000/svg"
           role="img"
           aria-label={`Shareable scorecard for ${round.course_name || 'this round'}`}
           className="block h-auto w-full"
-          data-testid={`preview-share-scorecard-${idea.id}`}
+          data-testid={`preview-share-scorecard-${graphicId}`}
         >
           <rect width={WIDTH} height={HEIGHT} fill="#f7f6f1" />
           <rect x="48" y="48" width="984" height="1254" rx="32" fill="#ffffff" stroke="#deddd6" strokeWidth="2" />
@@ -136,17 +142,17 @@ export function ShareableScorecardGraphic({
 
           <rect x="88" y="250" width="280" height="126" rx="20" fill="#eaf3ed" />
           <text x="116" y="290" fill="#245c43" fontFamily="Arial, sans-serif" fontSize="18" fontWeight="700" letterSpacing="2">TOTAL SCORE</text>
-          <text x="116" y="348" fill="#17251f" fontFamily="Arial, sans-serif" fontSize="54" fontWeight="700">{display(round.total_score)}</text>
-          {scoreToPar(round) && <text x="235" y="346" fill="#68736d" fontFamily="Arial, sans-serif" fontSize="28">{scoreToPar(round)}</text>}
+          <text x="116" y="348" fill="#17251f" fontFamily="Arial, sans-serif" fontSize="54" fontWeight="700">{display(roundHighlights.total_score)}</text>
+          {scoreToPar(roundHighlights) && <text x="235" y="346" fill="#68736d" fontFamily="Arial, sans-serif" fontSize="28">{scoreToPar(roundHighlights)}</text>}
 
           <rect x="388" y="250" width="280" height="126" rx="20" fill="#f3f2ed" />
           <text x="416" y="290" fill="#68736d" fontFamily="Arial, sans-serif" fontSize="18" fontWeight="700" letterSpacing="2">PUTTS</text>
-          <text x="416" y="348" fill="#17251f" fontFamily="Arial, sans-serif" fontSize="54" fontWeight="700">{display(round.total_putts)}</text>
+          <text x="416" y="348" fill="#17251f" fontFamily="Arial, sans-serif" fontSize="54" fontWeight="700">{display(roundHighlights.total_putts)}</text>
 
           <rect x="688" y="250" width="256" height="126" rx="20" fill="#f3f2ed" />
           <text x="716" y="290" fill="#68736d" fontFamily="Arial, sans-serif" fontSize="18" fontWeight="700" letterSpacing="2">FAIRWAYS / GIR</text>
           <text x="716" y="340" fill="#17251f" fontFamily="Arial, sans-serif" fontSize="30" fontWeight="700">
-            {round.fairways_hit ?? '—'}/{round.total_fairways ?? '—'}  •  {round.gir_hit ?? '—'}/{round.total_gir ?? '—'}
+            {roundHighlights.fairways_hit ?? '—'}/{roundHighlights.total_fairways ?? '—'}  •  {roundHighlights.gir_hit ?? '—'}/{roundHighlights.total_gir ?? '—'}
           </text>
 
           {[0, 1].map((column) => (
@@ -192,14 +198,14 @@ export function ShareableScorecardGraphic({
           type="button"
           onClick={() => void handleDownload()}
           disabled={!canExport || isDownloading}
-          data-testid={`button-download-scorecard-${idea.id}`}
+          data-testid={`button-download-scorecard-${graphicId}`}
         >
           {isDownloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
           {isDownloading ? 'Generating…' : 'Download PNG'}
         </Button>
       </div>
       {downloadFailed && (
-        <p className="text-sm text-destructive" role="alert" data-testid={`status-scorecard-download-error-${idea.id}`}>
+        <p className="text-sm text-destructive" role="alert" data-testid={`status-scorecard-download-error-${graphicId}`}>
           The image could not be generated. Please try again.
         </p>
       )}

@@ -3,6 +3,7 @@ import { expect, test } from '@playwright/test'
 test.setTimeout(90_000)
 
 const storyId = '20000000-0000-4000-8000-000000000001'
+const roundId = '30000000-0000-4000-8000-000000000001'
 const candidateId = '40000000-0000-4000-8000-000000000001'
 const candidate = {
   id: candidateId, story_id: storyId, category: 'Round Analysis',
@@ -16,6 +17,12 @@ async function signIn(page: import('@playwright/test').Page) {
   await page.getByLabel('Password', { exact: true }).fill('fixture-password')
   await page.getByRole('button', { name: 'Sign In' }).click()
   await expect(page).toHaveURL(/\/dashboard(?:\?.*)?$/)
+}
+
+async function signOut(page: import('@playwright/test').Page) {
+  await page.getByRole('button', { name: 'Open navigation menu' }).click()
+  await page.getByRole('button', { name: 'Sign Out' }).click()
+  await expect(page).toHaveURL(/\/login$/)
 }
 
 test('creator story queue persists candidates, approval, and dismissal state', async ({ page }) => {
@@ -35,7 +42,7 @@ test('creator story queue persists candidates, approval, and dismissal state', a
   expect(contentRequests).toContainEqual({ method: 'GET', pathname: '/api/content/stories' })
   expect(contentRequests).toContainEqual({
     method: 'GET',
-    pathname: '/api/content/round/30000000-0000-4000-8000-000000000001',
+    pathname: `/api/content/round/${roundId}`,
   })
   expect(contentRequests).not.toContainEqual({ method: 'GET', pathname: '/api/content/ideas' })
   expect(contentRequests).not.toContainEqual({ method: 'POST', pathname: '/api/content/generate' })
@@ -51,6 +58,18 @@ test('creator story queue persists candidates, approval, and dismissal state', a
   await expect(page.getByTestId(`section-coaching-reflection-${storyId}`)).toContainText(
     'The round stabilized when the player stayed patient.',
   )
+  const dashboardSections = await page.locator(
+    `[data-testid="scorecard-metadata"], [data-testid="section-coaching-reflection-${storyId}"], [data-testid="card-story-candidate-${candidateId}"], [data-testid="section-share-scorecard-${storyId}"]`,
+  ).evaluateAll((elements) => elements.map((element) => element.getAttribute('data-testid')))
+  expect(dashboardSections).toEqual([
+    'scorecard-metadata',
+    `section-coaching-reflection-${storyId}`,
+    `card-story-candidate-${candidateId}`,
+    `section-share-scorecard-${storyId}`,
+  ])
+  await expect(page.getByTestId(`preview-share-scorecard-${storyId}`)).toContainText('Fixture Golf Club')
+  await expect(page.getByTestId(`preview-share-scorecard-${storyId}`)).toContainText('85')
+  await expect(page.getByTestId(`button-download-scorecard-${storyId}`)).toBeDisabled()
 
   await page.setViewportSize({ width: 390, height: 844 })
   await expect(page.getByTestId('scorecard-hole-1')).toBeVisible()
@@ -64,10 +83,32 @@ test('creator story queue persists candidates, approval, and dismissal state', a
   await expect(page.getByTestId(`button-request-approval-${storyId}`)).toBeDisabled()
   await expect(page.getByTestId(`button-request-approval-${storyId}`)).toHaveText(/Approval requested/)
 
+  await page.route(`**/api/content/round/${roundId}`, async (route) => {
+    const response = await route.fetch()
+    const body = await response.json()
+    body.contract.creatorContentStory.permission.granted_at = '2026-01-03T00:00:00.000Z'
+    await route.fulfill({ response, json: body })
+  })
   await page.reload()
-  await expect(page.getByTestId(`button-request-approval-${storyId}`)).toHaveText(/Approval requested/)
-  await page.getByRole('button', { name: 'Sign Out' }).click()
-  await expect(page).toHaveURL(/\/login$/)
+  const downloadButton = page.getByTestId(`button-download-scorecard-${storyId}`)
+  await expect(downloadButton).toBeEnabled()
+  const downloadPromise = page.waitForEvent('download')
+  await downloadButton.click()
+  const download = await downloadPromise
+  expect(download.suggestedFilename()).toBe('fixture-golf-club-scorecard.png')
+
+  await page.evaluate(() => {
+    HTMLCanvasElement.prototype.getContext = () => null
+  })
+  await downloadButton.click()
+  await expect(page.getByTestId(`status-scorecard-download-error-${storyId}`)).toBeVisible()
+  await expect(page.getByTestId('scorecard-metadata')).toBeVisible()
+  await expect(page.getByTestId(`section-coaching-reflection-${storyId}`)).toBeVisible()
+  await expect(page.getByTestId(`card-story-candidate-${candidateId}`)).toBeVisible()
+
+  await page.unroute(`**/api/content/round/${roundId}`)
+  await page.getByRole('link', { name: 'Back to Profile' }).click()
+  await signOut(page)
   await signIn(page)
   await page.goto('/creator')
   await expect(page.getByTestId(`button-request-approval-${storyId}`)).toHaveText(/Approval requested/)
@@ -76,8 +117,8 @@ test('creator story queue persists candidates, approval, and dismissal state', a
   await expect(page.getByTestId(`card-story-${storyId}`)).toHaveCount(0)
   await page.reload()
   await expect(page.getByTestId('status-story-queue-empty')).toBeVisible()
-  await page.getByRole('button', { name: 'Sign Out' }).click()
-  await expect(page).toHaveURL(/\/login$/)
+  await page.getByRole('link', { name: 'Back to Profile' }).click()
+  await signOut(page)
   await signIn(page)
   await page.goto('/creator')
   await expect(page.getByTestId('status-story-queue-empty')).toBeVisible()

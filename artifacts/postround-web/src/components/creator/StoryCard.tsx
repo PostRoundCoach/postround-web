@@ -10,6 +10,7 @@ import type { CreatorContentIdea, CreatorStory, RoundWebContract } from '@/lib/c
 import { fetchRoundContract, dismissCreatorStory, requestStoryApproval } from '@/lib/creator-stories/client'
 import { StoryCandidateCard } from './StoryCandidateCard'
 import { CreatorRoundScorecard } from './CreatorRoundScorecard'
+import { ShareableScorecardGraphic } from './ShareableScorecardGraphic'
 
 export function StoryCard({
   story,
@@ -426,12 +427,22 @@ export function StoryCard({
                   <StoryCandidateCard
                     key={candidate.id}
                     candidate={candidate}
-                    permissionStatus={permissionStatus}
                   />
                 ))}
               </div>
             </div>
           )}
+           {roundContract && (
+             <div className="mt-8">
+               <ShareableScorecardGraphic
+                 graphicId={story.id}
+                 round={roundContract.round}
+                 roundHighlights={roundContract.roundHighlights}
+                 scorecard={roundContract.scorecard}
+                 permissionStatus={permissionStatus}
+               />
+             </div>
+           )}
         </div>
       )}
     </article>

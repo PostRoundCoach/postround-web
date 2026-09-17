@@ -143,6 +143,13 @@ test('loads and strictly parses the authenticated round contract', async () => {
   } } } as unknown as SupabaseClient
   try {
     const result = await fetchRoundContract(supabase, 'round-1')
+    assert.deepEqual(Object.keys(result.contract).sort(), [
+      'coachingReflection',
+      'creatorContentStory',
+      'round',
+      'roundHighlights',
+      'scorecard',
+    ])
     assert.equal(result.contract.creatorContentStory.available, true)
     assert.equal(result.contract.coachingReflection.available, true)
     assert.equal(result.contract.scorecard[0]?.player_note, 'Good drive')
