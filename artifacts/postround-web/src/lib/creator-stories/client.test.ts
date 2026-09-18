@@ -89,12 +89,12 @@ const roundContract = {
     player_display_name: 'Aaron',
   },
   roundHighlights: {
-    total_score: 92, course_par: 72, front_9: 46, back_9: 46, total_putts: 27,
+    total_score: 92, course_par: 72, score_to_par: 20, front_9: 46, back_9: 46, total_putts: 27,
     total_penalties: 2, fairways_hit: 8, total_fairways: 14, fairways_left: 2,
     fairways_right: 2, fairways_long: 1, fairways_short: 1, gir_hit: 5, total_gir: 18,
     gir_short: 4, gir_long: 2, gir_left: 4, gir_right: 3, scrambling_opportunities: 9,
     successful_scrambles: 4, three_putts: 2, birdies: 1, pars: 8, bogeys: 7,
-    double_bogeys: 2, eagles: 0, albatrosses: 0, hole_in_one: 0,
+    double_bogeys: 2, triple_bogeys: 0, eagles: 0, albatrosses: 0, hole_in_one: 0,
   },
   scorecard: [{
     hole: 1, par: 4, score: 5, fairway: 'long', gir: 'long', putts: 2, chips: 1,
@@ -153,6 +153,8 @@ test('loads and strictly parses the authenticated round contract', async () => {
     assert.equal(result.contract.creatorContentStory.available, true)
     assert.equal(result.contract.coachingReflection.available, true)
     assert.equal(result.contract.scorecard[0]?.player_note, 'Good drive')
+    assert.equal(result.contract.roundHighlights.score_to_par, 20)
+    assert.equal(result.contract.roundHighlights.triple_bogeys, 0)
     assert.deepEqual(request, {
       url: 'https://api.postround.test/api/content/round/round-1',
       authorization: 'Bearer round-token',

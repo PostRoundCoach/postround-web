@@ -260,11 +260,11 @@ function parseRoundScorecard(value: unknown): RoundScorecardEntry[] | null {
 }
 
 const ROUND_HIGHLIGHT_KEYS = [
-  'total_score', 'course_par', 'front_9', 'back_9', 'total_putts', 'total_penalties',
+  'total_score', 'course_par', 'score_to_par', 'front_9', 'back_9', 'total_putts', 'total_penalties',
   'fairways_hit', 'total_fairways', 'fairways_left', 'fairways_right', 'fairways_long',
   'fairways_short', 'gir_hit', 'total_gir', 'gir_short', 'gir_long', 'gir_left',
   'gir_right', 'scrambling_opportunities', 'successful_scrambles', 'three_putts',
-  'birdies', 'pars', 'bogeys', 'double_bogeys', 'eagles', 'albatrosses', 'hole_in_one',
+  'birdies', 'pars', 'bogeys', 'double_bogeys', 'triple_bogeys', 'eagles', 'albatrosses', 'hole_in_one',
 ] as const
 
 function parseRoundHighlights(value: unknown): RoundHighlights | null {

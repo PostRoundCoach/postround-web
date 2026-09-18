@@ -280,6 +280,7 @@ type RoundContractRow = {
   tees: string | null;
   total_score: number | null;
   course_par: number | null;
+  score_to_par: number | null;
   front_9: number | null;
   back_9: number | null;
   total_putts: number | null;
@@ -303,6 +304,7 @@ type RoundContractRow = {
   pars: number | null;
   bogeys: number | null;
   double_bogeys: number | null;
+  triple_bogeys: number | null;
   eagles: number | null;
   albatrosses: number | null;
   hole_in_one: number | null;
@@ -340,11 +342,11 @@ type RoundContentIdeaRow = {
 
 const roundSelect = [
   "id", "user_id", "played_at", "course_name", "tees",
-  "total_score", "course_par", "front_9", "back_9", "total_putts", "total_penalties",
+  "total_score", "course_par", "score_to_par", "front_9", "back_9", "total_putts", "total_penalties",
   "fairways_hit", "total_fairways", "fairways_left", "fairways_right", "fairways_long",
   "fairways_short", "gir_hit", "total_gir", "gir_short", "gir_long", "gir_left", "gir_right",
   "scrambling_opportunities", "successful_scrambles", "three_putts", "birdies", "pars",
-  "bogeys", "double_bogeys", "eagles", "albatrosses", "hole_in_one",
+  "bogeys", "double_bogeys", "triple_bogeys", "eagles", "albatrosses", "hole_in_one",
 ].join(",");
 
 function nullableString(value: unknown): string | null {
@@ -367,7 +369,8 @@ function girResult(value: string | null): ScorecardEntry["gir"] {
 
 function mapRoundHighlights(round: RoundContractRow): RoundHighlights {
   return {
-    total_score: round.total_score, course_par: round.course_par, front_9: round.front_9,
+    total_score: round.total_score, course_par: round.course_par, score_to_par: round.score_to_par,
+    front_9: round.front_9,
     back_9: round.back_9, total_putts: round.total_putts, total_penalties: round.total_penalties,
     fairways_hit: round.fairways_hit, total_fairways: round.total_fairways,
     fairways_left: round.fairways_left, fairways_right: round.fairways_right,
@@ -377,7 +380,7 @@ function mapRoundHighlights(round: RoundContractRow): RoundHighlights {
     scrambling_opportunities: round.scrambling_opportunities,
     successful_scrambles: round.successful_scrambles, three_putts: round.three_putts,
     birdies: round.birdies, pars: round.pars, bogeys: round.bogeys,
-    double_bogeys: round.double_bogeys, eagles: round.eagles,
+    double_bogeys: round.double_bogeys, triple_bogeys: round.triple_bogeys, eagles: round.eagles,
     albatrosses: round.albatrosses, hole_in_one: round.hole_in_one,
   };
 }

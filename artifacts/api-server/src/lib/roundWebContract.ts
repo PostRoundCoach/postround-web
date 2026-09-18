@@ -12,6 +12,7 @@ export interface RoundSummary {
 export interface RoundHighlights {
   total_score: number | null;
   course_par: number | null;
+  score_to_par: number | null;
   front_9: number | null;
   back_9: number | null;
   total_putts: number | null;
@@ -35,6 +36,7 @@ export interface RoundHighlights {
   pars: number | null;
   bogeys: number | null;
   double_bogeys: number | null;
+  triple_bogeys: number | null;
   eagles: number | null;
   albatrosses: number | null;
   hole_in_one: number | null;
