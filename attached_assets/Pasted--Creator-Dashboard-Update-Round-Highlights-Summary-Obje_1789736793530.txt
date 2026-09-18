@@ -1,0 +1,575 @@
+# Creator Dashboard — Update Round Highlights Summary
+
+## Objective
+
+The **Round Web Contract has already been updated from the app**, and scoring integrity has been confirmed on the application side.
+
+The current embedded round data is correct and must remain embedded.
+
+**Do not redesign or modify the underlying Round Web Contract. Do not recalculate round statistics from hole-level data.**
+
+This task is narrowly focused on updating the **default Round Highlights / embedded round summary presentation** in the Creator Dashboard so it is more useful to a creator scanning a generated story.
+
+The complete hole-by-hole round data must remain available through the existing expandable:
+
+**View full round details →**
+
+The existing scorecard generation/rendering must remain unchanged.
+
+The existing Creator Content and Coaching Reflection must remain unchanged.
+
+---
+
+# Source of Truth
+
+Use the **current Round Web Contract**, which is sourced from the authoritative `rounds` record.
+
+The `rounds` table already contains persisted round-level scoring and performance aggregates.
+
+For example, the current schema includes:
+
+* `total_score`
+* `course_par`
+* `score_to_par`
+* `total_putts`
+* `total_fairways`
+* `fairways_hit`
+* `fairways_missed`
+* `fairways_left`
+* `fairways_right`
+* `fairways_playable`
+* `total_gir`
+* `gir_hit`
+* `gir_missed`
+* `gir_short`
+* `gir_long`
+* `gir_left`
+* `gir_right`
+* `gir_playable`
+* `eagles`
+* `albatrosses`
+* `hole_in_one`
+* `birdies`
+* `pars`
+* `bogeys`
+* `double_bogeys`
+* `triple_bogeys`
+* `three_putts`
+* `total_penalties`
+
+There are additional round-level fields in the contract as well.
+
+**Use these existing authoritative values.**
+
+Do not calculate birdies, pars, bogeys, double bogeys, triples, eagles, albatrosses, hole-in-ones, etc. from the individual hole records in the web client.
+
+Do not create new database fields.
+
+Do not modify the app-side contract.
+
+Do not introduce another competing round data model.
+
+---
+
+# New Round Highlights Presentation
+
+Replace the current bulky default round presentation with a compact creator-focused summary.
+
+The desired structure is:
+
+### Round Highlights
+
+**41 · +7**
+
+Holiday Park Executive Nine · 9 holes
+
+**2 Birdies · 3 Pars · 2 Bogeys · 2 Double+**
+
+**3/6 Fairways · 3/9 GIR · 16 Putts**
+
+### Standout holes
+
+**#1 · Birdie** — 20-foot putt
+
+**#8 · Birdie** — chip-in
+
+### Other notable moments
+
+**#5** — two chips after missing the green short
+
+**#9** — penalty + triple bogey
+
+**View full round details →**
+
+This example represents the **presentation structure**, not hard-coded values.
+
+The actual values must come from the current Round Web Contract.
+
+---
+
+# 1. Score / Relative to Par
+
+Display:
+
+**`total_score · score_to_par`**
+
+For example:
+
+**41 · +7**
+
+Use the authoritative round-level values.
+
+Do not derive relative-to-par from hole-level data.
+
+---
+
+# 2. Course / Round Length
+
+Display:
+
+**`course_name · X holes`**
+
+Use the existing round/course data and selected hole information to determine the displayed round length.
+
+Example:
+
+**Holiday Park Executive Nine · 9 holes**
+
+---
+
+# 3. Compact Scoring Summary
+
+This is the primary change.
+
+Use the existing authoritative round-level scoring statistics from the Round Web Contract / `rounds` record.
+
+**Do not recalculate scoring categories from hole-level data in the web client.**
+
+Available scoring fields include:
+
+* `hole_in_one`
+* `albatrosses`
+* `eagles`
+* `birdies`
+* `pars`
+* `bogeys`
+* `double_bogeys`
+* `triple_bogeys`
+
+Display **only non-zero categories**.
+
+Prioritize exceptional scoring categories before ordinary scoring categories.
+
+Suggested display order:
+
+1. Hole-in-one
+2. Albatross
+3. Eagle
+4. Birdie
+5. Par
+6. Bogey
+7. Double bogey
+8. Triple bogey
+
+Examples:
+
+If the round contains:
+
+* 1 hole-in-one
+* 1 eagle
+* 4 birdies
+* 8 pars
+* 3 bogeys
+
+display:
+
+**1 Hole-in-one · 1 Eagle · 4 Birdies · 8 Pars · 3 Bogeys**
+
+If the round contains:
+
+* 2 birdies
+* 3 pars
+* 2 bogeys
+* 1 double bogey
+* 1 triple bogey
+
+display:
+
+**2 Birdies · 3 Pars · 2 Bogeys · 1 Double Bogey · 1 Triple Bogey**
+
+If there are no exceptional scores, simply omit them.
+
+Do not invent a `double_plus` field.
+
+Do not collapse all 2+ over-par scores into `Double+` if the contract provides the actual `double_bogeys` and `triple_bogeys` counts.
+
+The goal is to surface meaningful scoring events to a creator.
+
+A hole-in-one, albatross, or eagle is potentially much more important to a creator than simply treating it as a generic “under par” event.
+
+---
+
+# 4. Key Performance Summary
+
+Below the scoring summary, display the most useful compact performance metrics.
+
+Primary display:
+
+**`X/X Fairways · X/X GIR · X Putts`**
+
+Use:
+
+* `fairways_hit / total_fairways`
+* `gir_hit / total_gir`
+* `total_putts`
+
+Example:
+
+**3/6 Fairways · 3/9 GIR · 16 Putts**
+
+Do not recalculate these values from individual holes.
+
+---
+
+# 5. Do Not Overload the Default Summary With Miss Directions
+
+The round contract already contains useful directional information such as:
+
+### Fairways
+
+* `fairways_hit`
+* `fairways_missed`
+* `fairways_left`
+* `fairways_right`
+* `fairways_playable`
+
+### GIR
+
+* `gir_hit`
+* `gir_missed`
+* `gir_short`
+* `gir_long`
+* `gir_left`
+* `gir_right`
+* `gir_playable`
+
+These are valuable creator-facing metrics, but **do not put all of them into the primary Round Highlights summary**.
+
+The default summary should remain visually compact.
+
+For example, do NOT turn the summary into:
+
+**3/6 Fairways · 2 left · 2 right · 1 playable · 3/9 GIR · 4 short · 2 long · 4 playable · 16 Putts**
+
+That recreates the density problem we are trying to solve.
+
+Instead, keep:
+
+**3/6 Fairways · 3/9 GIR · 16 Putts**
+
+The detailed directional/playability statistics should remain available in:
+
+**View full round details →**
+
+If there is an already-existing appropriate location inside Full Round Details for these aggregate statistics, preserve/use it.
+
+Do not remove these fields from the contract.
+
+---
+
+# 6. Standout Holes
+
+Keep a compact **Standout holes** section.
+
+This should surface a small number of creator-relevant holes.
+
+Prioritize:
+
+* Hole-in-one
+* Albatross
+* Eagle
+* Birdie
+* Exceptional scoring
+* Chip-in
+* Exceptional recovery
+* Significant player-provided Round Buddy moment
+* Unusually long putt when documented by the player
+
+Do not invent events.
+
+Use existing hole-level data and Round Buddy/player notes as evidence.
+
+Example:
+
+**#1 · Birdie** — 20-foot putt
+
+**#8 · Birdie** — chip-in
+
+The 20-foot putt and chip-in descriptions come from the available Round Buddy notes for those holes.
+
+---
+
+# 7. Other Notable Moments
+
+Show a small number of additional creator-relevant events that help explain the round.
+
+Examples include:
+
+* Triple bogeys
+* Double bogeys
+* Penalties
+* Multiple chips
+* Major recovery situations
+* Significant player notes
+* Unusual scoring events
+
+Example:
+
+**#5** — two chips after missing the green short
+
+**#9** — penalty + triple bogey
+
+Keep this concise.
+
+Do not turn this into another hole-by-hole summary.
+
+---
+
+# 8. Round Buddy Notes / Transcripts
+
+Round Buddy/player notes remain important source material.
+
+Use them to enrich Standout Holes and Other Notable Moments when available.
+
+However:
+
+* Do not display full transcripts in the compact summary.
+* Condense notes into short creator-facing descriptions.
+* Preserve the complete notes in Full Round Details.
+* Never invent information that isn't supported by the note or round data.
+
+Example source note:
+
+> "Hit the fairway, miss the green short, two chips, two putts for double bogeys."
+
+Compact presentation:
+
+**#5** — two chips after missing the green short
+
+The full note remains available in the expanded details.
+
+---
+
+# 9. Full Round Details
+
+**Do not remove, rewrite, or restructure the existing full round details functionality as part of this task.**
+
+The existing expandable:
+
+**View full round details →**
+
+should continue to expose the complete embedded round information, including where available:
+
+* Hole number
+* Par
+* Score
+* Fairway result
+* Fairway miss direction
+* GIR result
+* GIR miss direction
+* Putts
+* Chips
+* Bunker
+* Penalties
+* Round Buddy/player notes
+* Any other existing hole-level round data
+* Existing aggregate/directional/playability data where already presented
+
+The objective is simply to make the **collapsed/default state compact**.
+
+---
+
+# 10. Existing Sections Must Not Change
+
+Do not modify:
+
+### Creator Content
+
+The existing generated Creator Story/content is already rendering correctly.
+
+Leave it unchanged.
+
+### Coaching Reflection
+
+The existing Coaching Reflection is already rendering correctly.
+
+Leave it unchanged.
+
+### Share-ready scorecard
+
+Scorecard generation and rendering are now working correctly.
+
+Leave them unchanged.
+
+### Round Buddy / scorecard functionality
+
+Do not change existing scorecard generation, download, approval, or Round Buddy functionality.
+
+---
+
+# Desired Page Hierarchy
+
+The generated content idea should now visually read approximately:
+
+### Generated content ideas
+
+### 2 birdies in one round
+
+**Approved by player**
+
+...
+
+### Round Highlights
+
+**41 · +7**
+
+Holiday Park Executive Nine · 9 holes
+
+**2 Birdies · 3 Pars · 2 Bogeys · 1 Double Bogey · 1 Triple Bogey**
+
+**3/6 Fairways · 3/9 GIR · 16 Putts**
+
+### Standout holes
+
+**#1 · Birdie** — 20-foot putt
+
+**#8 · Birdie** — chip-in
+
+### Other notable moments
+
+**#5** — two chips after missing the green short
+
+**#9** — penalty + triple bogey
+
+**View full round details →**
+
+---
+
+### Creator Content
+
+Existing generated Creator Story
+
+---
+
+### Coaching Reflection
+
+Existing generated Coaching Reflection
+
+---
+
+### Share-ready scorecard
+
+Existing generated scorecard
+
+---
+
+# Important Contract Rules
+
+The updated Round Web Contract provided with this task is the source of truth.
+
+**Do not:**
+
+* Recalculate round-level scoring categories from hole data.
+* Add new round database fields.
+* Change the app contract.
+* Reintroduce `rounds.input_method`.
+* Resurrect the old `CreatorContentIdea.round` contract.
+* Create a duplicate round data model.
+* Remove existing hole-level data.
+* Remove Round Buddy notes.
+* Change scorecard generation.
+* Change Creator Content.
+* Change Coaching Reflection.
+
+**Do:**
+
+* Consume the existing authoritative round-level aggregates.
+* Dynamically display only non-zero scoring categories.
+* Include exceptional scoring categories such as hole-in-one, albatross and eagle when present.
+* Preserve the complete embedded round data.
+* Keep detailed miss-direction and playability information available through Full Round Details.
+* Keep the collapsed Round Highlights presentation compact and creator-focused.
+
+---
+
+# Testing
+
+Update only the tests necessary for this presentation change.
+
+At minimum verify:
+
+1. Round Highlights consumes the authoritative round-level scoring fields from the current contract.
+2. No scoring categories are recalculated from hole-level data in the web client.
+3. Zero scoring categories are omitted.
+4. Hole-in-one is displayed when non-zero.
+5. Albatross is displayed when non-zero.
+6. Eagle is displayed when non-zero.
+7. Birdies are displayed when non-zero.
+8. Pars are displayed when non-zero.
+9. Bogeys are displayed when non-zero.
+10. Double bogeys are displayed when non-zero.
+11. Triple bogeys are displayed when non-zero.
+12. Exceptional scoring categories appear before ordinary scoring categories.
+13. Fairways/GIR/putts use the existing round-level aggregate values.
+14. Round Buddy notes can still enrich Standout Holes / Other Notable Moments.
+15. Full Round Details still exposes the complete hole-level data.
+16. Existing Creator Content still renders.
+17. Existing Coaching Reflection still renders.
+18. Existing scorecard rendering still works.
+19. No `rounds.input_method` references are introduced.
+
+---
+
+# Final Acceptance Criteria
+
+The default embedded round should no longer feel like a nine-hole scorecard dumped into the Creator Dashboard.
+
+It should instead immediately answer:
+
+**What happened?**
+
+**How did they score?**
+
+**What were the notable scoring events?**
+
+**What stats support the story?**
+
+**Which holes are worth looking at?**
+
+The compact summary should be driven by the authoritative persisted round statistics and look approximately like:
+
+**41 · +7**
+
+Holiday Park Executive Nine · 9 holes
+
+**2 Birdies · 3 Pars · 2 Bogeys · 1 Double Bogey · 1 Triple Bogey**
+
+**3/6 Fairways · 3/9 GIR · 16 Putts**
+
+**Standout holes**
+
+**#1 · Birdie** — 20-foot putt
+
+**#8 · Birdie** — chip-in
+
+**Other notable moments**
+
+**#5** — two chips after missing the green short
+
+**#9** — penalty + triple bogey
+
+**View full round details →**
+
+The exact values must always come from the current Round Web Contract, not from this example.
+
+**This is a presentation-only web change. The app-side contract and underlying round data are already correct.**

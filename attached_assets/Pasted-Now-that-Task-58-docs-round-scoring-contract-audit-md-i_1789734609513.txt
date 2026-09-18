@@ -1,0 +1,76 @@
+Now that Task #58 (`docs/round-scoring-contract-audit.md`) is complete, reconcile the audit findings against the **current app-side Round Web Contract**.
+
+Do not implement changes yet.
+
+Determine whether the existing app-side Round Web Contract already exposes the authoritative round-level scoring summary fields needed by the web client.
+
+The intended architecture is:
+
+**`holes` = auditable scoring truth**
+**`rounds` = nullable, scope-aware, centrally derived scoring summary**
+**Round Web Contract = exposes the round summary to web**
+**Web client = displays the summary and does not recalculate scoring categories from holes**
+
+Audit the current contract against the audit's scoring matrix.
+
+For each relevant scoring category, identify:
+
+* authoritative `rounds` field
+* exact app-side contract field
+* API field, if different
+* nullability
+* whether the field is currently exposed to web
+* whether the field is actually populated/verified
+* whether the web client currently recalculates it from holes
+
+Include at minimum:
+
+* birdies
+* pars
+* bogeys
+* doubles / double+
+* triples / other double+
+* eagles
+* albatrosses
+* hole-in-ones
+
+Also verify that the contract preserves the hole-level data required for Full Round Details.
+
+Pay particular attention to the audit's findings around:
+
+* nullable round summaries
+* partial-round scope
+* naming mismatches
+* the current dashboard `input_method` issue
+* exact doubles being labelled “Doubles+”
+* the distinction between verified production column existence and unverified writer/calculation provenance
+
+Return an evidence-based disposition:
+
+### A. Already exposed
+
+Fields that the existing app contract already provides and therefore require no app-side contract change.
+
+### B. Missing from app contract
+
+Fields that exist/are appropriate on `rounds` but are not currently exposed and therefore require an app-side contract update.
+
+### C. Should NOT be added
+
+Fields that should remain hole-derived or otherwise do not belong in the round web summary.
+
+### D. Web-only implementation changes
+
+Anything that can be fixed entirely on the web side without changing the app contract.
+
+### E. Recommended minimum change
+
+Give the smallest clean change required to establish:
+
+`rounds → Round Web Contract → web display`
+
+while preserving:
+
+`holes → Full Round Details`
+
+Do not change code, schema, migrations, or production data during this audit.
