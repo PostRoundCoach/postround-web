@@ -11,3 +11,4 @@
 - [Next build outputs and Tailwind scanning](next-build-output-scanning.md) — never commit custom Next dist directories; generated CSS can be rescanned and break later builds.
 - [Creator idea retrieval concurrency](creator-idea-retrieval-concurrency.md) — bound first-render idea GETs; authorization fan-out can trigger transient connector 429s.
 - [Next preview cold starts](next-preview-cold-starts.md) — keep the artifact port responsive while Next lazily compiles the root page.
+- [Round scoring authority](round-scoring-authority.md) — holes are scoring truth; rounds are nullable, scope-aware summaries derived centrally from eligible holes.
