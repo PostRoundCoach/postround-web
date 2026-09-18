@@ -113,6 +113,7 @@ const roundContract = {
   roundHighlights: {
     total_score: candidate.round.total_score,
     course_par: candidate.round.course_par,
+    score_to_par: candidate.round.score_to_par,
     front_9: candidate.round.front_9,
     back_9: candidate.round.back_9,
     total_putts: candidate.round.total_putts,
@@ -136,6 +137,7 @@ const roundContract = {
     pars: candidate.round.pars,
     bogeys: candidate.round.bogeys,
     double_bogeys: candidate.round.double_bogeys,
+    triple_bogeys: candidate.round.triple_bogeys,
     eagles: candidate.round.eagles,
     albatrosses: candidate.round.albatrosses,
     hole_in_one: candidate.round.hole_in_one,
