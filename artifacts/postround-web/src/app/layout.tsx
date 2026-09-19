@@ -14,7 +14,17 @@ const dmSans = DM_Sans({
   display: 'swap',
 })
 
+function siteUrl(): URL {
+  const configuredUrl = process.env.NEXT_PUBLIC_SITE_URL
+    ?? (process.env.VERCEL_PROJECT_PRODUCTION_URL
+      ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+      : 'http://localhost:3000')
+
+  return new URL(configuredUrl)
+}
+
 export const metadata: Metadata = {
+  metadataBase: siteUrl(),
   title: 'Post Round — Play. Learn. Share.',
   description: 'Post Round captures your golf round while you play, helps you understand it afterward, and turns the moments that mattered into stories worth sharing.',
   openGraph: {

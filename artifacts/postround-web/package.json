@@ -6,7 +6,7 @@
     "dev": "node scripts/start-preview.mjs",
     "build": "node scripts/validate-production-api-origin.mjs && next build",
     "start": "next start -p $PORT -H 0.0.0.0",
-    "test": "node --experimental-strip-types --test scripts/*.test.mjs src/lib/vad-telemetry/*.test.ts src/lib/creator-stories/*.test.ts src/lib/account-deletion/*.test.ts src/components/creator/*.test.ts src/components/dashboard/*.test.ts src/app/*.test.ts src/app/delete-account/*.test.ts",
+    "test": "node --experimental-strip-types --test scripts/*.test.mjs src/lib/vad-telemetry/*.test.ts src/lib/creator-stories/*.test.ts src/lib/public-creators/*.test.ts src/lib/account-deletion/*.test.ts src/components/creator/*.test.ts src/components/dashboard/*.test.ts src/app/*.test.ts src/app/delete-account/*.test.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {

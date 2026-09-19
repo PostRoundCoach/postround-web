@@ -15,6 +15,31 @@ const users = {
 
 const storyId = '20000000-0000-4000-8000-000000000001'
 const creatorId = '10000000-0000-4000-8000-000000000002'
+const publicCreators = {
+  'creator-fixture': {
+    display_name: 'Creator Fixture',
+    bio: 'Golf stories, honest rounds, and the lessons between the shots.',
+    avatar_url: 'https://images.example.test/creator-fixture.jpg',
+    creator_social_accounts: [
+      {
+        platform: 'Instagram',
+        handle: '@creatorfixture',
+        profile_url: 'https://instagram.com/creatorfixture',
+      },
+      {
+        platform: 'YouTube',
+        handle: 'Creator Fixture Golf',
+        profile_url: 'https://youtube.com/@creatorfixture',
+      },
+    ],
+  },
+  'second-creator': {
+    display_name: 'Second Creator',
+    bio: null,
+    avatar_url: null,
+    creator_social_accounts: [],
+  },
+}
 const story = {
   id: storyId,
   story_id: storyId,
@@ -276,6 +301,22 @@ const server = http.createServer((request, response) => {
     return send(response, 200, {})
   }
 
+  if (request.method === 'POST' && url.pathname === '/rest/v1/rpc/get_public_creator_by_slug') {
+    let body = ''
+    request.on('data', (chunk) => { body += chunk })
+    request.on('end', () => {
+      let input
+      try {
+        input = body ? JSON.parse(body) : {}
+      } catch {
+        return send(response, 400, { message: 'Invalid public creator request' })
+      }
+
+      return send(response, 200, publicCreators[input.requested_slug] ?? null)
+    })
+    return
+  }
+
   if (request.method === 'GET' && url.pathname === '/api/content/stories') {
     return send(response, 200, {
       ok: true,
@@ -310,6 +351,13 @@ const server = http.createServer((request, response) => {
 
   if (request.method === 'GET' && url.pathname === '/rest/v1/creator_profiles') {
     const user = userFromRequest(request)
+    const slugFilter = url.searchParams.get('slug')
+    const statusFilter = url.searchParams.get('status')
+    if (slugFilter) {
+      const slug = slugFilter.replace(/^eq\./, '')
+      const profile = statusFilter === 'eq.active' ? publicCreators[slug] ?? null : null
+      return send(response, 200, profile)
+    }
     const profile = user?.creator
       ? {
           id: '10000000-0000-4000-8000-000000000002',
