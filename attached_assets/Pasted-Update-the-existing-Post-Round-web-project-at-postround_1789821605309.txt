@@ -1,0 +1,400 @@
+Update the existing Post Round web project at `postroundcoach.com` to add the production-ready legal and support pages needed for the Apple App Store submission.
+
+## Goal
+
+Add these four pages:
+
+* `/privacy` — Privacy Policy
+* `/terms` — Terms of Service
+* `/support` — Support
+* `/delete-account` — Account Deletion
+
+Use the existing site's design system, typography, spacing, components, header, footer, responsive behavior, and overall visual language. Do **not** create a separate microsite or redesign the existing site.
+
+The pages should feel like native parts of the existing Post Round website.
+
+---
+
+## Navigation requirements
+
+Keep navigation minimal.
+
+### Header
+
+Add a **Support** link to the existing site header/navigation.
+
+The Support link should point to:
+
+`/support`
+
+Do not add Privacy, Terms, or Delete Account to the main header navigation.
+
+### Footer
+
+Add these links to the existing footer:
+
+* Privacy Policy → `/privacy`
+* Terms of Service → `/terms`
+* Delete Account → `/delete-account`
+
+If the footer already contains legal/support links, consolidate them rather than creating duplicates.
+
+The support email used throughout these pages is:
+
+`support@postroundcoach.com`
+
+Make the email clickable with a `mailto:` link.
+
+---
+
+# 1. Privacy Policy — `/privacy`
+
+Create a clear, professional Privacy Policy for Post Round.
+
+The product is:
+
+**Post Round**
+
+Website:
+
+`https://postroundcoach.com`
+
+Post Round is a golf app that helps players capture their rounds, learn from their play, create player stories, receive AI-generated coaching/reflections, and optionally share golf stories/content with creators.
+
+The policy should accurately describe the types of information the app may process, including:
+
+### Account information
+
+* Email address
+* Account/profile information
+* Subscription/entitlement information
+* User preferences
+
+### Golf and round information
+
+* Golf rounds
+* Scores and scorecard information
+* Hole-by-hole information
+* Player notes
+* Golf performance/statistical information
+* Course information
+* Round history
+
+### Voice/audio
+
+Post Round includes an optional Round Buddy voice capture feature.
+
+Be precise and avoid claiming that Post Round continuously records audio if that is not actually the case.
+
+Describe voice/audio as information that may be captured when the user actively uses the applicable voice/audio functionality.
+
+Do not make unsupported claims about how long raw audio is retained. If the current implementation does not establish a retention period, use careful language such as that audio/voice information may be processed to provide the requested functionality.
+
+### AI processing
+
+Explain that Post Round uses third-party AI services to process certain user-provided information in order to generate things such as:
+
+* coaching/reflections
+* player stories
+* creator stories/content ideas
+* summaries
+* other requested AI-generated content
+
+Do not claim that AI-generated content is always accurate.
+
+Make clear that AI-generated coaching and insights are informational and are not a substitute for professional advice.
+
+### Creator/social functionality
+
+Explain that users may choose to share certain golf stories or round-related content with participating creators.
+
+Only information the user chooses to share should be described as being shared with creators.
+
+### Payments/subscriptions
+
+Explain that Post Round offers paid subscriptions and/or credit purchases.
+
+Payment processing may be handled by third-party payment providers and Apple for App Store purchases as applicable.
+
+Do not invent specific payment providers unless they are already actually used by the production app.
+
+### Analytics / technical information
+
+Describe normal technical information that may be collected to operate, secure, troubleshoot, and improve the service, but do not invent specific analytics providers.
+
+If the current codebase contains known analytics/telemetry SDKs, inspect the project and reflect those accurately.
+
+### Third-party services
+
+Include a general section explaining that Post Round relies on third-party service providers for things such as hosting, databases, authentication, AI processing, payments, analytics, or infrastructure where applicable.
+
+Do not invent providers or claim that a provider receives data unless that is supported by the actual implementation.
+
+### Data retention
+
+Use careful language. Do not invent specific retention periods.
+
+Explain that information is retained for as long as reasonably necessary to provide the service, comply with legal obligations, resolve disputes, enforce agreements, and otherwise fulfill legitimate business purposes, subject to applicable law.
+
+### Account deletion
+
+Explain that users can request/delete their account through the Post Round account deletion functionality.
+
+Link to:
+
+`/delete-account`
+
+### Contact
+
+Include:
+
+`support@postroundcoach.com`
+
+### Privacy Policy design
+
+Make the page highly readable:
+
+* Clear page title
+* Last Updated date
+* Table of contents if useful
+* H2/H3 sections
+* Comfortable reading width
+* Good mobile layout
+* No giant walls of text
+* Existing Post Round visual language
+
+Use the current date as the initial "Last Updated" date if appropriate.
+
+Do not add fake legal entity names, addresses, phone numbers, or jurisdiction-specific claims that aren't known.
+
+---
+
+# 2. Terms of Service — `/terms`
+
+Create a professional Terms of Service for Post Round.
+
+Include appropriate sections covering:
+
+1. Acceptance of Terms
+2. Description of Post Round
+3. Eligibility and Accounts
+4. User Content and Golf Data
+5. AI-Generated Content
+6. Creator and Shared Content
+7. Subscriptions and Purchases
+8. Credits and Usage
+9. Acceptable Use
+10. Intellectual Property
+11. Third-Party Services
+12. Disclaimers
+13. Limitation of Liability
+14. Account Suspension/Termination
+15. Account Deletion
+16. Changes to the Terms
+17. Contact Information
+
+Important:
+
+Do not invent legal claims or corporate information.
+
+Use neutral, conventional language appropriate for a consumer mobile app.
+
+For AI:
+
+Make clear that AI-generated coaching, analysis, stories, and other content may contain errors and should be reviewed by the user.
+
+For golf coaching:
+
+Do not represent Post Round as a medical, professional, or guaranteed performance service.
+
+For subscriptions/credits:
+
+Describe them generally enough that the language remains accurate as pricing evolves. Do not hard-code current prices into the Terms unless the existing project already treats the Terms as a versioned pricing document.
+
+The page should include:
+
+`support@postroundcoach.com`
+
+and a Last Updated date.
+
+---
+
+# 3. Support — `/support`
+
+Create a polished Post Round support page.
+
+This should be the most user-friendly of the four pages.
+
+Title:
+
+**Post Round Support**
+
+Intro explaining that users can contact the Post Round team for help with:
+
+* Account issues
+* Subscriptions
+* AI credits
+* Round Buddy
+* Golf round data
+* Stories
+* Creator sharing
+* Bugs or technical issues
+
+Primary contact:
+
+**[support@postroundcoach.com](mailto:support@postroundcoach.com)**
+
+Make it a prominent clickable email link.
+
+Add a small FAQ section if useful, covering questions such as:
+
+### How do I contact Post Round?
+
+Email [support@postroundcoach.com](mailto:support@postroundcoach.com).
+
+### How do I delete my account?
+
+Link to `/delete-account`.
+
+### I found a bug. What should I send?
+
+Ask users to include:
+
+* device
+* iOS/Android version
+* Post Round app version
+* what they were doing
+* what happened
+* screenshots if helpful
+
+### My subscription or credits aren't showing correctly.
+
+Tell users to contact support and include the email associated with their Post Round account and relevant purchase information.
+
+Do not ask users to send passwords or sensitive payment information.
+
+Keep the page concise and useful.
+
+---
+
+# 4. Account Deletion — `/delete-account`
+
+Create a clear page explaining how a Post Round user can delete their account.
+
+This page should support Apple's account deletion requirement.
+
+Title:
+
+**Delete Your Post Round Account**
+
+Explain clearly that users can permanently delete their Post Round account and associated account data.
+
+Important:
+
+Inspect the existing application/backend implementation before deciding how this page should work.
+
+If the existing web project already has an authenticated account-deletion mechanism, use it.
+
+If account deletion is intended to happen inside the mobile app, make this page an explanatory page that clearly tells users how to initiate deletion from within the app, while still providing support contact information.
+
+Do NOT build a fake deletion form that merely sends an email unless that is actually the intended production deletion workflow.
+
+If an authenticated web deletion flow already exists, connect this page to it.
+
+Include a clear warning that account deletion may be permanent and may result in loss of account/round/story data.
+
+Include:
+
+`support@postroundcoach.com`
+
+for users who cannot access their account or need assistance.
+
+---
+
+# Technical requirements
+
+Before implementing anything:
+
+1. Inspect the existing web project's routing structure.
+2. Inspect the existing header/footer components.
+3. Inspect the existing design system/components.
+4. Inspect the current authentication/account deletion implementation.
+5. Inspect the actual production-related dependencies/services so the Privacy Policy does not claim unsupported data collection or third-party services.
+
+Do not modify unrelated application functionality.
+
+Do not change the existing Post Round branding.
+
+Do not create duplicate headers or footers.
+
+Use the existing site's reusable components wherever possible.
+
+All four pages must:
+
+* work on desktop
+* work on mobile
+* have proper page titles
+* have appropriate meta descriptions
+* use semantic HTML
+* be accessible
+* have sensible heading hierarchy
+* have working internal links
+* have working `mailto:` links
+* return proper 200 responses
+* be directly accessible by URL
+* not require the user to navigate from the homepage first
+
+---
+
+# Footer
+
+Update the existing footer so that it contains:
+
+**Privacy Policy | Terms of Service | Delete Account**
+
+Support should remain in the header.
+
+If the footer already contains a Support link, it is okay to retain it as long as the navigation does not become cluttered.
+
+---
+
+# SEO / metadata
+
+Add appropriate metadata for each page.
+
+Examples:
+
+Privacy:
+Title: `Privacy Policy | Post Round`
+
+Terms:
+Title: `Terms of Service | Post Round`
+
+Support:
+Title: `Post Round Support`
+
+Delete:
+Title: `Delete Your Post Round Account`
+
+Do not over-optimize these pages for SEO. They primarily exist for users, support, and App Store compliance.
+
+---
+
+# Validation
+
+After implementation:
+
+1. Run the existing test suite.
+2. Run the production build.
+3. Verify all four routes.
+4. Verify header Support link.
+5. Verify footer Privacy / Terms / Delete Account links.
+6. Verify all `mailto:` links.
+7. Verify responsive layouts.
+8. Verify no existing pages/routes were broken.
+9. Report exactly which files were created/modified.
+10. Report any assumptions made because the existing implementation did not provide enough information.
+
+Do not change the app's existing business logic unless it is strictly necessary to support the account deletion page.
+
+The end result should be a clean, production-ready set of Apple/App Store-facing web pages that look like they belong to the existing Post Round website rather than generic legal templates.

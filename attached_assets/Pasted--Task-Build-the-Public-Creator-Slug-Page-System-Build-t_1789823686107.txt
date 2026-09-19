@@ -1,0 +1,456 @@
+## Task: Build the Public Creator Slug Page System
+
+Build the V1 public creator-page system for Post Round on the **web project only**.
+
+### Important scope
+
+This is a WEB-ONLY feature.
+
+Do NOT modify:
+
+* the Expo/mobile app
+* iOS/Android code
+* EAS configuration
+* mobile navigation
+* mobile APIs
+* Creator Dashboard functionality
+
+The purpose of this task is to create a reusable public creator-page template that is populated from the existing Supabase creator data.
+
+---
+
+# Core concept
+
+We want ONE reusable public page template.
+
+For example:
+
+`/creators/in2golf`
+
+`/creators/brothers-golf`
+
+`/creators/japes-golf`
+
+All of these URLs must render the same page/template, populated with the corresponding creator's database record.
+
+Do NOT create individual hardcoded pages for individual creators.
+
+The architecture should be:
+
+`URL slug → creator_profiles record → reusable creator page template`
+
+---
+
+# Existing database schema
+
+We already have:
+
+### creator_profiles
+
+Current fields include:
+
+* `id`
+* `user_id`
+* `display_name`
+* `bio`
+* `avatar_url`
+* `status`
+* `created_at`
+* `updated_at`
+
+Example existing record:
+
+```text
+id: 0d3c3e3e-c040-456a-9aec-a3083fccbaed
+user_id: 0d3c3e3e-c040-456a-9aec-a3083fccbaed
+display_name: In2Golf
+bio: Join us for some winter golf!
+avatar_url: null
+status: active
+```
+
+### Creator_social_accounts
+
+Already exists with:
+
+* `creator_id`
+* `platform`
+* `handle`
+* `profile_url`
+* `created_at`
+* `updated_at`
+
+Use this existing table for public creator social links.
+
+Do NOT create a duplicate social-account table.
+
+---
+
+# Database changes
+
+First inspect the existing schema and migrations.
+
+Add a `slug` field to `creator_profiles` if one does not already exist.
+
+Requirements:
+
+* `slug` should be unique
+* lowercase
+* URL-safe
+* suitable for use in a URL
+* stable
+* should not be automatically changed once assigned unless explicitly updated
+* existing creator records should remain valid
+
+Add an appropriate UNIQUE constraint/index on `creator_profiles.slug`.
+
+Use the existing `status` field for determining whether a creator is active/public rather than creating a redundant `is_active` field unless there is a compelling reason in the existing architecture.
+
+Do NOT create unnecessary new creator tables.
+
+### Slug examples
+
+```text
+In2Golf → in2golf
+Brother's Golf → brothers-golf
+Japes Golf → japes-golf
+Bogey Book Golf → bogey-book-golf
+```
+
+The exact slug should be stored in the database rather than generated dynamically on every request.
+
+Do not overwrite or regenerate existing slugs automatically.
+
+---
+
+# Public creator route
+
+Create the dynamic public route:
+
+`/creators/[slug]`
+
+For example:
+
+`https://postroundcoach.com/creators/in2golf`
+
+The route should:
+
+1. Receive the slug from the URL.
+2. Query `creator_profiles` for that slug.
+3. Require the creator to have `status = 'active'`.
+4. Load the creator's public social accounts from `Creator_social_accounts`.
+5. Render the reusable creator-page template.
+6. Return a proper 404 if the slug does not exist or the creator is not active.
+
+There should be NO hardcoded creator-specific routing.
+
+---
+
+# Public data contract
+
+Do NOT expose the entire `creator_profiles` row to the public page.
+
+Create/use a deliberate public creator data shape containing only fields appropriate for public display.
+
+V1 should use:
+
+### Creator
+
+* `id` only if technically required internally
+* `display_name`
+* `bio`
+* `avatar_url`
+* `slug`
+
+### Social accounts
+
+* `platform`
+* `handle`
+* `profile_url`
+
+Do NOT expose:
+
+* `user_id`
+* internal timestamps unless required
+* private creator/account fields
+* creator dashboard information
+* permissions
+* approval state
+* private analytics
+* round data
+* player data
+* story candidates
+* content ideas
+* coaching reflections
+
+The public page should have no dependency on private Creator Dashboard data.
+
+---
+
+# V1 page content
+
+Build a polished but relatively simple Post Round public creator marketing page.
+
+Suggested structure:
+
+## Hero
+
+* Creator avatar/image
+* Creator display name
+* Short bio
+* Social links where available
+
+## Post Round CTA
+
+A clear call-to-action explaining that the creator is part of the Post Round creator network.
+
+Use the existing Post Round branding/components where appropriate.
+
+The page should ultimately encourage the visitor to discover/use Post Round and connect with the creator.
+
+Do not build a complicated conversion funnel yet.
+
+---
+
+# Explicitly NOT included in V1
+
+Do NOT add:
+
+* Creator Stories
+* approved stories
+* content_ideas
+* player_stories
+* round history
+* scorecards
+* coaching reflections
+* creator analytics
+* follower counts
+* subscriber counts
+* creator dashboard controls
+* creator approval workflows
+* creator-specific AI functionality
+
+We can add these later.
+
+This first version is simply:
+
+**Creator identity + marketing information + social links + Post Round CTA**
+
+---
+
+# Template architecture
+
+The implementation must make it obvious that there is one reusable template.
+
+Conceptually:
+
+```text
+/creators/[slug]
+       ↓
+loadPublicCreator(slug)
+       ↓
+PublicCreatorPage
+       ↓
+creator-specific data
+```
+
+Do NOT create:
+
+```text
+/pages/in2golf
+/pages/japes-golf
+/pages/brothers-golf
+```
+
+or any equivalent hardcoded creator pages.
+
+Adding a new creator later should require only:
+
+1. adding/populating the creator database record
+2. assigning a unique slug
+3. optionally adding social accounts
+
+The page itself should require NO code change.
+
+---
+
+# SEO / social sharing
+
+Because these are public creator marketing pages, implement creator-specific metadata using the existing web framework's supported approach.
+
+At minimum, where supported:
+
+* page title
+* meta description
+* Open Graph title
+* Open Graph description
+* Open Graph image using `avatar_url` where appropriate
+
+Example concept:
+
+`In2Golf | Post Round`
+
+The metadata should come from the database rather than being hardcoded to In2Golf.
+
+Do not build an elaborate SEO system.
+
+---
+
+# Security / access
+
+The public route must only expose explicitly public creator information.
+
+Do not bypass existing Supabase security architecture.
+
+If the current web architecture uses server-side Supabase access for public pages, follow that pattern.
+
+Do not make `creator_profiles` broadly readable from the browser just to make the page work.
+
+Prefer a server-side query or existing public-data pattern that returns only the required fields.
+
+---
+
+# Existing social accounts
+
+Use the existing `Creator_social_accounts` table.
+
+For each creator, display available social links in a clean way.
+
+Do not assume every creator has every platform.
+
+If there are no social accounts, the page should still render normally.
+
+Do not create placeholder social accounts.
+
+---
+
+# Testing
+
+Add focused tests for the new functionality.
+
+At minimum verify:
+
+### Routing
+
+* `/creators/in2golf` resolves when the creator exists and is active.
+* Unknown slug returns 404.
+* Inactive creator returns 404.
+
+### Database
+
+* `slug` is unique.
+* Existing creator records are not broken.
+* Slugs containing spaces/uppercase/unsafe characters are rejected or normalized according to the chosen implementation.
+
+### Data isolation
+
+Verify the public creator response does NOT contain:
+
+* `user_id`
+* private creator fields
+* dashboard data
+* internal permissions
+* round/player data
+
+### Social accounts
+
+* Existing social accounts render.
+* Missing social accounts do not break the page.
+* Multiple social accounts render correctly.
+
+### Template
+
+Verify that at least two different creator records can render through the same template with different data.
+
+### Regression
+
+Run the existing web/API/typecheck/test suite and confirm existing Creator Dashboard functionality remains unchanged.
+
+---
+
+# Important implementation process
+
+Before coding:
+
+1. Inspect the current web project structure.
+2. Inspect the existing `creator_profiles` schema.
+3. Inspect the existing `Creator_social_accounts` schema.
+4. Inspect how Supabase is currently accessed from the web project.
+5. Inspect existing routing conventions.
+6. Inspect existing Post Round public/marketing page components that should be reused.
+
+Then implement the smallest clean solution consistent with the existing architecture.
+
+Do not create parallel infrastructure when existing infrastructure can be reused.
+
+---
+
+# Acceptance criteria
+
+The task is complete when:
+
+### Database
+
+A creator can have:
+
+```text
+display_name = In2Golf
+slug = in2golf
+status = active
+```
+
+### URL
+
+This works:
+
+`/creators/in2golf`
+
+### Template
+
+The page displays the creator's database-driven:
+
+* name
+* bio
+* avatar
+* social links
+* Post Round CTA
+
+### Dynamic behavior
+
+Changing the database record changes what appears on the page without changing code.
+
+Adding another creator with:
+
+```text
+slug = brothers-golf
+```
+
+automatically makes:
+
+`/creators/brothers-golf`
+
+available through the same template.
+
+### No app changes
+
+The Expo/mobile application is completely untouched.
+
+### No creator-specific code
+
+There is no hardcoded In2Golf page or other individual creator page.
+
+---
+
+At completion, report:
+
+1. Files changed
+2. Database migration/schema changes
+3. Exact route created
+4. Public data contract
+5. How slug lookup works
+6. How social accounts are loaded
+7. Tests run and results
+8. Any decisions/assumptions made
+9. A sample URL that can be used to verify the implementation
+
+Do not make unrelated changes.

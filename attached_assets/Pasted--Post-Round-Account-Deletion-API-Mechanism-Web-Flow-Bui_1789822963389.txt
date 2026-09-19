@@ -1,0 +1,475 @@
+# Post Round — Account Deletion: API Mechanism + Web Flow
+
+Build the **production account-deletion mechanism and web deletion flow** for Post Round.
+
+The mobile app is being handled separately in another task. The app's responsibility is only to provide the user with an entry point to this web deletion flow.
+
+This task covers:
+
+1. The **web/API account-deletion mechanism**
+2. The **web `/delete-account` page and authenticated deletion flow**
+
+Do not implement account deletion logic in the mobile app as part of this task.
+
+---
+
+# Architecture
+
+There should be **one authoritative account-deletion mechanism** on the server/API side.
+
+Both of these should ultimately use that same mechanism:
+
+```text
+Post Round mobile app
+        ↓
+Settings → Delete Account
+        ↓
+Web deletion flow
+        ↓
+Authenticated API
+        ↓
+Account deletion mechanism
+        ↓
+Supabase/database/storage
+```
+
+The website is also a direct entry point:
+
+```text
+postroundcoach.com/delete-account
+        ↓
+Authenticated web deletion flow
+        ↓
+Same authenticated API
+        ↓
+Account deletion mechanism
+```
+
+Do not create separate deletion logic for the app and website.
+
+The API/server is the single source of truth for what gets deleted.
+
+---
+
+# PART 1 — Audit the existing system first
+
+Before writing deletion code, inspect the existing Post Round web project and API server.
+
+Identify:
+
+### Authentication
+
+* How users authenticate
+* How the web application establishes the authenticated user
+* How the API verifies authentication
+* How Supabase Auth is currently used
+* Whether the web app and API server share the same Supabase project/environment
+
+### Database
+
+Find every table containing user-owned or user-associated data.
+
+At minimum, investigate the actual schema for things such as:
+
+* `profiles`
+* `rounds`
+* `holes`
+* `player_stories`
+* `story_candidates`
+* `content_ideas`
+* subscriptions
+* entitlements
+* AI credit balances/transactions
+* creator-sharing/permission records
+* favorites
+* user preferences
+* notifications
+* any other table containing `user_id`, `profile_id`, or an equivalent user reference
+
+Do NOT assume this list is complete.
+
+Search the actual schema/migrations/codebase.
+
+### Storage
+
+Determine whether Post Round stores any user-owned files in Supabase Storage or another storage provider.
+
+If so, identify the buckets/objects that must be deleted.
+
+### Database relationships
+
+Identify foreign keys, cascading deletes, triggers, functions, or other dependencies that affect account deletion.
+
+The deletion process must be designed around the actual production schema.
+
+---
+
+# PART 2 — Implement the server-side deletion mechanism
+
+Create a secure authenticated account-deletion operation in the API/server.
+
+Use the existing Post Round API architecture and conventions.
+
+The exact endpoint/path should follow the project's existing API conventions, but it should represent an operation equivalent to:
+
+`DELETE /api/account`
+
+or another appropriately named authenticated endpoint.
+
+Do not expose an unauthenticated account deletion endpoint.
+
+## Authorization
+
+The server must determine the account being deleted from the authenticated session/token.
+
+Do NOT accept an arbitrary `user_id` from the client and trust it.
+
+The user must only be able to delete their own account.
+
+## Deletion behavior
+
+The deletion operation must remove/anonymize the user's data according to the actual production data model and applicable legal requirements.
+
+Do not simply delete the `profiles` row.
+
+Trace the user's data through the actual schema and delete the appropriate records.
+
+Pay particular attention to:
+
+* rounds
+* hole data
+* player notes
+* player stories
+* story candidates
+* creator content ideas
+* creator permissions/sharing relationships
+* favorites
+* subscriptions/entitlements
+* AI credits and credit transactions
+* preferences
+* other user-specific records
+* uploaded files/storage
+* authentication record
+
+Where database foreign keys support safe cascading deletion, use them appropriately.
+
+Where they do not, explicitly delete dependent records in the correct order.
+
+Do not modify data belonging to other users.
+
+---
+
+# Supabase Auth
+
+If Post Round uses Supabase Auth, ensure the actual authenticated user is removed from Supabase Auth as part of the deletion process.
+
+Use the secure server-side mechanism appropriate for the existing Supabase architecture.
+
+Never expose a Supabase service-role key or other privileged credential to the browser/client.
+
+The deletion must not leave behind an active authentication account that can still sign in.
+
+---
+
+# Atomicity / failure handling
+
+Design the deletion operation so that partial deletion is minimized.
+
+Where practical, perform database deletion within a transaction or use an appropriate server-side deletion strategy.
+
+If deletion fails:
+
+* do not report success
+* log enough information for debugging without logging sensitive user data
+* return an appropriate error
+* do not expose internal database details to the user
+
+If storage deletion is involved, account for failures there as well.
+
+Document any unavoidable non-atomic behavior.
+
+---
+
+# Subscription handling
+
+Do NOT attempt to falsely represent account deletion as subscription cancellation.
+
+Deleting a Post Round account must not claim that an Apple App Store subscription has been cancelled.
+
+If the user has an active subscription, the UI should clearly tell them that deleting their Post Round account does not automatically cancel an Apple subscription and that they must manage/cancel that subscription through Apple.
+
+Do not invent a subscription-cancellation API unless the existing production architecture actually supports it.
+
+---
+
+# Security requirements
+
+The deletion endpoint must:
+
+* require authentication
+* authorize against the authenticated user's identity
+* never accept a user ID as the authority for deletion
+* never expose privileged database credentials
+* prevent CSRF/session abuse where applicable to the web authentication architecture
+* use the existing security conventions of the API
+* avoid leaking whether another user's account exists
+* return safe, useful error messages
+
+Add appropriate tests for authorization.
+
+At minimum test:
+
+1. Authenticated user can delete their own account.
+2. Unauthenticated request is rejected.
+3. User cannot delete another user's account.
+4. User's associated records are removed.
+5. Authentication account is removed.
+6. Repeated deletion attempts are handled safely.
+7. Failure does not incorrectly return success.
+
+---
+
+# PART 3 — Build the web `/delete-account` page
+
+After the actual deletion mechanism is implemented, create:
+
+`/delete-account`
+
+This should be a real production page, not a placeholder.
+
+Use the existing Post Round web application's:
+
+* header
+* footer
+* typography
+* spacing
+* components
+* responsive behavior
+* visual design
+
+Do not create a separate visual style.
+
+---
+
+# Page behavior
+
+The page should handle three states.
+
+## State 1 — Not authenticated
+
+Explain that the user needs to sign in to delete their account.
+
+Provide the appropriate existing Post Round authentication/sign-in action.
+
+The user should then return to the deletion flow.
+
+Do not create a second authentication system.
+
+---
+
+## State 2 — Authenticated
+
+Show:
+
+### Delete Your Post Round Account
+
+Explain clearly that account deletion is permanent.
+
+Tell the user that deletion will remove their Post Round account and associated user data, subject to the Privacy Policy and any legally required retention.
+
+Give a concise summary of the types of information affected, based on the actual deletion implementation.
+
+Then provide a prominent destructive action:
+
+**Delete My Account**
+
+Do NOT trigger deletion immediately when the page loads.
+
+Require an explicit confirmation.
+
+A good confirmation flow would be:
+
+1. User clicks `Delete My Account`
+2. Confirmation dialog/modal appears
+3. Explain that the action is permanent
+4. User confirms again
+5. Call the authenticated deletion API
+6. On success, clear the authenticated session
+7. Show the successful deletion state
+
+Do not make the confirmation unnecessarily complicated.
+
+---
+
+# Successful deletion state
+
+After successful deletion, show a clear message such as:
+
+**Your account has been deleted.**
+
+Explain that the user has been signed out and their Post Round account has been deleted.
+
+Provide a link back to the Post Round homepage.
+
+Do not leave the user looking at an authenticated screen after deletion.
+
+---
+
+# Error state
+
+If deletion fails:
+
+* clearly tell the user that the deletion could not be completed
+* do not claim that the account was deleted
+* provide `support@postroundcoach.com`
+* allow them to retry where appropriate
+
+Do not expose stack traces, SQL errors, Supabase errors, or internal implementation details.
+
+---
+
+# Apple subscription notice
+
+On the authenticated deletion page, include a concise notice:
+
+Deleting your Post Round account does not automatically cancel an Apple App Store subscription. If you have an active subscription, manage or cancel it through your Apple account.
+
+Do not claim that Post Round can cancel the Apple subscription unless the existing implementation actually supports that.
+
+---
+
+# Support
+
+Use:
+
+`support@postroundcoach.com`
+
+Make it a clickable `mailto:` link.
+
+Tell users they can contact support if they cannot access their account or encounter a problem deleting it.
+
+---
+
+# Privacy Policy
+
+Include a link to:
+
+`/privacy`
+
+The deletion page should make it easy for the user to understand what data is deleted and reference the full Privacy Policy.
+
+---
+
+# Footer
+
+If the existing footer has not already been updated by another task, add:
+
+* Privacy Policy → `/privacy`
+* Terms of Service → `/terms`
+* Delete Account → `/delete-account`
+
+Do not duplicate links if they already exist.
+
+The Support link belongs in the header.
+
+---
+
+# Important: do not fake functionality
+
+Do NOT build:
+
+* a form that merely emails support
+* a "delete" button that doesn't actually delete anything
+* a client-only deletion mechanism
+* a mock success screen
+* a hard-coded user ID
+* a deletion endpoint that accepts arbitrary user IDs
+* a separate deletion implementation for mobile and web
+
+The page must call the real authenticated server-side deletion mechanism implemented in this task.
+
+---
+
+# Testing
+
+Add/modify tests covering both the API and web flow.
+
+### API tests
+
+Verify:
+
+* authenticated deletion
+* unauthenticated rejection
+* authorization
+* dependent data deletion
+* auth account deletion
+* safe failure behavior
+
+### Web tests
+
+Verify:
+
+* unauthenticated state
+* authenticated state
+* confirmation step
+* API call
+* successful deletion state
+* failed deletion state
+* sign-out/session cleanup
+* links to Privacy Policy and support
+
+---
+
+# Production verification
+
+After implementation:
+
+1. Run the full existing test suite.
+2. Run the production build.
+3. Verify `/delete-account`.
+4. Verify authentication.
+5. Verify the actual deletion API.
+6. Verify a test account and its associated data are removed.
+7. Verify the test account can no longer authenticate.
+8. Verify no other user's data is affected.
+9. Verify mobile-app entry point can successfully open the web deletion flow.
+10. Verify responsive behavior.
+11. Verify there are no console errors.
+12. Verify existing routes and functionality remain intact.
+
+Use a dedicated test account for destructive deletion testing. Do not test deletion against a real production user account.
+
+---
+
+# Documentation / final response
+
+When finished, report:
+
+### API
+
+* endpoint created
+* authentication mechanism
+* deletion strategy
+* tables/data removed
+* storage removed, if applicable
+
+### Web
+
+* `/delete-account`
+* authentication behavior
+* confirmation flow
+* success/error behavior
+
+### Testing
+
+* tests added
+* tests passed
+* production build result
+
+### Assumptions
+
+List any areas where the existing schema or architecture required an assumption.
+
+If you discover that the current architecture makes safe account deletion impossible without a schema change, **stop before making a risky destructive implementation** and report exactly what needs to change.
+
+The objective is a real, secure, production-ready account deletion system—not merely an Apple-compliance-looking webpage.
