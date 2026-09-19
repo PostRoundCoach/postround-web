@@ -39,6 +39,7 @@ const navigation = [
   ['Player DNA', '#player-dna'],
   ['Share Your Round', '#share-your-round'],
   ['Creators', '#creators'],
+  ['Support', '/support'],
 ]
 
 export default function Home() {

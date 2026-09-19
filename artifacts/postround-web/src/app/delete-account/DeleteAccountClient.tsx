@@ -116,7 +116,7 @@ export function DeleteAccountClient() {
           Sign In Required
         </h2>
         <p className="text-muted-foreground mb-8">
-          You must be signed in to request an account deletion.
+          You must be signed in to request permanent account deletion. If you need help accessing your account, contact <a href="mailto:support@postroundcoach.com" className="underline hover:text-foreground">support@postroundcoach.com</a>.
         </p>
         <Button variant="gold" size="lg" className="w-full" asChild>
           <Link href="/login?next=/delete-account">

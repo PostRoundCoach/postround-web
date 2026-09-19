@@ -147,3 +147,38 @@
     @apply bg-background text-foreground font-sans antialiased;
   }
 }
+
+@layer components {
+  .legal-content {
+    @apply space-y-10 text-base leading-7 text-muted-foreground;
+  }
+  .legal-content section {
+    @apply scroll-mt-8 space-y-3;
+  }
+  .legal-content h2 {
+    @apply font-serif text-2xl font-bold tracking-tight text-foreground md:text-3xl;
+  }
+  .legal-content h3 {
+    @apply pt-3 text-lg font-semibold text-foreground;
+  }
+  .legal-content a {
+    @apply font-medium text-primary underline decoration-primary/40 underline-offset-4 transition-colors hover:text-foreground;
+  }
+  .legal-updated {
+    @apply rounded-xl border border-border bg-card px-5 py-4 text-sm font-semibold text-foreground;
+  }
+  .support-callout {
+    @apply flex gap-4 rounded-2xl border border-[#D4AF37]/30 bg-[#D4AF37]/10 p-6;
+  }
+  .support-callout h2,
+  .support-warning h2,
+  .support-card h2 {
+    @apply font-sans text-xl font-semibold;
+  }
+  .support-card {
+    @apply space-y-3 rounded-2xl border border-border bg-card p-6;
+  }
+  .support-warning {
+    @apply flex gap-4 rounded-2xl border border-border bg-card p-6;
+  }
+}
