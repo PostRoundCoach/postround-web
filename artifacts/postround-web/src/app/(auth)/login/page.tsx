@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, FormEvent } from 'react'
-import { useRouter } from 'next/navigation'
+import { Suspense, useState, FormEvent } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
@@ -9,8 +9,9 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Loader2, Mail, Eye, EyeOff } from 'lucide-react'
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -21,12 +22,10 @@ export default function LoginPage() {
 
   if (!supabase) {
     return (
-      <div className="p-8">
-        <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4 text-center">
-          <p className="text-sm text-destructive">
-            Authentication service unavailable. Please contact support.
-          </p>
-        </div>
+      <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4 text-center">
+        <p className="text-sm text-destructive">
+          Authentication service unavailable. Please contact support.
+        </p>
       </div>
     )
   }
@@ -56,12 +55,15 @@ export default function LoginPage() {
       return
     }
 
-    router.push('/dashboard')
+    const nextParam = searchParams.get('next')
+    const safeNext = nextParam === '/delete-account' ? nextParam : '/dashboard'
+
+    router.push(safeNext)
     router.refresh()
   }
 
   return (
-    <div className="p-8">
+    <>
       <div className="mb-6">
         <div className="flex justify-center mb-4">
           <div className="h-12 w-12 rounded-full bg-[#1B5E35]/30 border border-[#1B5E35]/50 flex items-center justify-center">
@@ -158,6 +160,16 @@ export default function LoginPage() {
           </Link>
         </p>
       </div>
+    </>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <div className="p-8">
+      <Suspense fallback={<div className="flex justify-center p-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>}>
+        <LoginForm />
+      </Suspense>
     </div>
   )
 }

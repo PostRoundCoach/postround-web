@@ -1,6 +1,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
+import Link from 'next/link'
 
 export default function SettingsPage() {
   return (
@@ -94,8 +95,10 @@ export default function SettingsPage() {
               <p className="text-sm text-muted-foreground mb-3">
                 Permanently delete your account and all associated data. This action cannot be undone.
               </p>
-              <Button variant="destructive" disabled>
-                Delete Account
+              <Button variant="destructive" asChild>
+                <Link href="/delete-account">
+                  Delete Account
+                </Link>
               </Button>
             </div>
           </CardContent>

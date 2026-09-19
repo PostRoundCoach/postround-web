@@ -8,7 +8,7 @@
     "build": "node ./build.mjs",
     "start": "node --enable-source-maps ./dist/index.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "node --test --experimental-strip-types src/lib/story-engine.test.ts src/lib/story-engine.live.test.ts"
+    "test": "node --test --experimental-strip-types src/lib/story-engine.test.ts src/lib/story-engine.live.test.ts src/lib/account-deletion.test.ts"
   },
   "dependencies": {
     "@workspace/api-zod": "workspace:*",
