@@ -1,0 +1,312 @@
+# Creator Dashboard Round Contract
+
+**Endpoint:** `GET /api/content/ideas?story_id=<uuid>`  
+**Auth:** Bearer token (must belong to an active `creator_profiles` row)
+
+This is the single API call the Web Creator Dashboard needs to render a complete content idea — including the associated round, player identity, and per-hole scorecard. No additional queries to `rounds`, `holes`, `profiles`, or `story_candidates` are required.
+
+---
+
+## Authorization model
+
+All capability resolution is server-side and cannot be influenced by request input:
+
+1. **Creator identity** is resolved from the bearer token → `creator_profiles.user_id`. The client never passes `creator_id`.
+2. **Advanced capability** (`capabilities.advancedCreator`) is read directly from `creator_profiles.advanced_creator`. No follower count, subscriber threshold, or milestone logic exists anywhere in the implementation.
+3. **Voice profile** is resolved by left-joining `creator_voice_profiles WHERE status = 'active'` in the same DB round-trip. A client cannot request a voice profile or claim advanced access by passing any request field.
+
+Permission checks for story access are enforced via `resolveStoryPermission()`:
+- A `story_permissions` row must exist for `(story_id, creator_id)` with `permission_granted = true` and `revoked_at IS NULL`.
+- The story candidate must have status `offered` or `shared`.
+
+Requests failing any check receive `403`. Unauthenticated requests receive `401`.
+
+---
+
+## Response shape
+
+### Standard creator response
+
+```json
+{
+  "ok": true,
+  "creator": {
+    "id": "<uuid>",
+    "name": "Alice On Golf",
+    "capabilities": {
+      "advancedCreator": false,
+      "creatorVoice": false
+    }
+  },
+  "ideas": [
+    {
+      "id": "<uuid>",
+      "story_id": "<uuid>",
+      "category": "Statistical Insight",
+      "title": "Only 27 putts in a full round",
+      "hook": "This golfer proved putting is a skill anyone can learn.",
+      "script": "Twenty-seven putts is exceptional…",
+      "created_at": "2026-09-04T10:00:00Z",
+      "round": {
+        "player_display_name": "Aaron",
+        "played_at": "2026-09-01",
+        "course_name": "Pebble Beach Golf Links",
+        "tees": "White",
+        "total_score": 92,
+        "course_par": 72,
+        "scorecard": [ ... ]
+      }
+    }
+  ]
+}
+```
+
+Notes for standard creators:
+- `creatorVoice` field is **omitted entirely** (not present, not null).
+- Individual ideas **do not** have an `angles` field.
+
+### Advanced creator response
+
+```json
+{
+  "ok": true,
+  "creator": {
+    "id": "<uuid>",
+    "name": "Bob Advanced",
+    "capabilities": {
+      "advancedCreator": true,
+      "creatorVoice": true
+    }
+  },
+  "creatorVoice": {
+    "id": "<uuid>",
+    "name": "My Voice Profile",
+    "tone": "conversational and warm",
+    "personality": "enthusiastic about the short game",
+    "humor_level": "light",
+    "energy": "high",
+    "storytelling_style": "evidence-first, then insight",
+    "sentence_style": "short sentences",
+    "vocabulary_style": "accessible",
+    "golf_terminology": "standard amateur terms",
+    "things_to_emphasize": "turning points, momentum shifts",
+    "things_to_avoid": "clichés"
+  },
+  "ideas": [
+    {
+      "id": "<uuid>",
+      "story_id": "<uuid>",
+      "category": "Round of Two Halves",
+      "title": "Front nine that changed everything",
+      "hook": "Three birdies in a row will make you believe anything.",
+      "script": "Banff Springs, hole 10…",
+      "created_at": "2026-09-10T14:00:00Z",
+      "angles": [
+        {
+          "type": "primary",
+          "lens": "Clutch Moment",
+          "story_angle": "Three consecutive birdies that turned a mediocre round into something special",
+          "why_interesting": "The contrast between an average front nine and an explosive back nine creates tension"
+        },
+        {
+          "type": "creator_specific",
+          "lens": "Round of Two Halves",
+          "story_angle": "A tale written in two chapters: struggle then surge",
+          "why_interesting": "Relatable to players who have experienced both halves of golf in a single round"
+        },
+        {
+          "type": "alternative",
+          "lens": "How Did That Happen?",
+          "story_angle": "Momentum gained then immediately lost — a puzzle in the numbers",
+          "why_interesting": "The counterintuitive result creates a narrative puzzle"
+        }
+      ],
+      "round": {
+        "player_display_name": "Aaron",
+        "played_at": "2026-09-10",
+        "course_name": "Banff Springs",
+        "tees": "Blue",
+        "total_score": 79,
+        "course_par": 71,
+        "scorecard": [ ... ]
+      }
+    }
+  ]
+}
+```
+
+Notes for advanced creators:
+- `creatorVoice` is present at the top level when `capabilities.creatorVoice = true`.
+- `creatorVoice` is **omitted entirely** when the advanced creator has no active voice profile.
+- Each `creator_story` idea includes `angles[]` when the story was generated by an advanced creator.
+- `angles` is **omitted entirely** for standard creator stories (no null, no empty array).
+
+---
+
+## `creator` envelope (all callers)
+
+| Field | Type | Source |
+|---|---|---|
+| `id` | UUID | `creator_profiles.id` — resolved server-side from bearer token |
+| `name` | string | `creator_profiles.display_name` |
+| `capabilities.advancedCreator` | boolean | `creator_profiles.advanced_creator` — DB record only |
+| `capabilities.creatorVoice` | boolean | `true` when `advancedCreator=true` AND an active voice profile exists |
+
+## `creatorVoice` object (advanced creators with active voice profile only)
+
+| Field | Type | Source |
+|---|---|---|
+| `id` | UUID | `creator_voice_profiles.id` |
+| `name` | string \| null | `creator_voice_profiles.name` |
+| `tone` | string \| null | `creator_voice_profiles.tone` |
+| `personality` | string \| null | `creator_voice_profiles.personality` |
+| `humor_level` | string \| null | `creator_voice_profiles.humor_level` |
+| `energy` | string \| null | `creator_voice_profiles.energy` |
+| `storytelling_style` | string \| null | `creator_voice_profiles.storytelling_style` |
+| `sentence_style` | string \| null | `creator_voice_profiles.sentence_style` |
+| `vocabulary_style` | string \| null | `creator_voice_profiles.vocabulary_style` |
+| `golf_terminology` | string \| null | `creator_voice_profiles.golf_terminology` |
+| `things_to_emphasize` | string \| null | `creator_voice_profiles.things_to_emphasize` |
+| `things_to_avoid` | string \| null | `creator_voice_profiles.things_to_avoid` |
+
+Note: `example_outputs` is intentionally excluded from the API response (internal editorial guidance).
+
+## `angles[]` schema (advanced creator_story ideas only)
+
+Each element represents a structurally distinct editorial premise derived from the round evidence using the 7-step evidence-driven reasoning sequence.
+
+| Field | Type | Description |
+|---|---|---|
+| `type` | `"primary"` \| `"creator_specific"` \| `"alternative"` | Editorial premise category |
+| `lens` | string | One of the eight narrative lenses (Breakthrough, Hot Round, Collapse, Round of Two Halves, Clutch Moment, How Did That Happen?, Progress Story, Golfer Story) |
+| `story_angle` | string | The central narrative premise — distinct from the qualification headline |
+| `why_interesting` | string | Why a golf audience cares about this specific story |
+
+**Angle semantics:**
+- `primary` — The strongest evidence-driven premise for a general golf audience.
+- `creator_specific` — The angle that best fits what this particular creator finds interesting and how they tell stories. Receives the creator's personality, storytelling style, and things-to-emphasize as editorial context during selection. Still evidence-driven.
+- `alternative` — A third distinct narrative opportunity from the evidence that neither primary nor creator_specific captured.
+
+**Invariant:** All three angles are structurally distinct. Angles with the same lens must have provably different `story_angle` claims. Lens selection is evidence-driven, not hardcoded from `story_type`.
+
+**Creator Voice injection:** The voice block is injected into the **story-writing step only**, after angle selection. It shapes tone, style, vocabulary, and emphasis. It never determines which angle is selected and never overrides factual evidence.
+
+---
+
+## Field reference
+
+### Top-level idea fields
+
+| Field | Type | Source |
+|---|---|---|
+| `id` | UUID | `content_ideas.id` |
+| `story_id` | UUID | `content_ideas.story_id` → `story_candidates.id` |
+| `category` | string | `content_ideas.category` |
+| `title` | string | `content_ideas.title` |
+| `hook` | string | `content_ideas.hook` |
+| `script` | string | `content_ideas.script` |
+| `created_at` | ISO 8601 | `content_ideas.created_at` |
+| `angles` | array \| absent | `content_ideas.angles` (JSONB); present only for advanced creator_story ideas |
+| `round` | object \| null | Joined from `rounds` via `content_ideas.round_id`; null for legacy ideas with no linked round |
+
+### `round` object
+
+| Field | Type | Source |
+|---|---|---|
+| `player_display_name` | string \| null | `profiles.display_name` (looked up by `rounds.user_id`); null if profile unavailable |
+| `played_at` | date string | `rounds.played_at` |
+| `course_name` | string \| null | `rounds.course_name` |
+| `tees` | string \| null | `rounds.tees` |
+| `total_score` | integer \| null | `rounds.total_score` |
+| `course_par` | integer \| null | `rounds.course_par` |
+| `front_9` | integer \| null | `rounds.front_9` |
+| `back_9` | integer \| null | `rounds.back_9` |
+| `total_putts` | integer \| null | `rounds.total_putts` |
+| `total_penalties` | integer \| null | `rounds.total_penalties` |
+| `fairways_hit` | integer \| null | `rounds.fairways_hit` |
+| `total_fairways` | integer \| null | `rounds.total_fairways` |
+| `fairways_left` | integer \| null | `rounds.fairways_left` |
+| `fairways_right` | integer \| null | `rounds.fairways_right` |
+| `fairways_long` | integer \| null | `rounds.fairways_long` |
+| `fairways_short` | integer \| null | `rounds.fairways_short` |
+| `gir_hit` | integer \| null | `rounds.gir_hit` |
+| `total_gir` | integer \| null | `rounds.total_gir` |
+| `gir_short` | integer \| null | `rounds.gir_short` |
+| `gir_long` | integer \| null | `rounds.gir_long` |
+| `gir_left` | integer \| null | `rounds.gir_left` |
+| `gir_right` | integer \| null | `rounds.gir_right` |
+| `scrambling_opportunities` | integer \| null | `rounds.scrambling_opportunities` |
+| `successful_scrambles` | integer \| null | `rounds.successful_scrambles` |
+| `three_putts` | integer \| null | `rounds.three_putts` |
+| `birdies` | integer \| null | `rounds.birdies` |
+| `pars` | integer \| null | `rounds.pars` |
+| `bogeys` | integer \| null | `rounds.bogeys` |
+| `double_bogeys` | integer \| null | `rounds.double_bogeys` |
+| `eagles` | integer \| null | `rounds.eagles` |
+| `albatrosses` | integer \| null | `rounds.albatrosses` |
+| `hole_in_one` | integer \| null | `rounds.hole_in_one` |
+| `scorecard` | array | See below; sorted ascending by hole number |
+
+### `round.scorecard[]` entries
+
+| Field | Type | Source |
+|---|---|---|
+| `hole` | integer | `holes.hole_number` |
+| `par` | integer \| null | `holes.par` |
+| `score` | integer \| null | `holes.score` |
+| `fairway` | `"hit"` \| `"left"` \| `"right"` \| `"short"` \| `"long"` \| `"none"` \| null | `holes.fairway_result` |
+| `gir` | `"hit"` \| `"short"` \| `"long"` \| `"left"` \| `"right"` \| `"none"` \| null | `holes.gir_result` |
+| `putts` | integer \| null | `holes.putts` |
+| `chips` | integer \| null | `holes.chip_count` |
+| `bunker` | boolean \| null | `holes.bunker_shot` |
+| `sand_save` | boolean \| null | `holes.sand_save` |
+| `penalties` | integer \| null | `holes.penalty_strokes` |
+| `player_note` | string \| null | `holes.player_notes` — per-hole player context; populated by Round Buddy rounds when the player spoke about a hole |
+
+---
+
+## `GET /api/content/round/:round_id` — Round Web Contract
+
+This endpoint surfaces the same round data plus per-story metadata in a single contract object. The Creator Story portion reflects the advanced capability model.
+
+**Response: `{ ok: true, contract: RoundWebContract }`**
+
+The `creatorContentStory.contentIdea` object includes an `angles` field when the Creator Story was generated by an advanced creator:
+
+```json
+{
+  "creatorContentStory": {
+    "available": true,
+    "permissionState": "granted",
+    "permission": { ... },
+    "candidate": { ... },
+    "contentIdea": {
+      "id": "<uuid>",
+      "category": "Round of Two Halves",
+      "title": "...",
+      "hook": "...",
+      "script": "...",
+      "story_angle": "...",
+      "why_interesting": "...",
+      "created_at": "...",
+      "angles": [
+        { "type": "primary", "lens": "...", "story_angle": "...", "why_interesting": "..." },
+        { "type": "creator_specific", "lens": "...", "story_angle": "...", "why_interesting": "..." },
+        { "type": "alternative", "lens": "...", "story_angle": "...", "why_interesting": "..." }
+      ]
+    }
+  }
+}
+```
+
+For standard creator stories, `contentIdea.angles` is absent (not null).
+
+---
+
+## Backward compatibility
+
+- Ideas with no linked round (`round_id IS NULL`) return `round: null`. All idea-level fields are unaffected.
+- If the player's profile row is missing, `player_display_name` is `null`; the rest of the round object is returned normally.
+- The `id`, `user_id`, `holes` (raw), and embedded join keys from `rounds` are not exposed in the response.
+- Standard creator responses are unchanged: no new fields appear, no existing fields change shape.
+- The `creator` envelope is additive — existing consumers that do not read it are unaffected.

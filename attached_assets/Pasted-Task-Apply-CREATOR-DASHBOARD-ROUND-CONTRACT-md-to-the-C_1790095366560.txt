@@ -1,0 +1,137 @@
+Task: Apply CREATOR_DASHBOARD_ROUND_CONTRACT.md to the Creator Dashboard web implementation
+
+Work only on the web application.
+
+The authoritative contract is the current existing CREATOR_DASHBOARD_ROUND_CONTRACT.md in the repository. Treat that document as established and authoritative.
+
+Objective
+
+First, audit the existing Creator Dashboard web implementation against the current CREATOR_DASHBOARD_ROUND_CONTRACT.md.
+
+Then make only the necessary web-side changes required for the implementation to correctly consume and render the established contract.
+
+Hard boundaries
+
+DO NOT:
+
+modify the API implementation
+modify creatorContentEngine
+modify API response generation
+modify database schema or migrations
+modify Supabase/database queries on the backend
+modify CREATOR_DASHBOARD_ROUND_CONTRACT.md
+redefine, reinterpret, or “improve” the contract
+reopen previously resolved API contract work
+change unrelated Creator Dashboard functionality
+change authentication, permissions, sharing logic, or content-generation behavior unless a web-side bug directly prevents the already-established contract from being consumed correctly
+
+The architecture boundary is:
+
+API/engine → established contract → web
+
+This task is concerned with the right-hand side only.
+
+Important discrepancy rule
+
+If the audit discovers that the actual API response does not match CREATOR_DASHBOARD_ROUND_CONTRACT.md, DO NOT modify either side to make them match.
+
+Stop at that point and report:
+
+the contract requirement
+the actual API behavior observed
+the exact discrepancy
+where the discrepancy appears in the code/tests
+what would need to be resolved upstream
+
+Do not silently compensate for an API/contract mismatch in the web implementation.
+
+Audit first
+
+Before changing code, inspect:
+
+CREATOR_DASHBOARD_ROUND_CONTRACT.md
+the current Creator Dashboard page/components
+the web API client/fetch layer
+TypeScript types/interfaces used by the dashboard
+response parsing/validation
+loading/error/empty states
+rendering of the round snapshot
+Creator Story rendering
+Coaching Reflection rendering
+creator capabilities
+angles[]
+creatorVoice and its presence rules
+standard vs advanced response shapes
+any existing contract-related tests
+
+Pay particular attention to whether the web implementation is still relying on old fields, old response shapes, old joins, or assumptions from earlier versions of the contract.
+
+Implementation requirements
+
+If the API response and contract agree:
+
+update the web implementation to consume the contract exactly
+remove/replace obsolete web-side assumptions only where necessary
+preserve existing UI and functionality wherever it is already correct
+keep the implementation strongly typed
+handle optional/conditional fields according to the contract rather than guessing
+support both standard and advanced response shapes where the contract specifies them
+preserve the existing Creator Story + Coaching Reflection presentation
+preserve useful round/scorecard information already displayed by the dashboard
+do not introduce backend changes to make the frontend easier
+Tests
+
+Add or update web-side tests only to verify the contract is consumed correctly.
+
+Tests should cover the important contract surfaces, including as applicable:
+
+standard response shape
+advanced response shape
+creator.capabilities
+angles[]
+creatorVoice
+round/player information
+scorecard/round snapshot data
+Creator Story
+Coaching Reflection
+optional/missing fields
+loading/error states where relevant
+
+Do not rewrite tests merely for cosmetic reasons. Focus on tests that prove the web implementation correctly consumes the established contract.
+
+Verification
+
+Run the relevant web tests and type checking/build validation.
+
+If possible, also inspect the actual request/response path used by the Creator Dashboard to ensure the implementation is consuming the expected endpoint and response shape.
+
+Final report
+
+At the end, report:
+
+1. Contract audit
+
+What was already correct
+What was out of date
+
+2. Web changes
+
+Exact files changed
+What changed in each
+
+3. Tests
+
+Tests added/updated
+Test results
+
+4. Verification
+
+Typecheck/build result
+Any remaining issues
+
+5. Contract/API discrepancies
+
+Explicitly state whether any API-vs-contract discrepancy was found.
+If one was found, do not work around it; report it for upstream resolution.
+
+Keep this task strictly web implementation + web tests. The contract is the source of truth. Do not modify the API, engine, database, or contract.
