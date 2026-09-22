@@ -162,6 +162,61 @@ test("authentication rejects sessions that Supabase does not accept", async () =
   );
 });
 
+test("authentication reports a connected-project authorization failure without exposing credentials", async () => {
+  const token = [
+    Buffer.from('{"alg":"HS256","typ":"JWT"}').toString("base64url"),
+    Buffer.from(
+      '{"iss":"https://fixture-project.supabase.co/auth/v1","sub":"aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"}',
+    ).toString("base64url"),
+    "signature",
+  ].join(".");
+
+  await assert.rejects(
+    () => authenticateSupabaseBearer(
+      `Bearer ${token}`,
+      async () => Response.json({ message: "Unauthorized" }, { status: 401 }),
+      async () => Response.json({
+        id: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+        email: "creator@example.com",
+      }),
+      "fixture-anon-key",
+    ),
+    (error: unknown) => error instanceof CreatorContentError
+      && error.status === 401
+      && error.message === "The bearer token is invalid or expired."
+      && error.diagnostic === "connected_project_user_status_401"
+      && !error.diagnostic.includes(token),
+  );
+});
+
+test("authentication rejects an identity that does not match the connected project", async () => {
+  const token = [
+    Buffer.from('{"alg":"HS256","typ":"JWT"}').toString("base64url"),
+    Buffer.from(
+      '{"iss":"https://fixture-project.supabase.co/auth/v1","sub":"aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"}',
+    ).toString("base64url"),
+    "signature",
+  ].join(".");
+
+  await assert.rejects(
+    () => authenticateSupabaseBearer(
+      `Bearer ${token}`,
+      async () => Response.json({
+        id: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+        email: "other@example.com",
+      }),
+      async () => Response.json({
+        id: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+        email: "creator@example.com",
+      }),
+      "fixture-anon-key",
+    ),
+    (error: unknown) => error instanceof CreatorContentError
+      && error.status === 401
+      && error.diagnostic === "connected_project_user_mismatch",
+  );
+});
+
 test("authentication rejects malformed sessions without making a request", async () => {
   let requested = false;
   await assert.rejects(

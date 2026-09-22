@@ -23,6 +23,31 @@ diagnostic=connected_project_user_status_401
 No token, key, user ID, email address, or reversible credential material was
 recorded during the investigation.
 
+## Production configuration resolution
+
+Follow-up verification on 2026-09-22 established both project identities before
+any configuration change:
+
+- the production `NEXT_PUBLIC_SUPABASE_URL` project reference is
+  `pcyhnijyfzmgyghrzlyp`;
+- the Creator session fixture's non-secret JWT issuer project reference is
+  `pcyhnijyfzmgyghrzlyp`; and
+- the API connector's authoritative admin-user lookup returned `200` for the
+  fixture identity, with matching user and email identities.
+
+The API connector also returned `200` from the expected Creator REST schema.
+Therefore, the incident was an authorization/connection problem, not a Supabase
+project mismatch. The minimum production configuration fix was restoration of
+the existing connector's admin-user authorization. No Supabase URL, bearer
+validation, or Creator permission setting was changed.
+
+The available Creator fixture had expired by the time of this verification, so
+it was not used to claim a successful live Creator request. It was used only
+for non-secret issuer metadata and an authoritative connector identity match.
+The API's focused authentication tests cover accepted matching identities,
+connector rejection, malformed or rejected sessions, and cross-project identity
+mismatches without logging credential material.
+
 ## Traced request
 
 ### Browser session and caller
@@ -97,18 +122,13 @@ the safe `connected_project_user_status_401` diagnostic in server logs.
 `CreatorDashboard` catches all errors without inspecting their status or stage,
 rendering the single generic Creator workspace error state.
 
-## Smallest recommended follow-up
+## Configuration rule
 
-Align the API's connected Supabase project/authorization with the public
-Supabase project that issues Creator Studio sessions, then verify that the
+Keep the API's connected Supabase project/authorization aligned with the public
+Supabase project that issues Creator Studio sessions. Verify that the
 connector-backed admin-user lookup returns the same user identity. Do not
 weaken bearer validation, accept cookies as a substitute, or broaden Creator
 permissions.
-
-Before changing code, confirm whether `connected_project_user_status_401`
-means the deployment's Supabase connection targets a different project or its
-connector credential lacks the required admin-user access. Correct only that
-configuration/connection boundary.
 
 ## Regression coverage
 
