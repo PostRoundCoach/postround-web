@@ -1,0 +1,44 @@
+Good. We now have the key distinction:
+
+* Published API can resolve a Supabase connector.
+* `/auth/v1/admin/users/{id}` is definitely routed through `ReplitConnectors().proxy("supabase", ...)`.
+* The production runtime receives 401 from that connector call.
+* The remaining unknown is WHICH Supabase connection/configuration the published runtime is actually bound to.
+* The workspace UI shows an Active Supabase integration, but its internal connection/configuration ID is not currently visible to the Agent.
+
+Before changing or reconnecting anything, investigate whether we can establish the production connector binding identity using non-secret metadata.
+
+Specifically:
+
+1. Determine whether `ReplitConnectors().proxy("supabase", ...)` exposes any non-secret metadata identifying the selected connection/configuration.
+2. Determine the connection/configuration ID associated with the published Production runtime, if available.
+3. Determine the connection/configuration ID of the Active Supabase workspace integration, if available through an authorized project-level API/tool.
+4. Compare the two IDs or otherwise establish whether they refer to the same connection.
+5. If IDs are intentionally unavailable, identify the strongest available evidence for whether the published runtime is bound to the Active workspace connection.
+6. Do NOT attempt to infer identity from secrets, tokens, emails, user IDs, or credentials.
+7. Do NOT reconnect, reauthorize, remove, or replace the Supabase integration yet.
+8. Do NOT modify application code or authentication behavior.
+
+Also determine one additional technical point:
+
+When the production connector returns HTTP 401 for:
+
+`/auth/v1/admin/users/{validated-user-id}`
+
+can the connector layer distinguish between:
+
+* connector authorization/binding failure, and
+* Supabase Auth Admin itself returning 401?
+
+Do not expose the validated user ID or any credentials. We only need the status/source/stage metadata.
+
+Final report:
+
+A. Production connector binding identity, if available.
+B. Active workspace integration identity, if available.
+C. Whether they match.
+D. Whether the 401 originates from the connector gateway or upstream Supabase Auth.
+E. The smallest next remediation, if one is now justified.
+F. Any remaining uncertainty.
+
+No code/configuration/integration changes until I approve them.
