@@ -1,0 +1,73 @@
+We have narrowed the production Creator Studio 401 to the Supabase connector boundary.
+
+Known facts:
+
+* Browser sends a valid Bearer token.
+* Supabase issuer/session validation succeeds.
+* Production API calls `ReplitConnectors().proxy("supabase", ...)`.
+* Project runtime sees exactly one Supabase connection:
+  `conn_supabase_01M12K99Z0H0T2GKZ2XBQN1NY3`
+* Its connector configuration is:
+  `ccfg_supabase_01M12K99SY4EDG66WYBZSJE3CC`
+* That configuration ID matches the Supabase connector configuration reported by the Agent.
+* Connection environment is `production`.
+* The actual Admin Auth request is:
+  `/auth/v1/admin/users/{validated-user-id}`
+* Production receives HTTP 401 and reports:
+  `connected_project_user_status_401`
+* Restarting the published API did not change the result.
+* The SDK retries a 401 once and returns the final response.
+* The current application diagnostics cannot distinguish connector-gateway 401 from upstream Supabase 401.
+
+Do NOT modify code, configuration, authentication logic, permissions, or connector state yet.
+
+### Goal
+
+Determine the exact source of the 401.
+
+Investigate connector/platform telemetry or any available safe diagnostic mechanism for the failing production request and establish whether:
+
+A. The Replit connector gateway is rejecting the Production deployment identity/binding before the request reaches Supabase Auth
+
+OR
+
+B. The request reaches Supabase and Supabase Auth's `/auth/v1/admin/users/{id}` endpoint itself returns 401 because the connector's provider authorization is not accepted.
+
+Use only non-secret metadata.
+
+Do NOT expose or log:
+
+* access tokens
+* refresh tokens
+* Authorization headers
+* API keys
+* passwords
+* email addresses
+* user IDs
+* provider credentials
+
+If request correlation is needed, use timestamps/request IDs only.
+
+### Specifically inspect
+
+1. Connector gateway telemetry for the production `/auth/v1/admin/users/...` request.
+2. Whether the gateway records an upstream response versus rejecting the request locally.
+3. Whether the connector reports provider/upstream HTTP status separately from gateway status.
+4. Whether the connection `conn_supabase_01M12K99Z0H0T2GKZ2XBQN1NY3` is actually selected for the production request.
+5. Whether the production deployment identity is authorized to use that connection.
+6. If the request reaches Supabase, whether Supabase returns the 401.
+7. Any safe error code/category that distinguishes gateway authorization from provider authorization.
+
+Do not infer the source merely from the application's `connected_project_user_status_401` diagnostic. We already know that diagnostic collapses both possibilities.
+
+### Final report
+
+Give me:
+
+A. Exact 401 source: Replit gateway OR Supabase Auth, if determinable.
+
+B. Evidence supporting that conclusion.
+
+C. Whether the production deployment is authorized to use the connection.
+
+D. If Supabase is the source, whether the existing connection's provider authorization needs rep
