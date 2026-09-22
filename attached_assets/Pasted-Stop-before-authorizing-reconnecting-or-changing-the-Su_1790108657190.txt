@@ -1,0 +1,55 @@
+Stop before authorizing, reconnecting, or changing the Supabase integration.
+
+We have discovered an important discrepancy:
+
+* The Replit workspace Integrations UI shows Supabase as **Active**.
+* The Agent integration inventory reports the Supabase connector as `not_setup`.
+* Therefore, `not_setup` must NOT be treated as proof that the workspace Supabase integration is unconfigured.
+
+Investigate the integration/runtime boundary only.
+
+Determine:
+
+1. What Supabase integration is shown as Active in the workspace.
+2. What Supabase connection/credential the published API runtime actually uses for the connected-project authoritative user lookup.
+3. Whether the Active workspace Supabase integration is exposed to the published API runtime.
+4. Whether the Agent's `not_setup` status represents:
+
+   * a genuinely unconfigured workspace integration,
+   * lack of Agent access to an existing workspace integration,
+   * a different connector namespace,
+   * or some other scope/visibility distinction.
+5. Whether the published API's `/auth/v1/admin/users/{id}` request is routed through the same active workspace integration shown in the UI.
+6. Explain how Task #92 could successfully perform a connector-backed REST operation while the published API continues returning `connected_project_user_status_401`.
+7. Identify the exact runtime connection path and where the authorization boundary occurs.
+
+Use only non-secret metadata.
+
+Do NOT:
+
+* reconnect or reauthorize Supabase yet
+* change application code
+* change auth logic
+* change environment variables
+* change Supabase project references
+* modify Creator permissions
+* weaken the connected-project user check
+* log tokens, refresh tokens, emails, user IDs, API keys, or Authorization headers
+
+We need to resolve the apparent contradiction between:
+
+`Workspace UI: Supabase Active`
+
+and
+
+`Agent inventory: Supabase not_setup`
+
+before taking any remediation action.
+
+Final report should clearly distinguish:
+
+A. Workspace integration state
+B. Agent/tool visibility state
+C. Published-runtime integration state
+D. Which of those the `/auth/v1/admin/users/{id}` call actually uses
+E. The specific next action, if one is required
