@@ -1,0 +1,53 @@
+Task: Restore the Supabase connector authorization for the published Post Round API environment.
+
+The investigation is complete. Do not change application authentication logic.
+
+Confirmed facts:
+
+* `GET /api/content/stories` receives a valid Bearer token.
+* Supabase issuer/session validation succeeds.
+* Failure remains at the connected-project authoritative user lookup.
+* Production diagnostic is consistently:
+  `connected_project_user_status_401`
+* Current integration metadata reports the Supabase connector as:
+  `status: not_setup`
+* The published API was restarted at `2026-09-22T20:05:49Z`, but subsequent requests still returned the same stage-3 401.
+* Therefore, restarting/republishing alone is insufficient.
+* The Supabase project reference has already been verified as matching the session issuer.
+* No evidence indicates an application-code, Creator permission, or standard/advanced Creator Story problem.
+
+Execute only the connector remediation:
+
+1. Authorize/reconnect the existing Supabase connector.
+2. Ensure the authorized connection is attached to the project environment used by the published API.
+3. Verify non-secret connector metadata reports an active/attached connection.
+4. Verify the exact privileged operation required by the application:
+   `/auth/v1/admin/users/{validated-user-id}`
+   using the connector, not merely a normal REST/table query.
+5. Confirm that operation returns 200 for the validated fixture identity.
+6. Republish/restart the API after the connector is attached so the published runtime receives the connection.
+7. Make a fresh authenticated request to:
+   `GET /api/content/stories`
+8. Confirm whether the request now succeeds or advances to a later, accurately identified authorization stage.
+
+Security constraints:
+
+* Do not log or display access tokens, refresh tokens, Authorization headers, passwords, API keys, user emails, or user IDs.
+* Do not bypass the connected-project authoritative user lookup.
+* Do not accept issuer validation alone.
+* Do not change Creator permissions or role checks.
+* Do not change standard/advanced Creator Story branching.
+* Do not modify frontend authentication.
+* Do not change the Supabase project reference unless new evidence proves it is wrong.
+* Do not make unrelated code changes.
+
+If the connector cannot be authorized through the available project tooling, stop and report exactly what user action is required rather than creating a workaround.
+
+Final report must include:
+
+A. Connector status before and after.
+B. Confirmation that the connection is attached to the published API environment.
+C. Result of the actual Auth Admin endpoint verification.
+D. Published-runtime `/api/content/stories` result.
+E. Whether any code/configuration was changed.
+F. Any remaining issue, if the request advances beyond stage 3.

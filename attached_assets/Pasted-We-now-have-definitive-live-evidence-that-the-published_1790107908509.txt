@@ -1,0 +1,45 @@
+We now have definitive live evidence that the published API is still failing at stage 3:
+
+`connected_project_user_status_401`
+
+The browser bearer header is present, the Supabase issuer accepts the session, and the failure occurs only when the deployed API performs the connected-project authoritative user lookup.
+
+Do NOT modify code or configuration yet.
+
+Investigate why the **deployed/runtime API connection** is still receiving 401 from the connected Supabase admin user lookup despite Task #92 establishing:
+
+* session issuer project ref = `pcyhnijyfzmgyghrzlyp`
+* connected Supabase target project ref = `pcyhnijyfzmgyghrzlyp`
+* connector authorization test previously returned 200
+* production `/api/content/stories` still returns `connected_project_user_status_401`
+
+Specifically determine:
+
+1. Whether the deployed API runtime is actually using the same authorized Supabase connector/runtime connection that Task #92 tested.
+2. Whether the connector authorization is available to the published deployment/runtime, versus only the investigation/tooling environment.
+3. Whether the deployed runtime is using stale connection state, stale environment/configuration, or a different Supabase client/connection path.
+4. Inspect the exact implementation of the connected-project user lookup and identify what upstream Supabase response produces the 401.
+5. If possible, correlate the live request timestamp with the connector/upstream response without logging any token, refresh token, email, user ID, Authorization header, or secret.
+6. Determine whether restarting/republishing the API would be sufficient to pick up the already-authorized connector, or whether the connector itself must be reauthorized/reconnected.
+7. Compare the runtime connection identity and authorization state using only non-secret metadata.
+
+Important constraints:
+
+* No code changes yet.
+* No auth bypass.
+* Do not fall back to issuer-only authentication.
+* Do not weaken the connected-project identity check.
+* Do not log credentials or personally identifying auth data.
+* Do not modify Creator Story permissions or standard/advanced Creator Story branching.
+* Do not assume the connector is fixed merely because a separate connector test returned 200.
+
+Report:
+
+A. Exact root cause, if determinable.
+B. Whether the authorized connector is actually available to the published API runtime.
+C. The specific remediation required.
+D. Whether that remediation requires reconnecting, republishing/restarting, changing configuration, or code.
+E. What evidence would prove the fix.
+F. Any remaining uncertainty.
+
+Do not implement the remediation until I explicitly approve it.
