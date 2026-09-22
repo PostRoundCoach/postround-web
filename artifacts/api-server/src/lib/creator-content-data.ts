@@ -3,6 +3,7 @@ import type { ScorecardHole, StoryCandidate } from "./story-engine";
 import type {
   CoachingReflectionContent,
   CreatorContentIdeaSummary,
+  CreatorEditorialAngle,
   CreatorContentStory,
   RoundHighlights,
   RoundSummary,
@@ -26,6 +27,9 @@ export class CreatorContentError extends Error {
 
 export interface AuthorizedStory {
   creatorId: string;
+  creatorName: string;
+  advancedCreator: boolean;
+  creatorVoice: CreatorVoiceProfile | null;
   roundId: string;
   playerId: string;
   playerName: string | null;
@@ -162,7 +166,27 @@ export async function authenticateSupabaseBearer(
   }
 }
 
-type CreatorRow = { id: string };
+export interface CreatorVoiceProfile {
+  id: string;
+  name: string | null;
+  tone: string | null;
+  personality: string | null;
+  humor_level: string | null;
+  energy: string | null;
+  storytelling_style: string | null;
+  sentence_style: string | null;
+  vocabulary_style: string | null;
+  golf_terminology: string | null;
+  things_to_emphasize: string | null;
+  things_to_avoid: string | null;
+}
+
+type CreatorRow = {
+  id: string;
+  display_name?: string | null;
+  advanced_creator?: boolean | null;
+  creator_voice_profiles?: CreatorVoiceProfile | CreatorVoiceProfile[] | null;
+};
 type PermissionRow = {
   id: string;
   story_id: string;
@@ -185,7 +209,11 @@ export async function authorizeCreatorStory(
 ): Promise<AuthorizedStory> {
   const profiles = await rest<CreatorRow[]>(
     context,
-    `creator_profiles?select=id&user_id=eq.${encodeURIComponent(context.userId)}&status=eq.active&limit=1`,
+    "creator_profiles?select=id,display_name,advanced_creator,"
+      + "creator_voice_profiles(id,name,tone,personality,humor_level,energy,storytelling_style,sentence_style,"
+      + "vocabulary_style,golf_terminology,things_to_emphasize,things_to_avoid)"
+      + `&user_id=eq.${encodeURIComponent(context.userId)}&status=eq.active`
+      + "&creator_voice_profiles.status=eq.active&limit=1",
   );
   const creator = profiles[0];
   if (!creator) throw new CreatorContentError(403, "This account does not control an active creator profile.");
@@ -204,6 +232,9 @@ export async function authorizeCreatorStory(
     throw new CreatorContentError(403, "This creator is not permitted to access the story.");
   }
   const data = story.story_data;
+  const voiceRelation = creator.creator_voice_profiles;
+  const activeVoice = Array.isArray(voiceRelation) ? voiceRelation[0] ?? null : voiceRelation ?? null;
+  const advancedCreator = creator.advanced_creator === true;
   const playerName = data && typeof data.golfer_display_name === "string"
     ? data.golfer_display_name
     : data && typeof data.golferDisplayName === "string"
@@ -211,6 +242,9 @@ export async function authorizeCreatorStory(
       : null;
   return {
     creatorId: creator.id,
+    creatorName: creator.display_name ?? "",
+    advancedCreator,
+    creatorVoice: advancedCreator ? activeVoice : null,
     roundId: story.round_id,
     playerId: story.user_id,
     playerName,
@@ -338,6 +372,7 @@ type RoundContentIdeaRow = {
   created_at: string;
   status: string;
   content_type: string | null;
+  angles?: unknown;
 };
 
 const roundSelect = [
@@ -393,11 +428,28 @@ function mapPermission(permission: RoundPermissionRow): StoryPermissionTimestamp
   };
 }
 
-function mapContentIdea(row: RoundContentIdeaRow): CreatorContentIdeaSummary {
+function editorialAngles(value: unknown): CreatorEditorialAngle[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const angles = value.filter((angle): angle is CreatorEditorialAngle => {
+    if (!angle || typeof angle !== "object") return false;
+    const item = angle as Record<string, unknown>;
+    return (item.type === "primary" || item.type === "creator_specific" || item.type === "alternative")
+      && typeof item.lens === "string"
+      && typeof item.story_angle === "string"
+      && typeof item.why_interesting === "string";
+  });
+  return angles.length === value.length ? angles : undefined;
+}
+
+function mapContentIdea(row: RoundContentIdeaRow, advancedCreator: boolean): CreatorContentIdeaSummary {
+  const angles = advancedCreator && row.content_type === "creator_story"
+    ? editorialAngles(row.angles)
+    : undefined;
   return {
     id: row.id, category: row.category, title: row.title, hook: row.hook,
     script: nullableString(row.script), story_angle: nullableString(row.story_angle),
     why_interesting: nullableString(row.why_interesting), created_at: row.created_at,
+    ...(angles ? { angles } : {}),
   };
 }
 
@@ -411,7 +463,7 @@ async function fetchRoundWebContractData(
 ): Promise<RoundWebContract> {
   const profiles = await rest<CreatorRow[]>(
     context,
-    `creator_profiles?select=id&user_id=eq.${encodeURIComponent(context.userId)}&status=eq.active&limit=1`,
+    `creator_profiles?select=id,advanced_creator&user_id=eq.${encodeURIComponent(context.userId)}&status=eq.active&limit=1`,
   );
   const creator = profiles[0];
   if (!creator) throw new CreatorContentError(403, "This account does not control an active creator profile.");
@@ -454,11 +506,11 @@ async function fetchRoundWebContractData(
     ),
     rest<RoundContentIdeaRow[]>(
       context,
-      `content_ideas?select=id,category,title,hook,script,story_angle,why_interesting,reflection,created_at,status,content_type&round_id=eq.${encodeURIComponent(roundId)}&story_id=eq.${encodeURIComponent(candidate.id)}&content_type=eq.creator_story&status=neq.generating&order=created_at.asc,id.asc&limit=1`,
+      `content_ideas?select=id,category,title,hook,script,story_angle,why_interesting,reflection,created_at,status,content_type,angles&round_id=eq.${encodeURIComponent(roundId)}&story_id=eq.${encodeURIComponent(candidate.id)}&content_type=eq.creator_story&status=neq.generating&order=created_at.asc,id.asc&limit=1`,
     ),
     rest<RoundContentIdeaRow[]>(
       context,
-      `content_ideas?select=id,category,title,hook,script,story_angle,why_interesting,reflection,created_at,status,content_type&round_id=eq.${encodeURIComponent(roundId)}&story_id=eq.${encodeURIComponent(candidate.id)}&category=eq.coaching_reflection&status=neq.generating&order=created_at.asc,id.asc&limit=1`,
+      `content_ideas?select=id,category,title,hook,script,story_angle,why_interesting,reflection,created_at,status,content_type,angles&round_id=eq.${encodeURIComponent(roundId)}&story_id=eq.${encodeURIComponent(candidate.id)}&category=eq.coaching_reflection&status=neq.generating&order=created_at.asc,id.asc&limit=1`,
     ),
   ]);
 
@@ -469,7 +521,7 @@ async function fetchRoundWebContractData(
   const creatorContentStory: CreatorContentStory = {
     available: true, permissionState: "granted", permission: mapPermission(permission),
     candidate: candidateSummary,
-    contentIdea: creatorIdeas[0] ? mapContentIdea(creatorIdeas[0]) : null,
+    contentIdea: creatorIdeas[0] ? mapContentIdea(creatorIdeas[0], creator.advanced_creator === true) : null,
   };
   const coaching = coachingIdeas[0];
   const coachingReflection = coaching
@@ -624,6 +676,8 @@ type ContentIdeaRow = {
   stats_used: Record<string, unknown> | null;
   status: string;
   created_at: string;
+  content_type?: string | null;
+  angles?: unknown;
 };
 
 type DbIdeaRound = {
@@ -751,7 +805,30 @@ export interface CreatorContentIdea {
   hook: string;
   script: string;
   created_at: string;
+  angles?: CreatorEditorialAngle[];
   round: CreatorContentIdeaRound | null;
+}
+
+export function buildCreatorIdeasResponse(
+  access: AuthorizedStory,
+  storyId: string,
+  ideas: CreatorContentIdea[],
+) {
+  return {
+    ok: true as const,
+    creator: {
+      id: access.creatorId,
+      name: access.creatorName,
+      capabilities: {
+        advancedCreator: access.advancedCreator,
+        creatorVoice: Boolean(access.creatorVoice),
+      },
+    },
+    ...(access.creatorVoice ? { creatorVoice: access.creatorVoice } : {}),
+    story_id: storyId,
+    ideas,
+    permission_status: access.permissionStatus,
+  };
 }
 
 export async function fetchPersistedCandidates(
@@ -759,10 +836,11 @@ export async function fetchPersistedCandidates(
   storyId: string,
   roundId: string,
   playerId?: string,
+  advancedCreator = false,
 ): Promise<CreatorContentIdea[]> {
   const rows = await rest<ContentIdeaRow[]>(
     context,
-    `content_ideas?select=id,round_id,story_id,category,title,hook,script,created_at`
+    `content_ideas?select=id,round_id,story_id,category,title,hook,script,created_at,content_type,angles`
       + `&or=(round_id.eq.${encodeURIComponent(roundId)},and(round_id.is.null,story_id.eq.${encodeURIComponent(storyId)}))`
       + "&order=created_at.asc,id.asc",
   );
@@ -871,16 +949,22 @@ export async function fetchPersistedCandidates(
     return [round.id, mapped] as const;
   }));
 
-  return rows.map((row) => ({
-    id: row.id,
-    story_id: storyId,
-    category: row.category,
-    title: row.title,
-    hook: row.hook,
-    script: row.script,
-    created_at: row.created_at,
-    round: row.round_id ? roundData.get(row.round_id) ?? null : null,
-  }));
+  return rows.map((row) => {
+    const angles = advancedCreator && row.content_type === "creator_story"
+      ? editorialAngles(row.angles)
+      : undefined;
+    return {
+      id: row.id,
+      story_id: storyId,
+      category: row.category,
+      title: row.title,
+      hook: row.hook,
+      script: row.script,
+      created_at: row.created_at,
+      ...(angles ? { angles } : {}),
+      round: row.round_id ? roundData.get(row.round_id) ?? null : null,
+    };
+  });
 }
 
 export async function fetchPersistedCandidate(

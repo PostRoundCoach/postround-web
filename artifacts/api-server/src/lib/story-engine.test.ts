@@ -12,6 +12,7 @@ import {
   requestStoryApproval,
   dismissCreatorStory,
   fetchRoundWebContract,
+  buildCreatorIdeasResponse,
   type SupabaseRequestContext,
 } from "./creator-content-data.ts";
 
@@ -241,6 +242,42 @@ test("authorization retains active creator, permission, revocation, and story st
       assert.ok(paths.some((path) => path.includes("revoked_at=is.null")));
     }
   }
+});
+
+test("authorization resolves advanced capability and active voice from the creator profile", async () => {
+  const paths: string[] = [];
+  const voice = {
+    id: "voice", name: "My Voice", tone: "warm", personality: null, humor_level: "light",
+    energy: "high", storytelling_style: "evidence-first", sentence_style: "short",
+    vocabulary_style: "accessible", golf_terminology: "standard",
+    things_to_emphasize: "turning points", things_to_avoid: "cliches",
+  };
+  const context: SupabaseRequestContext = {
+    ...requestContext,
+    proxy: async (path) => {
+      paths.push(path);
+      if (path.includes("creator_profiles?")) {
+        return Response.json([{
+          id: base.ownerId, display_name: "Advanced Creator", advanced_creator: true,
+          creator_voice_profiles: [voice],
+        }]);
+      }
+      if (path.includes("story_permissions?")) return Response.json([{
+        id: "permission", story_id: base.storyId, user_id: "player", permission_granted: true,
+        approval_requested_at: null, granted_at: null, revoked_at: null,
+      }]);
+      return Response.json([{
+        round_id: "round", user_id: "player", status: "shared", story_data: null,
+      }]);
+    },
+  };
+  const access = await authorizeCreatorStory(context, base.storyId);
+  assert.equal(access.creatorName, "Advanced Creator");
+  assert.equal(access.advancedCreator, true);
+  assert.deepEqual(access.creatorVoice, voice);
+  assert.ok(paths[0]?.includes("advanced_creator"));
+  assert.ok(paths[0]?.includes("creator_voice_profiles("));
+  assert.ok(paths[0]?.includes("creator_voice_profiles.status=eq.active"));
 });
 
 test("creator queue reload uses the authoritative active permission store", async () => {
@@ -650,6 +687,69 @@ test("legacy ideas without a round return a null round and linked rounds preserv
   assert.equal(ideas[0]?.round, null);
 });
 
+test("standard creator ideas contract omits voice and angles", async () => {
+  const idea = {
+    id: "idea", story_id: base.storyId, category: "Round Analysis", title: "Stored",
+    hook: "Stored", script: "Stored", created_at: "2026-09-09T12:00:00Z", round: null,
+  };
+  const response = buildCreatorIdeasResponse({
+    creatorId: base.ownerId, creatorName: "Standard Creator", advancedCreator: false,
+    creatorVoice: null, roundId: "round", playerId: "player", playerName: null,
+    permissionId: "permission", permissionStatus: "approved",
+  }, base.storyId, [idea]);
+  assert.deepEqual(response.creator, {
+    id: base.ownerId,
+    name: "Standard Creator",
+    capabilities: { advancedCreator: false, creatorVoice: false },
+  });
+  assert.equal("creatorVoice" in response, false);
+  assert.equal("angles" in response.ideas[0]!, false);
+});
+
+test("advanced creator ideas contract includes active voice and stored creator-story angles", async () => {
+  const angles = [
+    { type: "primary" as const, lens: "Clutch Moment", story_angle: "A turn", why_interesting: "Tension" },
+    { type: "creator_specific" as const, lens: "Round of Two Halves", story_angle: "Two chapters", why_interesting: "Contrast" },
+    { type: "alternative" as const, lens: "How Did That Happen?", story_angle: "A puzzle", why_interesting: "Surprise" },
+  ];
+  const voice = {
+    id: "voice", name: "My Voice", tone: "warm", personality: null, humor_level: "light",
+    energy: "high", storytelling_style: "evidence-first", sentence_style: "short",
+    vocabulary_style: "accessible", golf_terminology: "standard",
+    things_to_emphasize: "turning points", things_to_avoid: "cliches",
+  };
+  const context: SupabaseRequestContext = {
+    ...requestContext,
+    proxy: async (path) => path.includes("/content_ideas?")
+      ? Response.json([{
+          id: "idea", round_id: null, story_id: base.storyId, category: "Round Analysis",
+          title: "Stored", hook: "Stored", script: "Stored", created_at: "2026-09-09T12:00:00Z",
+          content_type: "creator_story", angles,
+        }])
+      : Response.json([]),
+  };
+  const ideas = await fetchPersistedCandidates(context, base.storyId, "round", undefined, true);
+  const response = buildCreatorIdeasResponse({
+    creatorId: base.ownerId, creatorName: "Advanced Creator", advancedCreator: true,
+    creatorVoice: voice, roundId: "round", playerId: "player", playerName: null,
+    permissionId: "permission", permissionStatus: "approved",
+  }, base.storyId, ideas);
+  assert.deepEqual(response.creator.capabilities, { advancedCreator: true, creatorVoice: true });
+  assert.deepEqual(response.creatorVoice, voice);
+  assert.deepEqual(response.ideas[0]?.angles, angles);
+  assert.equal(response.ideas[0]?.round, null);
+});
+
+test("advanced creator without an active voice omits the voice object", () => {
+  const response = buildCreatorIdeasResponse({
+    creatorId: base.ownerId, creatorName: "Advanced Creator", advancedCreator: true,
+    creatorVoice: null, roundId: "round", playerId: "player", playerName: null,
+    permissionId: "permission", permissionStatus: "pending",
+  }, base.storyId, []);
+  assert.deepEqual(response.creator.capabilities, { advancedCreator: true, creatorVoice: false });
+  assert.equal("creatorVoice" in response, false);
+});
+
 test("round web contract authorizes by round and returns isolated experiences", async () => {
   const roundId = "cccccccc-cccc-cccc-cccc-cccccccccccc";
   const storyId = "11111111-1111-1111-1111-111111111111";
@@ -659,7 +759,7 @@ test("round web contract authorizes by round and returns isolated experiences", 
     ...requestContext,
     proxy: async (path) => {
       paths.push(path);
-      if (path.includes("creator_profiles?")) return Response.json([{ id: base.ownerId }]);
+      if (path.includes("creator_profiles?")) return Response.json([{ id: base.ownerId, advanced_creator: true }]);
       if (path.includes("story_candidates?")) return Response.json([{
         id: storyId, story_type: "round_recap", headline: "A comeback", summary: "Stored summary",
         status: "shared", user_id: playerId,
@@ -692,6 +792,8 @@ test("round web contract authorizes by round and returns isolated experiences", 
       if (path.includes("content_type=eq.creator_story")) return Response.json([{
         id: "idea-1", category: "Surprise", title: "A turn", hook: "The turn changed everything",
         script: null, story_angle: "The comeback", why_interesting: "Stored", created_at: "2026-09-10",
+        content_type: "creator_story",
+        angles: [{ type: "primary", lens: "Clutch Moment", story_angle: "The comeback", why_interesting: "Stored" }],
       }]);
       if (path.includes("category=eq.coaching_reflection")) return Response.json([{
         id: "reflection-1", category: "coaching_reflection", title: "Reflection", hook: "What changed?",
@@ -708,6 +810,9 @@ test("round web contract authorizes by round and returns isolated experiences", 
   assert.deepEqual(contract.scorecard.map((hole) => hole.hole), [1, 2]);
   assert.equal(contract.creatorContentStory.available, true);
   assert.equal(contract.creatorContentStory.contentIdea?.id, "idea-1");
+  assert.deepEqual(contract.creatorContentStory.contentIdea?.angles, [
+    { type: "primary", lens: "Clutch Moment", story_angle: "The comeback", why_interesting: "Stored" },
+  ]);
   assert.equal(contract.coachingReflection.available, true);
   assert.ok(paths.every((path) => !path.includes("player_stories")));
   assert.ok(paths.some((path) => path.includes(`round_id=eq.${roundId}`)));

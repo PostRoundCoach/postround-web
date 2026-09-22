@@ -2,6 +2,13 @@ export type PermissionState = "granted";
 export type FairwayResult = "hit" | "left" | "right" | "short" | "long" | "none" | null;
 export type GirResult = "hit" | "short" | "long" | "left" | "right" | "none" | null;
 
+export interface CreatorEditorialAngle {
+  type: "primary" | "creator_specific" | "alternative";
+  lens: string;
+  story_angle: string;
+  why_interesting: string;
+}
+
 export interface RoundSummary {
   played_at: string;
   course_name: string | null;
@@ -79,6 +86,7 @@ export interface CreatorContentIdeaSummary {
   story_angle: string | null;
   why_interesting: string | null;
   created_at: string;
+  angles?: CreatorEditorialAngle[];
 }
 
 export type CreatorContentStory =

@@ -2,7 +2,7 @@ import { Router, type IRouter, type Request, type Response } from "express";
 import {
   authenticateSupabaseBearer, authorizeCreatorStory, CreatorContentError, fetchPersistedCandidates,
   dismissCreatorStory, fetchCreatorStoryQueue, fetchPersistedCandidate, loadRoundEvidence, persistCandidates, requestStoryApproval,
-  fetchRoundWebContract,
+  fetchRoundWebContract, buildCreatorIdeasResponse,
 } from "../lib/creator-content-data";
 import { generateStoryCandidates, generateStoryDraft, STORY_DRAFT_FORMATS, type StoryDraftFormat } from "../lib/story-engine";
 
@@ -85,17 +85,18 @@ router.get("/content/ideas", async (req, res): Promise<void> => {
   try {
     const access = await authorized(req, id);
     stage = "refresh";
-    const ideas = await fetchPersistedCandidates(access.context, id, access.roundId, access.playerId);
+    const ideas = await fetchPersistedCandidates(
+      access.context,
+      id,
+      access.roundId,
+      access.playerId,
+      access.advancedCreator,
+    );
     req.log.info(
       { stage: "refresh", storyId: id, roundId: access.roundId, ideaCount: ideas.length },
       "Retrieved existing creator content ideas for authorized story round",
     );
-    res.json({
-      ok: true,
-      story_id: id,
-      ideas,
-      permission_status: access.permissionStatus,
-    });
+    res.json(buildCreatorIdeasResponse(access, id, ideas));
   } catch (error) { failure(req, res, error, stage); }
 });
 
