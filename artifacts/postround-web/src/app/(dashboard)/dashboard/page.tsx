@@ -120,11 +120,11 @@ export default async function DashboardPage({
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="font-serif text-3xl font-bold text-foreground mb-1">
-            Welcome back, {displayName}
-          </h1>
+           <h1 className="font-serif text-3xl font-bold text-foreground mb-1">
+             {creatorProfile ? 'Creator Dashboard' : `Welcome back, ${displayName}`}
+           </h1>
           <p className="text-muted-foreground">
-            Here&apos;s what&apos;s happening with your golf game
+             {creatorProfile ? `Welcome back, ${displayName}` : "Here's what's happening with your golf game"}
           </p>
         </div>
         <div className="hidden sm:block">
@@ -140,7 +140,7 @@ export default async function DashboardPage({
         {/* Player Profile Card */}
         <Card className="md:col-span-2 lg:col-span-1">
           <CardHeader>
-            <CardTitle className="font-serif text-xl">Player Profile</CardTitle>
+            <CardTitle className="font-serif text-xl">{creatorProfile ? 'Account Profile' : 'Player Profile'}</CardTitle>
             <CardDescription>Your account information</CardDescription>
           </CardHeader>
           <CardContent>
@@ -161,7 +161,7 @@ export default async function DashboardPage({
                   <span>Member since {memberSince}</span>
                 </div>
               </div>
-              {roundCount > 0 && (
+               {!creatorProfile && roundCount > 0 && (
                 <div className="w-full grid grid-cols-2 gap-3 pt-2 border-t border-border">
                   <div className="text-center">
                     <p className="text-2xl font-bold text-foreground">{roundCount}</p>
@@ -181,7 +181,8 @@ export default async function DashboardPage({
           </CardContent>
         </Card>
 
-        {/* Recent Rounds Card */}
+         {!creatorProfile && (<>
+         {/* Recent Rounds Card */}
         <Card className="md:col-span-2">
           <CardHeader>
             <div className="flex items-center justify-between">
@@ -239,9 +240,9 @@ export default async function DashboardPage({
               </div>
             )}
           </CardContent>
-        </Card>
+         </Card>
 
-        {/* Player DNA Card */}
+         {/* Player DNA Card */}
         <Card>
           <CardHeader>
             <div className="flex items-center gap-2">
@@ -323,6 +324,7 @@ export default async function DashboardPage({
             </div>
           </CardContent>
         </Card>
+         </>)}
       </div>
     </div>
   )

@@ -22,16 +22,16 @@ const playerNavItems = [
 const creatorNavItem = {
   href: '/creator',
   icon: Sparkles,
-  label: 'Creator Dashboard',
+  label: 'Creator Studio',
 }
 
 export function getDashboardNavItems(hasCreatorProfile: boolean) {
   if (!hasCreatorProfile) return playerNavItems
 
-  const profileIndex = playerNavItems.findIndex((item) => item.href === '/dashboard/profile')
   return [
-    ...playerNavItems.slice(0, profileIndex + 1),
+    { href: '/dashboard', icon: LayoutDashboard, label: 'Creator Dashboard' },
     creatorNavItem,
-    ...playerNavItems.slice(profileIndex + 1),
+    { href: '/dashboard/profile', icon: UserCircle, label: 'Profile' },
+    { href: '/dashboard/settings', icon: Settings, label: 'Settings' },
   ]
 }

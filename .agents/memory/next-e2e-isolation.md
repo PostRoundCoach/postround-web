@@ -8,3 +8,5 @@ Run authenticated browser suites against an isolated production build directory 
 **Why:** Concurrent Next development servers can corrupt hot-reload and client-reference manifests, producing misleading auth/navigation failures after the real session has succeeded. Next builds may also rewrite tracked TypeScript helper files.
 
 **How to apply:** Give E2E builds their own `distDir`, avoid HMR for authenticated route suites, and restore Next-generated config files from an outer runner after Playwright exits.
+
+The Playwright package may be installed without its matching Chromium executable in this environment. If browser launch reports a missing headless-shell binary, install the browser for the installed Playwright version before rerunning the suite. This is a test-runner dependency issue, not an app failure.

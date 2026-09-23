@@ -176,12 +176,12 @@ export function StoryCard({
             <span
               role="heading"
               aria-level={2}
-              className="block break-words font-serif text-2xl font-bold leading-tight sm:text-3xl"
+              className="block break-words font-serif text-2xl font-bold leading-normal"
               data-testid={`text-story-headline-${story.id}`}
             >
               {story.headline}
             </span>
-            <span className="mt-3 block leading-relaxed text-muted-foreground">
+            <span className="mt-3 block text-base leading-normal text-muted-foreground">
               {story.summary}
             </span>
           </span>

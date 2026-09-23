@@ -21,7 +21,7 @@ export function CreatorContentTile({ summary }: { summary: CreatorLandingSummary
           href="/creator"
           className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-md bg-[#D4AF37] px-4 py-2 text-sm font-semibold text-[#0D1B12] hover:bg-[#C19F27] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#D4AF37]"
         >
-          View Creator Dashboard <ArrowRight className="h-4 w-4" aria-hidden="true" />
+          Open Creator Studio <ArrowRight className="h-4 w-4" aria-hidden="true" />
         </Link>
       </CardContent>
     </Card>

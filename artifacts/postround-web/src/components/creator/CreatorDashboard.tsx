@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Loader2, RefreshCw, ShieldAlert } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { createClient } from '@/lib/supabase/client'
@@ -24,6 +24,9 @@ interface CreatorDashboardProps {
 
 export function CreatorDashboard({ initialProfile }: CreatorDashboardProps) {
   const [state, setState] = useState<DashboardState>({ kind: 'loading' })
+  const [isRefreshing, setIsRefreshing] = useState(false)
+  const [refreshError, setRefreshError] = useState(false)
+  const refreshInProgress = useRef(false)
 
   const load = useCallback(async () => {
     setState({ kind: 'loading' })
@@ -49,6 +52,24 @@ export function CreatorDashboard({ initialProfile }: CreatorDashboardProps) {
       setState({ kind: 'error' })
     }
   }, [initialProfile])
+
+  const refreshStories = useCallback(async () => {
+    if (refreshInProgress.current || state.kind !== 'ready') return
+    refreshInProgress.current = true
+    setIsRefreshing(true)
+    setRefreshError(false)
+    try {
+      const supabase = createClient()
+      if (!supabase) throw new Error('Authentication unavailable')
+      const stories = await fetchPermissionedCreatorStories(supabase, state.profile.id)
+      setState((current) => current.kind === 'ready' ? { ...current, stories } : current)
+    } catch {
+      setRefreshError(true)
+    } finally {
+      refreshInProgress.current = false
+      setIsRefreshing(false)
+    }
+  }, [state])
 
   useEffect(() => {
     void load()
@@ -123,6 +144,24 @@ export function CreatorDashboard({ initialProfile }: CreatorDashboardProps) {
 
   return (
     <CreatorShell profile={state.profile}>
+      <div className="mb-6">
+        <Button
+          type="button"
+          variant="outline"
+          disabled={isRefreshing}
+          aria-busy={isRefreshing}
+          onClick={() => void refreshStories()}
+          data-testid="button-refresh-available-content"
+        >
+          <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} aria-hidden="true" />
+          {isRefreshing ? 'Refreshing available content…' : 'Refresh Available Content'}
+        </Button>
+        {refreshError && (
+          <p className="mt-2 text-sm text-destructive" role="alert" data-testid="status-refresh-stories-error">
+            Couldn&apos;t refresh available content. Your current stories are still here. Try again.
+          </p>
+        )}
+      </div>
       <StoryQueue
         stories={state.stories}
         profile={state.profile}

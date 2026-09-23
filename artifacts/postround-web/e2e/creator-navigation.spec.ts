@@ -20,9 +20,11 @@ async function openMobileMenu(page: Page) {
 test('ordinary players cannot see or open Creator Studio', async ({ page }) => {
   await signIn(page, 'player@example.test')
 
-  await expect(page.getByRole('link', { name: 'Creator Dashboard' })).toHaveCount(0)
+  await expect(page.getByRole('link', { name: 'Creator Studio' })).toHaveCount(0)
+  await expect(page.getByText('Subscription')).toBeVisible()
+  await expect(page.getByText('Recent Rounds')).toBeVisible()
   await openMobileMenu(page)
-  await expect(page.getByRole('link', { name: 'Creator Dashboard' })).toHaveCount(0)
+  await expect(page.getByRole('link', { name: 'Creator Studio' })).toHaveCount(0)
 
   await page.goto('/creator')
   await expect(page).toHaveURL(/\/dashboard\/profile$/)
@@ -31,22 +33,33 @@ test('ordinary players cannot see or open Creator Studio', async ({ page }) => {
 test('active creators can navigate to Creator Studio on desktop', async ({ page }) => {
   await signIn(page, 'creator@example.test')
 
-  await page.getByRole('link', { name: 'Creator Dashboard' }).click()
+  await expect(page.getByRole('heading', { name: 'Creator Dashboard' })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Open Creator Studio' })).toBeVisible()
+  for (const label of ['Recent Rounds', 'Player DNA', 'AI Coaching Reports', 'Subscription', 'Upgrade Plan']) {
+    await expect(page.getByText(label, { exact: true })).toHaveCount(0)
+  }
+  for (const label of ['My Rounds', 'Coaching Reports', 'Billing']) {
+    await expect(page.getByRole('link', { name: label })).toHaveCount(0)
+  }
+  await page.getByRole('link', { name: 'Creator Studio', exact: true }).click()
   await expect(page).toHaveURL(/\/creator$/, { timeout: 30_000 })
   await expect(page.getByText('Creator Studio', { exact: true })).toBeVisible()
 
-  await page.getByTestId('link-back-profile').click()
-  await expect(page).toHaveURL(/\/dashboard\/profile$/)
+  await page.getByTestId('link-back-dashboard').click()
+  await expect(page).toHaveURL(/\/dashboard$/)
 })
 
 test('active creators can navigate to Creator Studio and back on mobile', async ({ page }) => {
   await signIn(page, 'creator@example.test')
   await openMobileMenu(page)
 
-  await page.getByRole('link', { name: 'Creator Dashboard' }).click()
+  for (const label of ['My Rounds', 'Coaching Reports', 'Player DNA', 'Billing']) {
+    await expect(page.getByRole('link', { name: label })).toHaveCount(0)
+  }
+  await page.getByRole('link', { name: 'Creator Studio', exact: true }).click()
   await expect(page).toHaveURL(/\/creator$/, { timeout: 30_000 })
-  await expect(page.getByTestId('link-back-profile')).toBeVisible()
+  await expect(page.getByTestId('link-back-dashboard')).toBeVisible()
 
-  await page.getByTestId('link-back-profile').click()
-  await expect(page).toHaveURL(/\/dashboard\/profile$/)
+  await page.getByTestId('link-back-dashboard').click()
+  await expect(page).toHaveURL(/\/dashboard$/)
 })

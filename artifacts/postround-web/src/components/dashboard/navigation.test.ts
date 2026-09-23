@@ -6,17 +6,20 @@ test('ordinary players never receive creator navigation', () => {
   const items = getDashboardNavItems(false)
 
   assert.equal(items.some((item) => item.href === '/creator'), false)
+  assert.deepEqual(items.map(({ label }) => label), [
+    'Dashboard', 'My Rounds', 'Coaching Reports', 'Player DNA', 'Profile', 'Billing', 'Settings',
+  ])
 })
 
-test('active creators receive a profile-adjacent link to Creator Studio', () => {
+test('active creators receive only creator-relevant navigation', () => {
   const items = getDashboardNavItems(true)
-  const profileIndex = items.findIndex((item) => item.href === '/dashboard/profile')
-
   assert.deepEqual(
-    items.slice(profileIndex, profileIndex + 2).map(({ href, label }) => ({ href, label })),
+    items.map(({ href, label }) => ({ href, label })),
     [
+      { href: '/dashboard', label: 'Creator Dashboard' },
+      { href: '/creator', label: 'Creator Studio' },
       { href: '/dashboard/profile', label: 'Profile' },
-      { href: '/creator', label: 'Creator Dashboard' },
+      { href: '/dashboard/settings', label: 'Settings' },
     ],
   )
 })

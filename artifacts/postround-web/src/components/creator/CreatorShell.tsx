@@ -18,13 +18,13 @@ export function CreatorShell({
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
           <div className="flex items-center gap-4">
             <Link
-              href="/dashboard/profile"
+              href="/dashboard"
               className="inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-              aria-label="Back to Profile"
-              data-testid="link-back-profile"
+              aria-label="Back to Dashboard"
+              data-testid="link-back-dashboard"
             >
               <ArrowLeft className="h-5 w-5" />
-              <span className="text-xs sm:text-sm">Back to Profile</span>
+              <span className="text-xs sm:text-sm">Back to Dashboard</span>
             </Link>
             <div className="flex h-8 w-8 items-center justify-center rounded-full bg-accent">
               <span className="font-serif text-sm font-bold text-accent-foreground">PRC</span>

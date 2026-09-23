@@ -13,7 +13,7 @@ test('creator tile displays exact known counts, without unread claims or zero-st
   assert.deepEqual(creatorTileMetrics(null), [])
 })
 
-test('landing gate precedes the existing tiles and keeps navigation on summary failure', () => {
+test('creator landing keeps its summary and personal profile, while player tiles remain gated', () => {
   const page = readFileSync(new URL('../../app/(dashboard)/dashboard/page.tsx', import.meta.url), 'utf8')
   const layout = readFileSync(new URL('../../app/(dashboard)/layout.tsx', import.meta.url), 'utf8')
   const eligibility = readFileSync(new URL('../../lib/creator-stories/server-profile.ts', import.meta.url), 'utf8')
@@ -25,11 +25,16 @@ test('landing gate precedes the existing tiles and keeps navigation on summary f
   assert.match(eligibility, /catch \{\s*return null/)
   assert.ok(page.indexOf('if (creatorProfile) {') < page.indexOf('fetchCreatorLandingSummary(supabase)'))
   assert.ok(page.indexOf('{creatorProfile && <CreatorContentTile') < page.indexOf('{/* Dashboard Grid */}'))
+  assert.match(page, /creatorProfile \? 'Creator Dashboard' : `Welcome back/)
+  assert.match(page, /creatorProfile \? 'Account Profile' : 'Player Profile'/)
+  assert.match(page, /!creatorProfile && roundCount > 0/)
+  assert.ok(page.indexOf('{!creatorProfile && (<>') < page.indexOf('{/* Recent Rounds Card */}'))
+  assert.ok(page.indexOf('{/* Subscription Status Card */}') < page.indexOf('</>)}'))
   for (const existing of ['Player Profile', 'Recent Rounds', 'Player DNA', 'AI Coaching Reports', 'Subscription']) {
     assert.ok(page.includes(existing))
   }
   assert.match(tile, /href="\/creator"/)
-  assert.match(tile, /View Creator Dashboard/)
+  assert.match(tile, /Open Creator Studio/)
   assert.match(tile, /flex flex-col.*sm:flex-row/)
   assert.doesNotMatch(tile, /story_data|script|reflection|scorecard|subscriber|revenue/)
 })

@@ -119,6 +119,66 @@ test('stories disclose independently, reset on refresh, and do not refetch when 
   await expect(first.getByTestId(`section-story-candidates-${storyId}`)).toBeHidden()
 })
 
+test('available content refresh is read-only, in place, guarded, and recoverable', async ({ page }) => {
+  await signIn(page)
+  await page.goto('/creator')
+  const first = page.getByTestId(`card-story-${storyId}`)
+  await expect(first).toBeVisible()
+  const toggle = page.getByTestId(`button-toggle-story-${storyId}`)
+  await toggle.click()
+  await expect(toggle).toHaveAttribute('aria-expanded', 'true')
+
+  let requests = 0
+  let releaseFirst: (() => void) | undefined
+  const firstPending = new Promise<void>((resolve) => { releaseFirst = resolve })
+  const contentRequests: string[] = []
+  page.on('request', (request) => {
+    if (new URL(request.url()).pathname.startsWith('/api/content/')) {
+      contentRequests.push(`${request.method()} ${new URL(request.url()).pathname}`)
+    }
+  })
+  await page.route('**/api/content/stories', async (route) => {
+    requests += 1
+    if (requests === 2) {
+      await route.fulfill({ status: 503, json: { message: 'Please retry' } })
+      return
+    }
+    if (requests === 1) await firstPending
+    const response = await route.fetch()
+    const body = await response.json()
+    body.stories.push({
+      ...body.stories[0],
+      id: secondStoryId,
+      story_id: secondStoryId,
+      headline: 'Newly shared round',
+    })
+    await route.fulfill({ response, json: body })
+  })
+
+  const refresh = page.getByTestId('button-refresh-available-content')
+  await expect(refresh).toBeVisible()
+  await refresh.click()
+  await expect(refresh).toBeDisabled()
+  await expect(refresh).toHaveAttribute('aria-busy', 'true')
+  await expect(first).toBeVisible()
+  expect(requests).toBe(1)
+  releaseFirst?.()
+  await expect(page.getByTestId(`card-story-${secondStoryId}`)).toBeVisible()
+  await expect(refresh).toBeEnabled()
+  await expect(toggle).toHaveAttribute('aria-expanded', 'true')
+
+  await refresh.click()
+  await expect(page.getByTestId('status-refresh-stories-error')).toBeVisible()
+  await expect(first).toBeVisible()
+  await expect(page.getByTestId(`card-story-${secondStoryId}`)).toBeVisible()
+  await refresh.click()
+  await expect(page.getByTestId('status-refresh-stories-error')).toHaveCount(0)
+  await expect(page.getByTestId(`card-story-${secondStoryId}`)).toBeVisible()
+  expect(requests).toBe(3)
+  expect(contentRequests.filter((request) => request === 'GET /api/content/stories')).toHaveLength(3)
+  expect(contentRequests.every((request) => request.startsWith('GET '))).toBe(true)
+})
+
 test('creator story queue persists candidates, approval, and dismissal state', async ({ page }) => {
   const contentRequests: Array<{ method: string; pathname: string }> = []
   page.on('request', (request) => {
@@ -209,7 +269,7 @@ test('creator story queue persists candidates, approval, and dismissal state', a
   await expect(page.getByTestId(`card-story-candidate-${candidateId}`)).toBeVisible()
 
   await page.unroute(`**/api/content/round/${roundId}`)
-  await page.getByRole('link', { name: 'Back to Profile' }).click()
+   await page.getByRole('link', { name: 'Back to Dashboard' }).click()
   await signOut(page)
   await signIn(page)
   await page.goto('/creator')
@@ -220,7 +280,7 @@ test('creator story queue persists candidates, approval, and dismissal state', a
   await expect(page.getByTestId(`card-story-${storyId}`)).toHaveCount(0)
   await page.reload()
   await expect(page.getByTestId('status-story-queue-empty')).toBeVisible()
-  await page.getByRole('link', { name: 'Back to Profile' }).click()
+   await page.getByRole('link', { name: 'Back to Dashboard' }).click()
   await signOut(page)
   await signIn(page)
   await page.goto('/creator')
