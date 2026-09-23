@@ -280,30 +280,57 @@ type CreatorStoryQueueRow = {
   }>;
 };
 
-async function countCreatorFollowers(
+async function exactCount(
   context: SupabaseRequestContext,
-  creatorId: string,
+  path: string,
 ): Promise<number> {
   const proxy = context.proxy ?? ((path: string, init?: Parameters<NonNullable<SupabaseRequestContext["proxy"]>>[1]) => {
     const connectors = new ReplitConnectors();
     return connectors.proxy("supabase", path, init);
   });
-  // The server connector has cross-profile read access; the browser's own-profile
-  // RLS view cannot provide this aggregate. HEAD returns no follower identities.
   const response = await proxy(
-    `/rest/v1/profiles?select=id&favorite_creator_id=eq.${encodeURIComponent(creatorId)}`,
+    `/rest/v1/${path}`,
     { method: "HEAD", headers: { Prefer: "count=exact", Range: "0-0" } },
   );
   if (!response.ok) {
-    throw new CreatorContentError(502, "The creator follower count could not be loaded.");
+    throw new CreatorContentError(502, "The creator count could not be loaded.");
   }
   const range = response.headers.get("content-range");
   const total = range?.match(/^(?:\*|\d+-\d+)\/(\d+)$/)?.[1];
   const count = total === undefined ? NaN : Number(total);
   if (!Number.isSafeInteger(count) || count < 0) {
-    throw new CreatorContentError(502, "The creator follower count could not be loaded.");
+    throw new CreatorContentError(502, "The creator count could not be loaded.");
   }
   return count;
+}
+
+async function countCreatorFollowers(context: SupabaseRequestContext, creatorId: string): Promise<number> {
+  // The connector can count cross-profile favorites without returning identities.
+  return exactCount(context, `profiles?select=id&favorite_creator_id=eq.${encodeURIComponent(creatorId)}`);
+}
+
+export async function fetchCreatorLandingSummary(context: SupabaseRequestContext) {
+  const profiles = await rest<CreatorRow[]>(
+    context,
+    `creator_profiles?select=id&user_id=eq.${encodeURIComponent(context.userId)}&status=eq.active&limit=1`,
+  );
+  const creator = profiles[0];
+  if (!creator) throw new CreatorContentError(403, "This account does not control an active creator profile.");
+
+  // Independent counts: one unavailable aggregate must not erase the other.
+  const [followers, stories] = await Promise.allSettled([
+    countCreatorFollowers(context, creator.id),
+    exactCount(
+      context,
+      "story_permissions?select=story_id,story_candidates!inner(id)"
+        + `&creator_id=eq.${encodeURIComponent(creator.id)}&permission_granted=eq.true&revoked_at=is.null`
+        + "&story_candidates.status=in.(offered,shared)",
+    ),
+  ]);
+  return {
+    follower_count: followers.status === "fulfilled" ? followers.value : null,
+    available_story_count: stories.status === "fulfilled" ? stories.value : null,
+  };
 }
 
 export async function fetchCreatorStoryQueue(context: SupabaseRequestContext) {

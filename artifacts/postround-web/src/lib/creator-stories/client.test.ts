@@ -7,6 +7,7 @@ import {
   fetchRoundContract,
   fetchStoryCandidates,
   fetchOwnedActiveCreatorProfile,
+  fetchCreatorLandingSummary,
   fetchPermissionedCreatorStories,
   generateStoryCandidates,
   dismissCreatorStory,
@@ -268,6 +269,34 @@ test('resolves the active creator profile from the authenticated user identity',
     ['user_id', 'user-1'],
     ['status', 'active'],
   ])
+})
+
+test('landing summary uses the bearer identity, validates nullable counts, and never loads the queue', async () => {
+  const originalFetch = globalThis.fetch
+  const originalApiBase = process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL
+  process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL = 'https://api.postround.test'
+  let request: { url: string; headers: Headers; cache: RequestCache | undefined } | undefined
+  const supabase = { auth: { async getSession() {
+    return { data: { session: { access_token: 'summary-token' } }, error: null }
+  } } } as unknown as SupabaseClient
+  try {
+    globalThis.fetch = (async (url, init) => {
+      request = { url: String(url), headers: new Headers(init?.headers), cache: init?.cache }
+      return Response.json({ ok: true, follower_count: 0, available_story_count: null })
+    }) as typeof fetch
+    assert.deepEqual(await fetchCreatorLandingSummary(supabase), {
+      follower_count: 0, available_story_count: null,
+    })
+    assert.equal(request?.url, 'https://api.postround.test/api/content/creator-summary')
+    assert.equal(request?.headers.get('Authorization'), 'Bearer summary-token')
+    assert.equal(request?.cache, 'no-store')
+    globalThis.fetch = (async () => Response.json({ ok: true, follower_count: '4', available_story_count: 1 })) as typeof fetch
+    await assert.rejects(fetchCreatorLandingSummary(supabase), CreatorStoryApiError)
+  } finally {
+    globalThis.fetch = originalFetch
+    if (originalApiBase === undefined) delete process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL
+    else process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL = originalApiBase
+  }
 })
 
 test('loads the creator queue from the authoritative API and hydrates request state', async () => {

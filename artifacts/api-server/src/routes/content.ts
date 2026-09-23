@@ -1,7 +1,7 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import {
   authenticateSupabaseBearer, authorizeCreatorStory, CreatorContentError, fetchPersistedCandidates,
-  dismissCreatorStory, fetchCreatorStoryQueue, fetchPersistedCandidate, loadRoundEvidence, persistCandidates, requestStoryApproval,
+  dismissCreatorStory, fetchCreatorStoryQueue, fetchCreatorLandingSummary, fetchPersistedCandidate, loadRoundEvidence, persistCandidates, requestStoryApproval,
   fetchRoundWebContract, buildCreatorIdeasResponse,
 } from "../lib/creator-content-data.ts";
 import { generateStoryCandidates, generateStoryDraft, STORY_DRAFT_FORMATS, type StoryDraftFormat } from "../lib/story-engine.ts";
@@ -35,6 +35,14 @@ router.get("/content/stories", async (req, res): Promise<void> => {
     const queue = await fetchCreatorStoryQueue(context);
     res.json({ ok: true, ...queue });
   } catch (error) { failure(req, res, error, "story_queue"); }
+});
+
+router.get("/content/creator-summary", async (req, res): Promise<void> => {
+  try {
+    const context = await authenticateSupabaseBearer(req.header("authorization"));
+    const summary = await fetchCreatorLandingSummary(context);
+    res.json({ ok: true, ...summary });
+  } catch (error) { failure(req, res, error, "creator_summary"); }
 });
 
 router.post("/content/generate", async (req, res): Promise<void> => {

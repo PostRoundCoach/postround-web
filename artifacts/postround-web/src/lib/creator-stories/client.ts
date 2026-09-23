@@ -167,6 +167,34 @@ function creatorStoriesUrl(): string {
   return `${contentApiBase()}/api/content/stories`
 }
 
+export interface CreatorLandingSummary {
+  follower_count: number | null
+  available_story_count: number | null
+}
+
+export async function fetchCreatorLandingSummary(
+  supabase: SupabaseClient,
+): Promise<CreatorLandingSummary> {
+  const accessToken = await authenticatedAccessToken(supabase)
+  const response = await fetch(`${contentApiBase()}/api/content/creator-summary`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+    cache: 'no-store',
+  })
+  if (!response.ok) throw await apiFailure(response, 'The creator summary could not be loaded.')
+  const result = asObject(await response.json())
+  const validCount = (value: unknown) =>
+    value === null || (typeof value === 'number' && Number.isSafeInteger(value) && value >= 0)
+  if (result?.ok !== true || !validCount(result.follower_count)
+    || !validCount(result.available_story_count)
+    || result.follower_count === undefined || result.available_story_count === undefined) {
+    throw new CreatorStoryApiError(500, 'The creator summary could not be loaded.')
+  }
+  return {
+    follower_count: result.follower_count as number | null,
+    available_story_count: result.available_story_count as number | null,
+  }
+}
+
 function storyDraftUrl(): string {
   return `${contentApiBase()}/api/content/draft`
 }

@@ -5,6 +5,9 @@ import { Button } from '@/components/ui/button'
 import { SignOutButton } from '@/components/auth/SignOutButton'
 import { CalendarDays, TrendingUp, Dna, FileText, Crown, Flag } from 'lucide-react'
 import Link from 'next/link'
+import { CreatorContentTile } from '@/components/dashboard/CreatorContentTile'
+import { fetchCreatorLandingSummary } from '@/lib/creator-stories/client'
+import { getDashboardCreatorProfile } from '@/lib/creator-stories/server-profile'
 
 interface Profile {
   display_name: string | null
@@ -50,6 +53,16 @@ export default async function DashboardPage({
   const { error: errorParam } = await searchParams
 
   if (!user) return null
+
+  const creatorProfile = await getDashboardCreatorProfile()
+  let creatorSummary = null
+  if (creatorProfile) {
+    try {
+      creatorSummary = await fetchCreatorLandingSummary(supabase)
+    } catch {
+      // The entry point remains available even when either aggregate is unavailable.
+    }
+  }
 
   // Fetch profile and recent rounds in parallel
   const [{ data: profile }, { data: rounds }] = await Promise.all([
@@ -118,6 +131,8 @@ export default async function DashboardPage({
           <SignOutButton variant="outline" />
         </div>
       </div>
+
+      {creatorProfile && <CreatorContentTile summary={creatorSummary} />}
 
       {/* Dashboard Grid */}
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
