@@ -1,0 +1,254 @@
+# Creator Dashboard UX: Collapsible Story Cards
+
+## Objective
+
+Modify the existing **Creator Dashboard story cards** so that:
+
+* Every story is **collapsed by default**.
+* The story header/title remains visible when collapsed.
+* The creator can individually expand or collapse each story.
+* The existing expanded story content and functionality remain unchanged.
+
+This is **presentation/UI work only**.
+
+Do **not** modify story generation, qualification, approval, sharing, permission, entitlement, subscription, or creator-content business logic.
+
+---
+
+# 1. Existing Dashboard Architecture
+
+Respect the current Creator Dashboard implementation and API contract.
+
+The dashboard currently uses the existing creator content pipeline and `content_ideas`.
+
+Continue using the existing Creator Dashboard endpoint/contract for story content.
+
+### Do not:
+
+* Switch the dashboard to `player_stories`.
+* Reintroduce the old `round_buddy_messages` join.
+* Reintroduce `rounds.input_method`.
+* Change the round/scorecard contract.
+* Modify story qualification.
+* Modify creator-story generation.
+* Modify coaching-reflection generation.
+* Modify approval/request behavior.
+* Modify creator permissions.
+* Modify sharing, granting, or revocation semantics.
+* Modify entitlements or subscription logic.
+* Add new database fields.
+
+If the dashboard currently uses:
+
+`GET /api/content/ideas?story_id=...`
+
+leave that contract unchanged.
+
+---
+
+# 2. Collapsed Default State
+
+Every Creator Dashboard story card must render **collapsed by default**.
+
+When collapsed, show the identifying/header information that currently exists.
+
+At minimum, retain the existing story title/header.
+
+For example:
+
+```text
+How Did That Happen?                         ⌄
+Aaron's wild back-nine turnaround
+```
+
+Use the **actual existing story fields**. Do not hardcode this structure or introduce unnecessary new content.
+
+The full story body/details should be hidden while collapsed.
+
+---
+
+# 3. Expand / Collapse Control
+
+Add a simple expand/collapse affordance in the **top-right corner of the story card/header**.
+
+For example:
+
+* `⌄` = collapsed
+* `⌃` = expanded
+
+Use the existing icon system in the web application.
+
+**Do not introduce a new icon library** if an existing one is already available.
+
+### Interaction
+
+Clicking the control should expand/collapse that story.
+
+Preferably, the **story header row itself should also be clickable**, with the arrow providing the visual affordance.
+
+Do **not** make the entire story card clickable because the expanded card may contain existing buttons/actions.
+
+---
+
+# 4. Expanded State
+
+When expanded, display the **existing story card content exactly as it currently exists**.
+
+Do not redesign or remove any existing content.
+
+This includes any currently displayed:
+
+* story information
+* hook
+* script
+* stats
+* story angle
+* why-it-is-interesting information
+* status
+* creator actions
+* sharing/publishing controls
+* approval/permission information
+
+The only behavioral change should be the ability to collapse and expand the existing content.
+
+---
+
+# 5. State Management
+
+Use **local component/UI state**.
+
+No database changes are required.
+
+Do not persist collapse state across sessions.
+
+After a dashboard refresh, stories should return to their default **collapsed** state.
+
+Each story must have independent state.
+
+For example:
+
+```text
+Story A   collapsed
+Story B   expanded
+Story C   collapsed
+```
+
+Multiple stories may be expanded simultaneously.
+
+Do **not** implement an "only one story open at a time" accordion unless the existing implementation already behaves that way.
+
+---
+
+# 6. Preserve Existing Functionality
+
+This task must not alter how Creator Dashboard content works.
+
+The following must continue to behave exactly as before:
+
+* story loading
+* creator access checks
+* story qualification
+* story generation
+* coaching reflection generation
+* approval requests
+* permission grants
+* permission revocation
+* sharing
+* publishing controls
+* creator actions
+* API calls
+* content/status semantics
+
+The UI should simply provide a collapsible presentation layer around the existing story content.
+
+---
+
+# 7. Responsive Behavior
+
+Verify the collapse/expand control works correctly on:
+
+* desktop
+* tablet
+* narrow/mobile web widths
+
+The control must remain accessible and visually aligned with the story header on narrow screens.
+
+Do not create separate desktop/mobile implementations unless the existing component architecture requires it.
+
+---
+
+# 8. Testing
+
+Add or update tests for:
+
+1. Story cards render **collapsed by default**.
+2. Story header/title remains visible when collapsed.
+3. Expand/collapse control appears in the top-right.
+4. Clicking the control expands the story.
+5. Clicking it again collapses the story.
+6. Clicking the story header expands/collapses it if header-click behavior is implemented.
+7. Multiple story cards maintain independent expand/collapse state.
+8. Multiple stories can remain expanded simultaneously.
+9. Existing story actions remain functional when expanded.
+10. Existing story content is unchanged when expanded.
+11. Refreshing/remounting returns stories to collapsed state.
+12. Existing Creator Dashboard API/contract behavior remains unchanged.
+
+---
+
+# 9. Regression Protection
+
+Before modifying code, inspect the existing implementation and identify:
+
+1. The current Creator Dashboard route/component.
+2. The current story-card component.
+3. The current story-card data model/props.
+4. The existing Creator Dashboard API contract.
+5. Existing tests covering story rendering and creator actions.
+
+Reuse the existing story-card component and data flow wherever possible.
+
+Do not duplicate API calls or create a parallel story-data implementation.
+
+---
+
+# 10. Scope Boundary
+
+This task is complete when:
+
+* Creator Dashboard stories are **collapsed by default**.
+* Existing story headers remain visible.
+* Each story can be independently expanded/collapsed.
+* Expanded stories display the existing content unchanged.
+* Existing creator actions continue to work.
+* Multiple stories can be expanded simultaneously.
+* No database or business-logic changes are introduced.
+* The existing Creator Dashboard API/contract remains intact.
+
+---
+
+# Final Validation
+
+Run the relevant web unit/integration tests and existing Creator Dashboard tests.
+
+Also manually verify:
+
+1. Creator Dashboard loads normally.
+2. All stories initially appear collapsed.
+3. Story headers remain visible.
+4. Individual stories expand correctly.
+5. Individual stories collapse correctly.
+6. Multiple stories can be open simultaneously.
+7. Existing creator actions still work.
+8. Narrow-screen layout works correctly.
+9. No creator approval/permission behavior changed.
+10. No existing API contract was modified.
+
+Report:
+
+* files changed
+* API/contract changes — expected: **none**
+* tests added/updated
+* test results
+* any assumptions made
+* any unrelated issues discovered, without modifying them

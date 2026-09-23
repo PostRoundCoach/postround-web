@@ -1,0 +1,284 @@
+# Creator Follower Count Mechanism — Authoritative Source
+
+## Objective
+
+Implement and document the authoritative mechanism for calculating a creator's **current follower count**.
+
+This is a backend/data-contract change only. Do **not** redesign the Creator Dashboard or Creator Content tile in this task.
+
+The purpose is to establish a reliable API value that the creator-facing web UI can consume later.
+
+---
+
+## Authoritative Definition
+
+A creator's follower is defined as:
+
+> A user profile whose `favorite_creator_id` equals that creator's creator/profile ID.
+
+Therefore:
+
+```sql
+COUNT(profiles.id)
+WHERE profiles.favorite_creator_id = creator.id
+```
+
+### Important behavior
+
+This is a **current-state follower count**, not a historical follow count.
+
+For example:
+
+* User A selects Creator X → counts toward Creator X.
+* User A changes their favorite creator to Creator Y → immediately stops counting toward Creator X and counts toward Creator Y.
+* User A clears their favorite creator → no longer counts as a follower of either creator.
+* There is no requirement for a separate follower-history table for this metric.
+
+Do **not** introduce a new follower table or follower event/history mechanism unless the existing schema makes the above impossible.
+
+---
+
+## Source of Truth
+
+Use the existing:
+
+```text
+profiles.favorite_creator_id
+```
+
+and the existing creator/profile identifier represented by:
+
+```text
+creator.id
+```
+
+Do not derive followers from:
+
+* story shares
+* creator permissions
+* content_ideas
+* player_stories
+* subscriptions
+* approval requests
+* creator dashboard activity
+* historical creator relationships
+* number of users who have viewed creator content
+
+Those are separate concepts.
+
+---
+
+## Required Implementation
+
+### 1. Inspect the existing creator API architecture first
+
+Before changing code:
+
+1. Identify the existing creator profile model/table. example schema below
+   {"idx":0,"id":"0d3c3e3e-c040-456a-9aec-a3083fccbaed","user_id":"0d3c3e3e-c040-456a-9aec-a3083fccbaed","display_name":"In2Golf","bio":"Join us for some winter golf!","avatar_url":"https://pcyhnijyfzmgyghrzlyp.supabase.co/storage/v1/object/public/creator_avatars/In2Golf.jpg","status":"active","created_at":"2026-09-08 21:58:53.242217+00","updated_at":"2026-09-08 21:58:53.242217+00","slug":"in2golf","advanced_creator"}
+2. Identify the existing `profiles` table/model. example schema below
+   {"idx":0,"id":"0c4c4819-d87e-4e08-93ee-51f026b2ab21","display_name":"","home_course","handicap","dominant_hand","preferred_tees","created_at":"2026-09-21 20:36:32.97803+00","updated_at":"2026-09-21 20:36:32.97803+00","email":"[e2e-6jdnig7@mailtest.io](mailto:e2e-6jdnig7@mailtest.io)","home_course_id","role":"user","subscription_plan":"free","subscription_status":"active","stripe_customer_id","stripe_subscription_id","current_period_end","subscription_currency","handicap_index","lowest_handicap","last_handicap_update","handicap_rounds","report_credits_remaining":12,"round_buddy_intro_seen","favorite_creator_id","story_sharing_prompt_preference":"unset","creator_prompt_seen","story_voice_style":"my_voice","voice_auto_capture"}
+3. Confirm the exact relationship between:
+
+   * `profiles.favorite_creator_id`
+   * creator profile `id`
+4. Identify the existing creator-facing API endpoint(s) used by the Creator Dashboard / Creator Web.
+5. Follow the existing API/contract architecture rather than creating a parallel endpoint.
+
+Do not assume table or field names beyond the above without checking the existing implementation.
+
+---
+
+### 2. Add follower count to the appropriate creator API contract
+
+Expose a field representing the **current follower count**.
+
+Preferred semantic name:
+
+```text
+follower_count
+```
+
+If the existing API uses another established naming convention, follow that convention consistently.
+
+The value must be calculated from the current `profiles.favorite_creator_id` values.
+
+Conceptually:
+
+```sql
+SELECT COUNT(*)
+FROM profiles
+WHERE favorite_creator_id = <creator.id>
+```
+
+Ensure the query is scoped to the authenticated/identified creator and does not expose unrelated creator data.
+
+---
+
+### 3. Do not duplicate follower state
+
+Do NOT create or maintain:
+
+```text
+creator.follower_count
+```
+
+as a manually updated counter unless the existing architecture already requires a denormalized counter.
+
+The authoritative relationship remains:
+
+```text
+profiles.favorite_creator_id → creator.id
+```
+
+The API should calculate the current count from that relationship.
+
+This avoids stale counts when a user changes or removes their favorite creator.
+
+---
+
+## Edge Cases
+
+Verify the implementation handles:
+
+### No followers
+
+Return:
+
+```json
+{
+  "follower_count": 0
+}
+```
+
+not `null`.
+
+### Creator with followers
+
+Return the exact number of profiles whose:
+
+```text
+favorite_creator_id = creator.id
+```
+
+### User changes favorite creator
+
+The count must reflect the new state on the next API read.
+
+Example:
+
+```text
+Before:
+Creator A = 10
+Creator B = 5
+
+User changes favorite from A → B
+
+After:
+Creator A = 9
+Creator B = 6
+```
+
+No historical tracking is required for this metric.
+
+### Inactive/nonexistent creator
+
+Follow the existing creator API behavior for inactive/nonexistent creator profiles. Do not invent a new error contract.
+
+---
+
+## Security / Access
+
+A creator should only receive the follower count associated with their own active creator profile when using the authenticated creator-facing API.
+
+Do not expose individual follower identities as part of this task.
+
+The API needs to return the **aggregate count only**.
+
+Do not expose:
+
+* profile IDs
+* emails
+* names
+* follower lists
+* subscription information
+
+unless already required by an existing contract.
+
+---
+
+## Tests
+
+Add or update tests for the authoritative mechanism.
+
+At minimum test:
+
+1. Creator with zero followers → `follower_count = 0`
+2. Creator with multiple profiles whose `favorite_creator_id` matches → exact count
+3. Profiles favoriting other creators are not counted
+4. Profiles with `favorite_creator_id = null` are not counted
+5. Changing a profile's `favorite_creator_id` changes the calculated count appropriately
+6. The creator API returns the follower count using the existing API contract
+7. No historical follower data is required to calculate the count
+
+Where possible, use the existing API/integration test infrastructure rather than creating a separate testing mechanism.
+
+---
+
+## Important: Keep Subscriptions Separate
+
+Do not combine follower count with the upcoming **90-day rolling subscription** metric.
+
+They have different authoritative sources and meanings.
+
+For this task:
+
+```text
+Follower Count
+    ↓
+profiles.favorite_creator_id
+    ↓
+COUNT(profiles)
+```
+
+The subscription metric should remain a separate implementation and API field with its own authoritative source.
+
+Do not attempt to calculate:
+
+```text
+followers + subscribers
+```
+
+or infer subscriptions from follower relationships.
+
+---
+
+## Acceptance Criteria
+
+This task is complete when:
+
+* [ ] Existing creator/profile schema has been inspected and relationship confirmed.
+* [ ] `profiles.favorite_creator_id` is confirmed as the source of truth for current followers.
+* [ ] Creator API exposes `follower_count`.
+* [ ] `follower_count` is calculated from current profile state.
+* [ ] Changing a user's favorite creator changes the count without requiring a separate follower record.
+* [ ] Zero followers returns `0`.
+* [ ] No new follower table is introduced.
+* [ ] No manually maintained follower counter is introduced unless already required by the existing architecture.
+* [ ] Follower count is not conflated with subscriptions, permissions, shares, or content.
+* [ ] Tests cover the cases above.
+* [ ] Existing creator API/web contract tests continue to pass.
+* [ ] No unrelated Creator Dashboard UI changes are made in this task.
+
+## Deliverable
+
+Report back with:
+
+1. The exact existing tables/fields used.
+2. The API endpoint/contract where `follower_count` was added.
+3. The exact calculation/query used.
+4. Tests added or updated.
+5. Test results.
+6. Any schema/API assumptions discovered during implementation.
+
+Do not proceed to redesign the Creator Content tile in this task. The next UI task will consume this authoritative `follower_count` field.

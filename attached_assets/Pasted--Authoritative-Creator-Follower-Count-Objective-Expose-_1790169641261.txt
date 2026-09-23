@@ -1,0 +1,178 @@
+# Authoritative Creator Follower Count
+
+## Objective
+
+Expose a creator's **current follower count** from the authoritative `profiles.favorite_creator_id` relationship, so the existing Creator Web/API contract can provide a trustworthy aggregate for the Creator Content landing tile and Creator Dashboard.
+
+The checked-in creator identity migration defines:
+
+```text
+profiles.favorite_creator_id → creator_profiles.id
+```
+
+The existing authenticated creator API already serves the Creator Studio queue. **Extend that existing creator API/contract; do not create a parallel follower endpoint.**
+
+Keep this task **backend/data-contract only**. Do not implement or redesign the Creator Content tile or Creator Dashboard UI.
+
+---
+
+## Authoritative Definition
+
+A creator's follower count is:
+
+```sql
+COUNT(profiles.id)
+WHERE profiles.favorite_creator_id = creator_profiles.id
+```
+
+This represents the **current number of users who have that creator selected as their favorite creator**.
+
+This is a current-state metric, not a historical follow count.
+
+For example:
+
+* User A selects Creator X → Creator X follower count increases by 1.
+* User A changes their favorite creator from X → Y → X loses one follower and Y gains one.
+* User A clears their favorite creator → they no longer count toward any creator.
+* No follower-history table is required.
+
+Do not introduce a new follower data model.
+
+---
+
+## Source of Truth
+
+Use the existing relationship:
+
+```text
+profiles.favorite_creator_id
+        ↓
+creator_profiles.id
+```
+
+Do not derive follower count from:
+
+* story shares
+* creator permissions
+* `content_ideas`
+* `player_stories`
+* subscriptions
+* approval requests
+* Creator Studio activity
+* story views
+* historical creator relationships
+
+Those represent different concepts.
+
+---
+
+## Implementation
+
+### 1. Inspect the existing architecture first
+
+Before modifying code, confirm:
+
+1. The checked-in migration/schema defining `profiles.favorite_creator_id`.
+2. The exact `creator_profiles` table/model.
+3. The existing authenticated Creator Studio API endpoint.
+4. The existing response/contract type used by Creator Studio.
+5. Where the authenticated creator's `creator_profiles.id` is resolved.
+
+Do not create a new creator API pattern if the existing Creator Studio API already provides the appropriate contract surface.
+
+Use the existing architecture and naming conventions.
+
+---
+
+### 2. Extend the existing creator API contract
+
+Add:
+
+```text
+follower_count
+```
+
+to the appropriate existing creator response/contract.
+
+The value must represent the current count of profiles whose:
+
+```text
+favorite_creator_id = authenticated_creator_profile.id
+```
+
+Conceptually:
+
+```sql
+SELECT COUNT(*)
+FROM profiles
+WHERE favorite_creator_id = <creator_profiles.id>;
+```
+
+Return:
+
+```json
+{
+  "follower_count": 0
+}
+```
+
+when there are no followers. Never return `null` for this aggregate.
+
+Do not expose individual follower records.
+
+---
+
+## No Duplicate State
+
+Do **not** add:
+
+```text
+creator_profiles.follower_count
+```
+
+or another manually maintained counter.
+
+The authoritative state remains:
+
+```text
+profiles.favorite_creator_id
+```
+
+The count should be derived from that relationship so it cannot become stale when users change their favorite creator.
+
+If the existing architecture already uses an established aggregate/query/view pattern for creator metrics, it is acceptable to follow that pattern, provided `profiles.favorite_creator_id` remains the source of truth.
+
+---
+
+## Security
+
+The existing authenticated Creator Studio API should return the aggregate for the authenticated creator.
+
+Do not expose follower:
+
+* profile IDs
+* emails
+* names
+* follower lists
+* subscription information
+
+as part of this change.
+
+Do not alter the authorization model unless required to make the existing contract work correctly.
+
+---
+
+## Tests
+
+Add/update tests using the existing Creator Studio/API test infrastructure.
+
+At minimum verify:
+
+1. **Zero followers**
+
+   * No profiles reference the creator.
+   * API returns `follower_count: 0`.
+
+2. **Multiple followers**
+
+   * M
