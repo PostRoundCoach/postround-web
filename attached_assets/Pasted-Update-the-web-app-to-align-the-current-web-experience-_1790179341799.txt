@@ -1,0 +1,297 @@
+Update the web app to align the current web experience around the **Creator Dashboard** and **Creator Studio**. This is a navigation, terminology, presentation, and small workflow enhancement only. Do NOT redesign or refactor the existing Creator Studio content or backend architecture.
+
+## Product direction
+
+The current web landing page is the **Creator Dashboard**. It is the creator's home/landing page.
+
+The existing creator content/workflow page should now be called **Creator Studio**.
+
+Use this terminology consistently throughout the web UI:
+
+* **Creator Dashboard** = landing page/home for the creator
+* **Creator Studio** = creator content/workflow workspace
+
+Do not introduce or expose a player-facing web dashboard at this time. Player web functionality is future scope.
+
+---
+
+## 1. Update navigation terminology
+
+Where the current navigation/menu contains:
+
+**Creator Dashboard**
+
+change the displayed navigation label to:
+
+**Creator Studio**
+
+This menu item should navigate to the existing Creator Studio/content workflow page.
+
+The landing page itself should remain the **Creator Dashboard**.
+
+Do not change routes unnecessarily if the existing routing structure can support this terminology change cleanly. This is primarily a UI/navigation terminology change.
+
+---
+
+## 2. Creator Dashboard navigation cleanup
+
+On the Creator Dashboard landing page/navigation, remove the player-oriented navigation items:
+
+* My Rounds
+* Coaching Reports
+* Player DNA
+* Billing
+
+Also remove any other clearly player-facing subscription/account navigation that does not belong in the current creator experience.
+
+The Creator Dashboard should be focused on the creator experience.
+
+### IMPORTANT
+
+Removing these items from navigation does NOT mean deleting functionality.
+
+DO NOT:
+
+* delete the underlying routes/pages
+* delete APIs
+* delete database functionality
+* remove Stripe/subscription infrastructure
+* remove player web functionality that may be used in the future
+* change existing backend contracts
+
+The goal is simply to **stop exposing these player-oriented pages through the current Creator Dashboard navigation**.
+
+They remain available for future Player Web Dashboard work.
+
+---
+
+## 3. Remove player billing/subscription presentation
+
+Remove any **player subscription/billing information** from the Creator Dashboard landing page.
+
+The Creator Dashboard should not present the creator as a Post Round player/subscriber.
+
+In particular, remove/hide:
+
+* player subscription-plan information
+* player upgrade prompts
+* billing navigation
+* player billing/account UI
+
+IMPORTANT: This is a UI/navigation change only.
+
+Do NOT remove or alter:
+
+* subscription infrastructure
+* entitlement logic
+* Stripe integration
+* billing backend
+* creator subscription metrics already displayed as part of the creator experience
+
+---
+
+## 4. Creator Studio navigation
+
+On the existing Creator Studio page, update the navigation so that the creator can return to the Creator Dashboard.
+
+The navigation option should read:
+
+**Back to Dashboard**
+
+and should navigate to the existing Creator Dashboard landing page.
+
+Use the existing routing/navigation architecture. Do not create a parallel routing system.
+
+The existing Creator Studio header and content should otherwise remain unchanged.
+
+---
+
+## 5. Creator Studio — Refresh Available Content
+
+Add a button directly **below the existing Creator Studio header**:
+
+**Refresh Available Content**
+
+### Location
+
+The button must appear immediately below the existing Creator Studio header and **before the existing story/content cards or available-content list**.
+
+Do not place it in the global navigation, inside an individual story card, or at the bottom of the page.
+
+The existing Creator Studio header itself should remain unchanged.
+
+### Functionality
+
+The button must actually refresh the available creator content.
+
+When the creator clicks **Refresh Available Content**:
+
+1. Re-fetch the current available creator content/stories from the server.
+2. Use the **existing Creator Studio API/contract and existing data-fetching mechanism** wherever possible.
+3. Update the Creator Studio content/list in place without requiring a full browser/page reload.
+4. Newly available stories/content should appear after the refresh if they are now available to that creator.
+5. Show a clear loading state while the refresh is running.
+6. Prevent duplicate/concurrent refresh requests while a refresh is already in progress.
+7. Handle API/network errors gracefully and provide an appropriate error state/message.
+8. Preserve the creator's current page state where practical.
+
+### Critical architecture constraint
+
+**Refresh Available Content must only re-fetch/discover currently available content.**
+
+It must NOT:
+
+* generate a new story
+* run story qualification
+* create a new story candidate
+* regenerate creator content
+* trigger the creator story engine
+* trigger the player story engine
+* trigger Coaching Reflection generation
+* alter approval status
+* modify permissions
+* create duplicate content
+
+The refresh operation should simply ask the existing backend/data source for the **current state of available creator content**.
+
+### API guidance
+
+Before creating anything new, inspect how the Creator Studio currently loads its available stories/content.
+
+**Reuse the existing API endpoint, service, hook, query, or contract for the refresh operation if possible.**
+
+Only introduce a new endpoint or backend functionality if the existing architecture genuinely cannot support re-fetching the current available content.
+
+Do not modify the existing creator API contract unnecessarily.
+
+---
+
+## 6. EXISTING CREATOR STUDIO CONTENT IS OUT OF SCOPE
+
+This is critical.
+
+**Leave the current Creator Studio header and existing Creator Studio contents AS IS.**
+
+Do NOT redesign, reorganize, or refactor the existing Creator Studio content as part of this task.
+
+Specifically, leave the existing:
+
+* Creator Studio header
+* story cards
+* story workflow
+* generated content
+* Coaching Reflection
+* scorecard/details
+* approval functionality
+* existing dashboard layout
+* existing creator API/contract architecture
+
+unchanged.
+
+The Creator Studio changes in this task are limited to:
+
+1. Rename the navigation/menu item from **Creator Dashboard** to **Creator Studio**.
+2. Add/update the navigation option on the Creator Studio page to **Back to Dashboard**.
+3. Add **Refresh Available Content** immediately below the Creator Studio header.
+4. Implement the refresh behavior described above.
+5. Adjust Creator Story typography as described below.
+
+---
+
+## 7. Creator Story typography
+
+Update the existing Creator Story typography so that the **Creator Story header and body text match the existing Coaching header/body text sizing and visual hierarchy**.
+
+Use the existing Coaching typography as the source of truth for:
+
+* heading size
+* body size
+* line-height
+* visual hierarchy
+
+The goal is simply for Creator Story content to visually match the existing Coaching content.
+
+Do NOT redesign the story cards.
+
+Do NOT change:
+
+* story wording
+* story-generation logic
+* API contracts
+* content structure
+* story workflow
+* qualification logic
+
+---
+
+## 8. Do NOT duplicate existing Creator Dashboard header information
+
+The Creator Dashboard already has the creator information that belongs in the dashboard header.
+
+Do NOT add another section or duplicate these metrics elsewhere as part of this task.
+
+The existing dashboard header already handles the creator-facing information, so leave that existing header/content in place.
+
+This task is about navigation, terminology, cleanup, and the refresh workflow — not adding another creator summary section.
+
+---
+
+## 9. Scope guardrails
+
+This task is intentionally limited to:
+
+* Creator Dashboard terminology
+* Creator Studio terminology
+* navigation cleanup
+* removing player-facing navigation from the creator experience
+* removing player billing/subscription presentation from the Creator Dashboard
+* Back to Dashboard navigation from Creator Studio
+* Refresh Available Content button and its re-fetch functionality
+* Creator Story typography alignment with Coaching
+
+Do NOT:
+
+* build a Player Web Dashboard
+* delete player web routes
+* delete player APIs
+* modify creator API contracts unnecessarily
+* modify story-generation engines
+* modify story qualification
+* modify permissions/approval infrastructure
+* modify subscription/Stripe backend logic
+* redesign the Creator Studio
+* change the existing Creator Studio header/content beyond the explicitly requested changes
+* change existing story workflows
+* trigger story generation from the refresh button
+* duplicate creator metrics already present in the dashboard header
+
+---
+
+## 10. Testing
+
+After implementation:
+
+* run existing web tests
+* run typecheck
+* run build
+* verify the landing page is clearly the **Creator Dashboard**
+* verify the navigation/menu item now says **Creator Studio**
+* verify clicking Creator Studio navigates to the existing Creator Studio page
+* verify Creator Studio has **Back to Dashboard**
+* verify Back to Dashboard returns to the Creator Dashboard landing page
+* verify My Rounds is no longer exposed in creator navigation
+* verify Coaching Reports is no longer exposed in creator navigation
+* verify Player DNA is no longer exposed in creator navigation
+* verify Billing is no longer exposed in creator navigation
+* verify underlying player routes/pages still exist
+* verify player subscription/billing information is no longer displayed in the Creator Dashboard
+* verify **Refresh Available Content** appears directly below the Creator Studio header
+* verify clicking Refresh Available Content actually re-fetches the current available content
+* verify newly available content appears after refresh
+* verify refresh does not generate, regenerate, qualify, approve, or otherwise mutate story content
+* verify loading and error states work correctly
+* verify duplicate refresh requests are prevented
+* verify Creator Story typography matches the existing Coaching header/body sizing
+* verify existing Creator Studio content and workflow remain unchanged
+
+Report exactly which files/components were changed and confirm that backend/API/database functionality was left untouched except for any minimal changes genuinely required to support the refresh re-fetch.
