@@ -3,8 +3,8 @@ import {
   authenticateSupabaseBearer, authorizeCreatorStory, CreatorContentError, fetchPersistedCandidates,
   dismissCreatorStory, fetchCreatorStoryQueue, fetchPersistedCandidate, loadRoundEvidence, persistCandidates, requestStoryApproval,
   fetchRoundWebContract, buildCreatorIdeasResponse,
-} from "../lib/creator-content-data";
-import { generateStoryCandidates, generateStoryDraft, STORY_DRAFT_FORMATS, type StoryDraftFormat } from "../lib/story-engine";
+} from "../lib/creator-content-data.ts";
+import { generateStoryCandidates, generateStoryDraft, STORY_DRAFT_FORMATS, type StoryDraftFormat } from "../lib/story-engine.ts";
 
 const router: IRouter = Router();
 const storyId = (value: unknown): string | null => typeof value === "string" && /^[0-9a-f-]{36}$/i.test(value) ? value : null;
@@ -32,8 +32,8 @@ async function authorized(req: Request, id: string) {
 router.get("/content/stories", async (req, res): Promise<void> => {
   try {
     const context = await authenticateSupabaseBearer(req.header("authorization"));
-    const stories = await fetchCreatorStoryQueue(context);
-    res.json({ ok: true, stories });
+    const queue = await fetchCreatorStoryQueue(context);
+    res.json({ ok: true, ...queue });
   } catch (error) { failure(req, res, error, "story_queue"); }
 });
 

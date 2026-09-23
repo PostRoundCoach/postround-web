@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { ReplitConnectors } from "@replit/connectors-sdk";
+import express from "express";
+import contentRouter from "../routes/content.ts";
 import { generateStoryCandidates, generateStoryDraft, type RoundEvidence } from "./story-engine.ts";
 import {
   authenticateSupabaseBearer,
@@ -342,6 +345,9 @@ test("creator queue reload uses the authoritative active permission store", asyn
     proxy: async (path) => {
       paths.push(path);
       if (path.includes("creator_profiles?")) return Response.json([{ id: base.ownerId }]);
+      if (path.includes("/profiles?")) {
+        return new Response(null, { headers: { "content-range": "0-0/1" } });
+      }
       return Response.json([{
         story_id: base.storyId,
         approval_requested_at: "2026-09-10T12:00:00Z",
@@ -358,11 +364,140 @@ test("creator queue reload uses the authoritative active permission store", asyn
       }]);
     },
   };
-  const stories = await fetchCreatorStoryQueue(context);
-  assert.equal(stories[0]?.permission_status, "requested");
-  assert.ok(paths[1]?.includes(`creator_id=eq.${base.ownerId}`));
-  assert.ok(paths[1]?.includes("permission_granted=eq.true"));
-  assert.ok(paths[1]?.includes("revoked_at=is.null"));
+  const queue = await fetchCreatorStoryQueue(context);
+  assert.equal(queue.stories[0]?.permission_status, "requested");
+  assert.equal(queue.follower_count, 1);
+  assert.ok(paths[2]?.includes(`creator_id=eq.${base.ownerId}`));
+  assert.ok(paths[2]?.includes("permission_granted=eq.true"));
+  assert.ok(paths[2]?.includes("revoked_at=is.null"));
+});
+
+test("creator queue counts only current favorites, including zero and changes between reads", async () => {
+  const otherCreator = "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee";
+  const favorites = new Map([
+    ["player-1", base.ownerId],
+    ["player-2", base.ownerId],
+    ["player-3", otherCreator],
+    ["player-4", null],
+  ]);
+  const countRequests: Array<{ path: string; method?: string; headers?: Record<string, string> }> = [];
+  const context: SupabaseRequestContext = {
+    userId: requestContext.userId,
+    proxy: async (path, init) => {
+      if (path.includes("creator_profiles?")) {
+        assert.ok(path.includes(`user_id=eq.${requestContext.userId}&status=eq.active`));
+        return Response.json([{ id: base.ownerId }]);
+      }
+      if (path.includes("/profiles?")) {
+        countRequests.push({ path, method: init?.method, headers: init?.headers });
+        const creatorId = path.split("favorite_creator_id=eq.")[1];
+        const total = [...favorites.values()].filter((favorite) => favorite === creatorId).length;
+        return new Response(null, { headers: { "content-range": total ? `0-0/${total}` : "*/0" } });
+      }
+      return Response.json([]);
+    },
+  };
+  assert.deepEqual(await fetchCreatorStoryQueue(context), { stories: [], follower_count: 2 });
+  favorites.set("player-1", otherCreator);
+  favorites.set("player-2", null);
+  assert.deepEqual(await fetchCreatorStoryQueue(context), { stories: [], follower_count: 0 });
+  favorites.set("player-4", base.ownerId);
+  assert.equal((await fetchCreatorStoryQueue(context)).follower_count, 1);
+  for (const request of countRequests) {
+    assert.ok(request.path.endsWith(`favorite_creator_id=eq.${base.ownerId}`));
+    assert.equal(request.method, "HEAD");
+    assert.equal(request.headers?.Prefer, "count=exact");
+    assert.equal(request.headers?.Range, "0-0");
+  }
+});
+
+test("creator queue rejects missing or inactive owners without reading followers", async () => {
+  for (const profiles of [
+    [],
+    [{ id: base.ownerId, user_id: requestContext.userId, status: "inactive" }],
+    [{ id: "another-creator", user_id: "someone-else", status: "active" }],
+  ]) {
+    let followerRead = false;
+    const context: SupabaseRequestContext = {
+      ...requestContext,
+      proxy: async (path) => {
+        if (path.includes("/profiles?")) followerRead = true;
+        if (path.includes("creator_profiles?")) {
+          assert.ok(path.includes(`user_id=eq.${requestContext.userId}&status=eq.active`));
+          return Response.json(profiles.filter((profile) =>
+            profile.user_id === requestContext.userId && profile.status === "active",
+          ));
+        }
+        throw new Error(`Unexpected connector path: ${path}`);
+      },
+    };
+    await assert.rejects(
+      fetchCreatorStoryQueue(context),
+      (error: unknown) => error instanceof CreatorContentError && error.status === 403,
+    );
+    assert.equal(followerRead, false);
+  }
+});
+
+test("creator queue fails explicitly when the exact count is unavailable or malformed", async () => {
+  for (const response of [
+    new Response(null, { status: 403 }),
+    new Response(null),
+    new Response(null, { headers: { "content-range": "0-0/*" } }),
+    new Response(null, { headers: { "content-range": "0-0/9007199254740992" } }),
+  ]) {
+    const context: SupabaseRequestContext = {
+      ...requestContext,
+      proxy: async (path) => path.includes("creator_profiles?")
+        ? Response.json([{ id: base.ownerId }])
+        : response,
+    };
+    await assert.rejects(
+      fetchCreatorStoryQueue(context),
+      (error: unknown) => error instanceof CreatorContentError && error.status === 502,
+    );
+  }
+});
+
+test("authenticated story queue API returns the count without follower identities", async () => {
+  const originalProxy = ReplitConnectors.prototype.proxy;
+  const originalFetch = globalThis.fetch;
+  const originalAnonKey = process.env.SUPABASE_ANON_KEY;
+  const token = [
+    Buffer.from('{"alg":"HS256"}').toString("base64url"),
+    Buffer.from('{"iss":"https://fixture-project.supabase.co/auth/v1"}').toString("base64url"),
+    "signature",
+  ].join(".");
+  process.env.SUPABASE_ANON_KEY = "fixture-key";
+  globalThis.fetch = (async () => Response.json({ id: requestContext.userId })) as typeof fetch;
+  ReplitConnectors.prototype.proxy = async (_provider, path, init) => {
+    if (path.startsWith("/auth/v1/admin/users/")) return Response.json({ id: requestContext.userId });
+    if (path.includes("creator_profiles?")) return Response.json([{ id: base.ownerId }]);
+    if (path.includes("/profiles?")) {
+      assert.equal(init?.method, "HEAD");
+      return new Response(null, { headers: { "content-range": "0-0/2" } });
+    }
+    if (path.includes("story_permissions?")) return Response.json([]);
+    throw new Error(`Unexpected connector path: ${path}`);
+  };
+  const api = express();
+  api.use("/api", contentRouter);
+  const server = api.listen(0);
+  try {
+    const address = server.address();
+    assert.ok(address && typeof address !== "string");
+    const response = await originalFetch(`http://127.0.0.1:${address.port}/api/content/stories`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), { ok: true, stories: [], follower_count: 2 });
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+    ReplitConnectors.prototype.proxy = originalProxy;
+    globalThis.fetch = originalFetch;
+    if (originalAnonKey === undefined) delete process.env.SUPABASE_ANON_KEY;
+    else process.env.SUPABASE_ANON_KEY = originalAnonKey;
+  }
 });
 
 test("round evidence uses canonical course par and stored historical score to par", async () => {

@@ -280,6 +280,32 @@ type CreatorStoryQueueRow = {
   }>;
 };
 
+async function countCreatorFollowers(
+  context: SupabaseRequestContext,
+  creatorId: string,
+): Promise<number> {
+  const proxy = context.proxy ?? ((path: string, init?: Parameters<NonNullable<SupabaseRequestContext["proxy"]>>[1]) => {
+    const connectors = new ReplitConnectors();
+    return connectors.proxy("supabase", path, init);
+  });
+  // The server connector has cross-profile read access; the browser's own-profile
+  // RLS view cannot provide this aggregate. HEAD returns no follower identities.
+  const response = await proxy(
+    `/rest/v1/profiles?select=id&favorite_creator_id=eq.${encodeURIComponent(creatorId)}`,
+    { method: "HEAD", headers: { Prefer: "count=exact", Range: "0-0" } },
+  );
+  if (!response.ok) {
+    throw new CreatorContentError(502, "The creator follower count could not be loaded.");
+  }
+  const range = response.headers.get("content-range");
+  const total = range?.match(/^(?:\*|\d+-\d+)\/(\d+)$/)?.[1];
+  const count = total === undefined ? NaN : Number(total);
+  if (!Number.isSafeInteger(count) || count < 0) {
+    throw new CreatorContentError(502, "The creator follower count could not be loaded.");
+  }
+  return count;
+}
+
 export async function fetchCreatorStoryQueue(context: SupabaseRequestContext) {
   const profiles = await rest<CreatorRow[]>(
     context,
@@ -287,13 +313,14 @@ export async function fetchCreatorStoryQueue(context: SupabaseRequestContext) {
   );
   const creator = profiles[0];
   if (!creator) throw new CreatorContentError(403, "This account does not control an active creator profile.");
+  const follower_count = await countCreatorFollowers(context, creator.id);
   const rows = await rest<CreatorStoryQueueRow[]>(
     context,
     "story_permissions?select=story_id,approval_requested_at,granted_at,story_candidates!inner(id,story_type,headline,summary,story_data,round_id,status)"
       + `&creator_id=eq.${encodeURIComponent(creator.id)}&permission_granted=eq.true&revoked_at=is.null`
       + "&story_candidates.status=in.(offered,shared)",
   );
-  return rows.flatMap((permission) => {
+  const stories = rows.flatMap((permission) => {
     const stories = Array.isArray(permission.story_candidates)
       ? permission.story_candidates
       : [permission.story_candidates];
@@ -304,6 +331,7 @@ export async function fetchCreatorStoryQueue(context: SupabaseRequestContext) {
         : "pending";
     return stories.map((story) => ({ ...story, permission_status: permissionStatus }));
   });
+  return { stories, follower_count };
 }
 
 type RoundContractRow = {
