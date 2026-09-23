@@ -1,0 +1,489 @@
+# Task: Creator-Aware Landing Page — Creator Content Tile
+
+## Objective
+
+Implement a **web-only UX improvement** for users who have an **active creator profile**.
+
+When an authenticated creator lands on the main Post Round web landing page, display a single wide **Creator Content** tile above the existing landing-page tiles.
+
+The tile is intentionally focused on **creator content and new-story awareness**.
+
+It should **not display follower counts, subscriber counts, revenue, earnings, or subscription metrics**.
+
+This is presentation/read-only UX work only.
+
+Do **not** modify:
+
+* story generation
+* story qualification
+* creator-story generation
+* coaching-reflection generation
+* approval/request behavior
+* creator permissions
+* sharing/grant/revocation semantics
+* entitlements
+* subscription logic
+* creator compensation logic
+* `story_candidate`
+* `content_ideas` generation
+* player-story generation
+
+---
+
+# 1. Creator Detection
+
+When the authenticated user loads the landing page, determine whether they have an **active creator profile** using the existing creator-profile/API architecture.
+
+Use the existing server/API contract wherever possible.
+
+Do **not** create a second, client-only definition of what constitutes an active creator.
+
+The creator condition should remain consistent with the existing Creator Dashboard access model:
+
+* authenticated user
+* active creator profile
+
+If an existing authenticated-user/profile hook or API already exposes creator status/profile information, reuse it.
+
+Do not hardcode creator IDs, emails, slugs, or other user-specific checks.
+
+Do not duplicate creator-profile logic across multiple frontend components.
+
+---
+
+# 2. Creator Content Tile
+
+If the authenticated user is an active creator, place a single **wide Creator Content** tile **above the existing landing-page tiles**.
+
+The existing landing-page tiles should remain below it and otherwise unchanged.
+
+The purpose of this tile is to answer one simple question:
+
+> **"Do I have creator content waiting for me?"**
+
+The intended presentation is approximately:
+
+```text
+Creator Content
+
+127 followers
+
+3 new stories
+How Did That Happen?
+
+View Creator Dashboard →
+```
+
+### Important
+
+The exact numbers/text must come from the existing data/API architecture.
+
+Do not hardcode the example values.
+
+---
+
+# 3. Followers
+
+The tile may display the creator's **current follower count**.
+
+The authoritative definition is:
+
+> A follower is a user whose `profiles.favorite_creator_id` points to this creator.
+
+Conceptually:
+
+```text
+COUNT(profiles)
+WHERE favorite_creator_id = creator.id
+```
+
+Use the existing creator/profile IDs and database/API conventions.
+
+This should represent **current followers**, not historical followers.
+
+If a player changes their favorite creator, they should no longer count toward the previous creator.
+
+### Important
+
+Follower count is informational only.
+
+Do not add follower-management functionality as part of this task.
+
+---
+
+# 4. New Story Notification
+
+The primary purpose of the tile is to notify the creator about new content.
+
+Display a lightweight notification when new stories are available.
+
+Preferred presentation:
+
+**`X new stories`**
+
+For example:
+
+> **3 new stories**
+
+If the existing API/data makes the newest story header available cheaply, show it as secondary text:
+
+> **3 new stories**
+> *How Did That Happen?*
+
+The story header should act as a preview/notification only.
+
+### Do NOT display:
+
+* story body
+* script
+* hook
+* full generated content
+* coaching reflection
+* scorecard
+* detailed story metadata
+
+The landing page should remain a lightweight entry point into the Creator Dashboard.
+
+---
+
+# 5. New Story Data
+
+Before creating a new API, inspect the existing creator dashboard/content architecture.
+
+Determine whether the existing creator API already exposes enough information to determine:
+
+* number of new stories
+* newest story/header
+* creator-accessible content
+
+Reuse existing data wherever possible.
+
+Do not load the entire Creator Dashboard payload simply to populate the landing tile.
+
+If the newest story header requires a heavy request, **display the new-story count only**.
+
+The landing page should remain lightweight.
+
+---
+
+# 6. "New Story" Semantics
+
+Before implementing `newStoryCount`, inspect the existing creator dashboard/content contract and determine how "new" content is currently represented.
+
+Reuse established server-side semantics wherever they exist.
+
+Look for existing concepts such as:
+
+* content creation timestamps
+* offered/shared timestamps
+* creator-accessible content
+* viewed/read state
+* content status
+* existing notification state
+
+Do not invent a new notification system solely for this landing-page tile unless the existing architecture genuinely has no suitable mechanism.
+
+Do not modify creator permissions or content-access rules to support this feature.
+
+The tile must only surface stories the creator is already entitled to see according to the existing server-side contract.
+
+---
+
+# 7. Current Creator Architecture
+
+Respect the existing Post Round Creator Dashboard architecture.
+
+The Creator Dashboard uses the current creator content pipeline and existing creator API contract.
+
+In particular:
+
+* Do not switch creator content to `player_stories`.
+* Do not use `player_stories` to determine creator content.
+* Do not reintroduce the old `round_buddy_messages` join.
+* Do not reintroduce `rounds.input_method`.
+* Do not alter the current round/scorecard contract.
+* Do not modify story qualification.
+* Do not modify story generation.
+* Do not modify coaching-reflection generation.
+* Do not modify approval/request behavior.
+* Do not modify creator permissions.
+* Do not modify sharing/grant/revocation semantics.
+
+If the existing Creator Dashboard uses:
+
+```text
+GET /api/content/ideas?story_id=...
+```
+
+or another established creator dashboard contract, leave that contract intact.
+
+Only add a minimal read-only creator-summary capability if genuinely necessary for this tile.
+
+---
+
+# 8. Explicit Scope Exclusion: Subscription / Compensation Data
+
+**Do not expose subscription or compensation information on the creator landing page.**
+
+Specifically, do NOT add:
+
+* subscription counts
+* 90-day subscription counts
+* subscriber counts
+* subscription revenue
+* creator earnings
+* commission amounts
+* compensation metrics
+* subscription history
+
+These metrics will be exposed through **administrator-only functionality** separately.
+
+Do not create or modify creator-facing subscription/compensation APIs as part of this task.
+
+Do not use subscription data to populate the Creator Content tile.
+
+If you discover existing subscription-related data while inspecting the codebase, leave that functionality unchanged.
+
+---
+
+# 9. Dashboard Action
+
+Provide a clear, lightweight action:
+
+**View Creator Dashboard →**
+
+This must navigate to the **existing Creator Dashboard route**.
+
+Do not create a second dashboard route.
+
+The landing tile should be an entry point, not a replacement for the dashboard.
+
+---
+
+# 10. Non-Creator Experience
+
+For an authenticated ordinary player:
+
+* Do not render the Creator Content tile.
+* Do not alter the existing landing-page layout.
+* Do not alter the existing tile order.
+* Do not display creator terminology.
+* Do not make unnecessary creator-specific API requests.
+
+The existing player landing page should remain unchanged.
+
+---
+
+# 11. Loading and Error States
+
+Creator detection and creator-summary data must fail gracefully.
+
+### During loading
+
+Avoid briefly rendering creator UI and then removing it.
+
+Avoid unnecessary layout flashing where practical.
+
+Use the existing application's loading/skeleton patterns if available.
+
+### Creator-summary failure
+
+If creator-specific summary data temporarily fails:
+
+* do not break the landing page
+* do not display fabricated follower/story values
+* preserve access to the existing landing-page functionality
+* do not expose raw API errors to the user
+
+If optional newest-story-header data fails while the count succeeds:
+
+* continue displaying the Creator Content tile
+* continue displaying the follower count if available
+* continue displaying the new-story count
+* continue displaying the dashboard action
+* simply omit the optional story header
+
+---
+
+# 12. Visual Design
+
+Match the existing Post Round web application's design system.
+
+Reuse existing:
+
+* card/tile components
+* typography
+* spacing
+* border radius
+* shadows
+* buttons
+* icons
+* responsive breakpoints
+* loading patterns
+
+Do not introduce a new visual design system.
+
+The tile should feel like a natural extension of the existing landing page.
+
+It should be:
+
+* wide
+* visually prominent
+* compact
+* immediately understandable
+* clearly creator-specific
+
+Do not turn it into a dense analytics card.
+
+### Intended hierarchy
+
+```text
+Creator Content
+
+127 followers
+
+3 new stories
+How Did That Happen?
+
+View Creator Dashboard →
+```
+
+Again, the values above are illustrative only.
+
+---
+
+# 13. Responsive Behavior
+
+Verify the Creator Content tile on:
+
+* desktop
+* tablet
+* narrow/mobile web widths
+
+It should remain one logical tile rather than requiring separate desktop/mobile implementations.
+
+The follower count and story notification must remain readable on narrow screens.
+
+The dashboard action must remain obvious and usable on narrow screens.
+
+Do not introduce horizontal scrolling.
+
+---
+
+# 14. Testing
+
+Add or update tests covering:
+
+## Creator detection
+
+1. Authenticated active creator → Creator Content tile renders.
+2. Authenticated non-creator → Creator Content tile does not render.
+3. Inactive creator profile → Creator Content tile does not render.
+
+## Follower count
+
+4. Current follower count is displayed correctly using the existing creator/follower data source.
+5. Follower count reflects the current `favorite_creator_id` relationship.
+6. No fabricated follower value is displayed when creator-summary data is unavailable.
+
+## New stories
+
+7. New-story notification appears when `newStoryCount > 0`.
+8. No new-story notification appears when there are zero new stories.
+9. Latest story header is displayed when the existing/minimal API response provides it.
+10. Story body/script/full story content is never rendered on the landing page.
+
+## Navigation
+
+11. "View Creator Dashboard →" navigates to the existing Creator Dashboard route.
+
+## Error handling
+
+12. Creator-summary failure does not break the rest of the landing page.
+13. Optional latest-story-header failure does not prevent the Creator Content tile from rendering.
+
+## Regression
+
+14. Existing player landing page remains unchanged for ordinary users.
+15. Existing landing-page tiles remain functional.
+16. No subscription or compensation metrics are rendered on the creator landing page.
+
+---
+
+# 15. Implementation Process
+
+Before changing code, inspect and identify:
+
+1. The authenticated landing-page component.
+2. The existing authenticated-user/profile loading mechanism.
+3. The existing creator-profile detection mechanism.
+4. The existing Creator Dashboard route.
+5. The existing creator content API contract.
+6. The existing follower-count source.
+7. The existing semantics for determining newly available creator content.
+
+Reuse existing shared hooks, queries, API clients, and components wherever possible.
+
+Do not create duplicate creator-profile queries or duplicate data-fetching logic.
+
+Do not create subscription/compensation infrastructure for this task.
+
+---
+
+# 16. Scope Boundary
+
+This task is **creator landing-page UX only**.
+
+Do not modify Creator Dashboard story-card presentation or behavior as part of this task.
+
+Do not add story collapsing/expanding functionality.
+
+Do not redesign the Creator Dashboard.
+
+Do not modify creator business logic.
+
+Do not modify story-generation behavior.
+
+Do not modify approval, permission, sharing, or entitlement behavior.
+
+Do not expose subscriber, subscription, revenue, earnings, or compensation metrics to creators on the landing page.
+
+---
+
+# 17. Final Validation
+
+Run the relevant web unit/integration tests and existing Creator Dashboard-related tests.
+
+Manually verify:
+
+1. Normal player login.
+2. Active creator login.
+3. Creator Content tile appears only for the creator.
+4. Tile appears above the existing landing-page tiles.
+5. Current follower count is correct.
+6. New-story count is correct when available.
+7. Latest story header appears only when cheaply available through the existing/minimal contract.
+8. No story body is displayed on the landing page.
+9. No subscription or compensation information is displayed.
+10. View Creator Dashboard navigates to the existing dashboard.
+11. Creator-summary errors do not break the landing page.
+12. Existing player landing-page behavior remains unchanged.
+
+---
+
+# Final Report
+
+When complete, report:
+
+* files changed
+* existing APIs/hooks/components reused
+* any API/contract changes
+* how active creator status is determined
+* how follower count is sourced
+* how `newStoryCount` is determined
+* whether latest story header was available without a heavy dashboard request
+* tests added/updated
+* test results
+* any assumptions or limitations
+
+Keep the implementation narrowly scoped to the **Creator Content** landing-page tile.
