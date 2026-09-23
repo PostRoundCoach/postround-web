@@ -3,6 +3,7 @@ import { expect, test } from '@playwright/test'
 test.setTimeout(90_000)
 
 const storyId = '20000000-0000-4000-8000-000000000001'
+const secondStoryId = '20000000-0000-4000-8000-000000000002'
 const roundId = '30000000-0000-4000-8000-000000000001'
 const candidateId = '40000000-0000-4000-8000-000000000001'
 const candidate = {
@@ -25,6 +26,99 @@ async function signOut(page: import('@playwright/test').Page) {
   await expect(page).toHaveURL(/\/login$/)
 }
 
+test('View generated content reveals pending and failed retrieval, then retries', async ({ page }) => {
+  let attempts = 0
+  await page.route(`**/api/content/round/${roundId}`, async (route) => {
+    attempts += 1
+    if (attempts === 1) {
+      await new Promise((resolve) => setTimeout(resolve, 1500))
+      await route.fulfill({ status: 503, json: { message: 'Fixture retrieval failure' } })
+    } else {
+      await route.continue()
+    }
+  })
+  await signIn(page)
+  await page.goto('/creator')
+  const toggle = page.getByTestId(`button-toggle-story-${storyId}`)
+  await expect(page.getByTestId(`status-ideas-loading-${storyId}`)).toBeHidden()
+  await page.getByTestId(`button-view-content-${storyId}`).click()
+  await expect(toggle).toHaveAttribute('aria-expanded', 'true')
+  await expect(page.getByTestId(`status-ideas-loading-${storyId}`)).toBeVisible()
+  await expect(page.getByTestId(`status-ideas-error-${storyId}`)).toBeVisible()
+  expect(attempts).toBe(1)
+  await page.getByTestId(`button-retry-ideas-${storyId}`).click()
+  await expect(page.getByTestId(`card-story-candidate-${candidateId}`)).toBeVisible()
+  expect(attempts).toBe(2)
+})
+
+test('stories disclose independently, reset on refresh, and do not refetch when toggled', async ({ page }) => {
+  let roundRequests = 0
+  page.on('request', (request) => {
+    if (new URL(request.url()).pathname === `/api/content/round/${roundId}`) roundRequests += 1
+  })
+  await page.route('**/api/content/stories', async (route) => {
+    const response = await route.fetch()
+    const body = await response.json()
+    body.stories.push({
+      ...body.stories[0],
+      id: secondStoryId,
+      story_id: secondStoryId,
+      headline: 'Another shared round',
+      summary: 'A second fixture story.',
+    })
+    await route.fulfill({ response, json: body })
+  })
+  await signIn(page)
+  await page.goto('/creator')
+  const first = page.getByTestId(`card-story-${storyId}`)
+  const second = page.getByTestId(`card-story-${secondStoryId}`)
+  const firstToggle = page.getByTestId(`button-toggle-story-${storyId}`)
+  const secondToggle = page.getByTestId(`button-toggle-story-${secondStoryId}`)
+  await expect(firstToggle).toHaveAttribute('aria-expanded', 'false')
+  await expect(secondToggle).toHaveAttribute('aria-expanded', 'false')
+  await expect(first.getByTestId(`text-story-headline-${storyId}`)).toBeVisible()
+  await expect(second.getByTestId(`text-story-headline-${secondStoryId}`)).toBeVisible()
+  await expect(first.getByText('Supporting details')).toBeHidden()
+  await expect(first.getByTestId(`section-story-candidates-${storyId}`)).toBeHidden()
+  await expect(first.getByTestId(`button-view-content-${storyId}`)).toBeVisible()
+  await expect.poll(() => roundRequests).toBe(2)
+
+  await firstToggle.focus()
+  await page.keyboard.press('Enter')
+  await expect(firstToggle).toHaveAttribute('aria-expanded', 'true')
+  await expect(secondToggle).toHaveAttribute('aria-expanded', 'false')
+  await expect(first.getByText('Supporting details')).toBeVisible()
+  await firstToggle.press('Space')
+  await expect(firstToggle).toHaveAttribute('aria-expanded', 'false')
+  await first.getByTestId(`button-view-content-${storyId}`).click()
+  await expect(firstToggle).toHaveAttribute('aria-expanded', 'true')
+  await expect(first.getByTestId(`card-story-candidate-${candidateId}`)).toBeVisible()
+  await expect.poll(() => roundRequests).toBe(3)
+  await first.getByTestId(`button-view-content-${storyId}`).click()
+  await expect(firstToggle).toHaveAttribute('aria-expanded', 'true')
+  await expect.poll(() => roundRequests).toBe(4)
+
+  await secondToggle.click()
+  await expect(secondToggle).toHaveAttribute('aria-expanded', 'true')
+  await firstToggle.click()
+  await expect(firstToggle).toHaveAttribute('aria-expanded', 'false')
+  await expect(second.getByText('Supporting details')).toBeVisible()
+  await firstToggle.click()
+  await expect(first.getByTestId(`card-story-candidate-${candidateId}`)).toBeVisible()
+  expect(roundRequests).toBe(4)
+
+  for (const width of [768, 390]) {
+    await page.setViewportSize({ width, height: 844 })
+    await expect(secondToggle).toBeVisible()
+    await expect(second.getByTestId(`button-view-content-${secondStoryId}`)).toBeVisible()
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true)
+  }
+  await page.reload()
+  await expect(firstToggle).toHaveAttribute('aria-expanded', 'false')
+  await expect(secondToggle).toHaveAttribute('aria-expanded', 'false')
+  await expect(first.getByTestId(`section-story-candidates-${storyId}`)).toBeHidden()
+})
+
 test('creator story queue persists candidates, approval, and dismissal state', async ({ page }) => {
   const contentRequests: Array<{ method: string; pathname: string }> = []
   page.on('request', (request) => {
@@ -38,7 +132,10 @@ test('creator story queue persists candidates, approval, and dismissal state', a
   await page.goto('/creator')
 
   await expect(page.getByTestId(`card-story-${storyId}`)).toBeVisible()
-  await page.getByTestId(`card-story-candidate-${candidateId}`).waitFor()
+  await page.getByTestId(`card-story-candidate-${candidateId}`).waitFor({ state: 'attached' })
+  const toggle = page.getByTestId(`button-toggle-story-${storyId}`)
+  await expect(toggle).toHaveAttribute('aria-expanded', 'false')
+  await expect(page.getByTestId(`card-story-candidate-${candidateId}`)).toBeHidden()
   expect(contentRequests).toContainEqual({ method: 'GET', pathname: '/api/content/stories' })
   expect(contentRequests).toContainEqual({
     method: 'GET',
@@ -47,11 +144,14 @@ test('creator story queue persists candidates, approval, and dismissal state', a
   expect(contentRequests).not.toContainEqual({ method: 'GET', pathname: '/api/content/ideas' })
   expect(contentRequests).not.toContainEqual({ method: 'POST', pathname: '/api/content/generate' })
   expect(contentRequests.every(({ pathname }) => !pathname.includes('player_stories'))).toBe(true)
+  await page.getByTestId(`button-view-content-${storyId}`).click()
+  await expect(toggle).toHaveAttribute('aria-expanded', 'true')
   await expect(page.getByText('Player approval required')).toBeVisible()
   await page.getByTestId(`card-story-candidate-${candidateId}`).getByText('View full details and context').click()
-  await expect(page.getByTestId('scorecard-player-name')).toHaveText(/Fixture Golfer/)
-  await expect(page.getByTestId('scorecard-front-9')).toHaveText('45')
-  await expect(page.getByTestId('scorecard-back-9')).toHaveText('40')
+  await page.getByTestId('scorecard-full-details').getByText('View full round details').click()
+  await expect(page.getByTestId('scorecard-metadata')).toContainText('Fixture Golfer')
+  await expect(page.getByTestId('scorecard-full-details')).toContainText('Front 9: 45')
+  await expect(page.getByTestId('scorecard-full-details')).toContainText('Back 9: 40')
   await expect(page.getByTestId('scorecard-hole-note-1')).toHaveText(
     /Stayed patient after the approach finished short/,
   )
@@ -62,9 +162,9 @@ test('creator story queue persists candidates, approval, and dismissal state', a
     `[data-testid="scorecard-metadata"], [data-testid="section-coaching-reflection-${storyId}"], [data-testid="card-story-candidate-${candidateId}"], [data-testid="section-share-scorecard-${storyId}"]`,
   ).evaluateAll((elements) => elements.map((element) => element.getAttribute('data-testid')))
   expect(dashboardSections).toEqual([
-    'scorecard-metadata',
-    `section-coaching-reflection-${storyId}`,
     `card-story-candidate-${candidateId}`,
+    `section-coaching-reflection-${storyId}`,
+    'scorecard-metadata',
     `section-share-scorecard-${storyId}`,
   ])
   await expect(page.getByTestId(`preview-share-scorecard-${storyId}`)).toContainText('Fixture Golf Club')
@@ -90,6 +190,8 @@ test('creator story queue persists candidates, approval, and dismissal state', a
     await route.fulfill({ response, json: body })
   })
   await page.reload()
+  await expect(toggle).toHaveAttribute('aria-expanded', 'false')
+  await toggle.click()
   const downloadButton = page.getByTestId(`button-download-scorecard-${storyId}`)
   await expect(downloadButton).toBeEnabled()
   const downloadPromise = page.waitForEvent('download')
@@ -102,7 +204,7 @@ test('creator story queue persists candidates, approval, and dismissal state', a
   })
   await downloadButton.click()
   await expect(page.getByTestId(`status-scorecard-download-error-${storyId}`)).toBeVisible()
-  await expect(page.getByTestId('scorecard-metadata')).toBeVisible()
+  await expect(page.getByTestId('scorecard-total-score')).toBeVisible()
   await expect(page.getByTestId(`section-coaching-reflection-${storyId}`)).toBeVisible()
   await expect(page.getByTestId(`card-story-candidate-${candidateId}`)).toBeVisible()
 
@@ -111,6 +213,7 @@ test('creator story queue persists candidates, approval, and dismissal state', a
   await signOut(page)
   await signIn(page)
   await page.goto('/creator')
+  await page.getByTestId(`button-toggle-story-${storyId}`).click()
   await expect(page.getByTestId(`button-request-approval-${storyId}`)).toHaveText(/Approval requested/)
 
   await page.getByTestId(`button-dismiss-story-${storyId}`).click()

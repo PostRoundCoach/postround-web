@@ -1,9 +1,8 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Calendar, CircleCheck, Clock3, Loader2, MapPin, RefreshCw, Send, Sparkles, Trash2, User } from 'lucide-react'
+import { Calendar, ChevronDown, CircleCheck, Clock3, Loader2, MapPin, RefreshCw, Send, Sparkles, Trash2, User } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { createClient } from '@/lib/supabase/client'
 import type { CreatorContentIdea, CreatorStory, RoundWebContract } from '@/lib/creator-stories/contracts'
@@ -28,6 +27,7 @@ export function StoryCard({
   const [permissionStatus, setPermissionStatus] = useState(story.permissionStatus)
   const [isRequestingApproval, setIsRequestingApproval] = useState(false)
   const [approvalRequestFailed, setApprovalRequestFailed] = useState(false)
+  const [isExpanded, setIsExpanded] = useState(false)
   const requestSequence = useRef(0)
   const activeRequest = useRef<AbortController | null>(null)
 
@@ -109,6 +109,11 @@ export function StoryCard({
     await loadCandidates(supabase, 'retry')
   }
 
+  const handleViewContent = () => {
+    setIsExpanded(true)
+    void handleRetryIdeas()
+  }
+
   const handleDismiss = async () => {
     if (isDismissing || isFetchingIdeas) return
 
@@ -155,25 +160,48 @@ export function StoryCard({
       className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm"
       data-testid={`card-story-${story.id}`}
     >
-      <div className="grid lg:grid-cols-[minmax(0,1fr)_22rem]">
-        <div className="space-y-6 p-6 sm:p-8">
-          <div>
-            <Badge
-              variant="secondary"
-              className="mb-3 border-transparent bg-primary/10 text-primary"
-            >
+      <div className="p-6 sm:p-8">
+        <button
+          type="button"
+          className="group flex w-full items-start justify-between gap-4 rounded-lg text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          aria-expanded={isExpanded}
+          aria-controls={`story-details-${story.id}`}
+          onClick={() => setIsExpanded((open) => !open)}
+          data-testid={`button-toggle-story-${story.id}`}
+        >
+          <span className="min-w-0">
+            <span className="mb-3 inline-flex items-center rounded-md bg-primary/10 px-2.5 py-0.5 text-xs font-semibold text-primary">
               Post Round follower story
-            </Badge>
-            <h2
-              className="font-serif text-2xl font-bold leading-tight sm:text-3xl"
+            </span>
+            <span
+              role="heading"
+              aria-level={2}
+              className="block break-words font-serif text-2xl font-bold leading-tight sm:text-3xl"
               data-testid={`text-story-headline-${story.id}`}
             >
               {story.headline}
-            </h2>
-            <p className="mt-3 leading-relaxed text-muted-foreground">
+            </span>
+            <span className="mt-3 block leading-relaxed text-muted-foreground">
               {story.summary}
-            </p>
-          </div>
+            </span>
+          </span>
+          <ChevronDown className={`mt-1 h-6 w-6 shrink-0 text-muted-foreground transition-transform ${isExpanded ? 'rotate-180' : ''}`} aria-hidden="true" />
+        </button>
+        <Button
+          className="mt-5 w-full sm:w-auto"
+          onClick={handleViewContent}
+          data-testid={`button-view-content-${story.id}`}
+        >
+          {isFetchingIdeas
+            ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+            : <Sparkles className="h-4 w-4" aria-hidden="true" />}
+          View generated content
+        </Button>
+      </div>
+
+      <div id={`story-details-${story.id}`} hidden={!isExpanded}>
+        <div className="grid lg:grid-cols-[minmax(0,1fr)_22rem]">
+        <div className="space-y-6 px-6 pb-6 sm:px-8 sm:pb-8">
 
           {story.supportingFacts.length > 0 && (
             <div className="rounded-xl border border-border/70 bg-muted/20 p-5">
@@ -227,25 +255,6 @@ export function StoryCard({
             <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
                View content already generated from this player’s Story and source round.
             </p>
-
-            <Button
-              className="mt-6 w-full"
-              onClick={() => void handleRetryIdeas()}
-              disabled={isFetchingIdeas}
-              data-testid={`button-view-content-${story.id}`}
-            >
-              {isFetchingIdeas ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                   Loading…
-                </>
-              ) : (
-                <>
-                  <Sparkles className="h-4 w-4" />
-                   View generated content
-                </>
-              )}
-            </Button>
 
             <Button
               type="button"
@@ -335,7 +344,7 @@ export function StoryCard({
             )}
           </div>
         </div>
-      </div>
+        </div>
 
       {candidates !== null && !isFetchingIdeas && !retrievalFailed && (
         <div
@@ -383,17 +392,30 @@ export function StoryCard({
             )}
           </div>
 
-             {roundContract && (
-               <div className="mb-8">
-                 <CreatorRoundScorecard
-                   round={roundContract.round}
-                   roundHighlights={roundContract.roundHighlights}
-                   scorecard={roundContract.scorecard}
-                 />
+              {candidates.length === 0 ? (
+             <div
+               className="rounded-xl border border-dashed border-border bg-background px-5 py-8 text-center"
+               data-testid={`status-candidates-empty-${story.id}`}
+             >
+                <p className="font-medium">Generated content is not available yet.</p>
+               <p className="mt-1 text-sm text-muted-foreground">
+                  No existing content ideas were found for this Story’s source round. You can retry retrieval later.
+               </p>
+             </div>
+           ) : (
+             <div className="space-y-6">
+               <div className="grid gap-6">
+                 {candidates.map((candidate) => (
+                   <StoryCandidateCard
+                     key={candidate.id}
+                     candidate={candidate}
+                   />
+                 ))}
                </div>
-             )}
+             </div>
+           )}
              {roundContract?.coachingReflection.available && (
-               <section className="mb-8 rounded-xl border border-border bg-background p-5" data-testid={`section-coaching-reflection-${story.id}`}>
+                <section className="mt-8 rounded-xl border border-border bg-background p-5" data-testid={`section-coaching-reflection-${story.id}`}>
                  <p className="text-xs font-bold uppercase tracking-widest text-primary">Coaching reflection</p>
                  <h3 className="mt-2 font-serif text-2xl font-bold">{roundContract.coachingReflection.content.title}</h3>
                  <p className="mt-3 font-medium">{roundContract.coachingReflection.content.hook}</p>
@@ -405,33 +427,20 @@ export function StoryCard({
                </section>
              )}
              {roundContract && !roundContract.coachingReflection.available && (
-               <div className="mb-8 rounded-xl border border-dashed border-border px-5 py-6" data-testid={`status-coaching-reflection-unavailable-${story.id}`}>
+                <div className="mt-8 rounded-xl border border-dashed border-border px-5 py-6" data-testid={`status-coaching-reflection-unavailable-${story.id}`}>
                  <p className="font-medium">Coaching reflection is not available yet.</p>
                  <p className="mt-1 text-sm text-muted-foreground">This experience is generated independently from Creator Content Story.</p>
                </div>
              )}
-             {candidates.length === 0 ? (
-            <div
-              className="rounded-xl border border-dashed border-border bg-background px-5 py-8 text-center"
-              data-testid={`status-candidates-empty-${story.id}`}
-            >
-               <p className="font-medium">Generated content is not available yet.</p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                 No existing content ideas were found for this Story’s source round. You can retry retrieval later.
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-6">
-              <div className="grid gap-6">
-                {candidates.map((candidate) => (
-                  <StoryCandidateCard
-                    key={candidate.id}
-                    candidate={candidate}
+              {roundContract && (
+                <div className="mt-8">
+                  <CreatorRoundScorecard
+                    round={roundContract.round}
+                    roundHighlights={roundContract.roundHighlights}
+                    scorecard={roundContract.scorecard}
                   />
-                ))}
-              </div>
-            </div>
-          )}
+                </div>
+              )}
            {roundContract && (
              <div className="mt-8">
                <ShareableScorecardGraphic
@@ -445,6 +454,7 @@ export function StoryCard({
            )}
         </div>
       )}
+      </div>
     </article>
   )
 }
