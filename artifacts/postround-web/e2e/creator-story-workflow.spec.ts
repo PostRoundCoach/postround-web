@@ -92,6 +92,75 @@ test('stories and their angles are visible on load and refresh without extra ret
   await expect.poll(() => roundRequests).toBe(4)
 })
 
+for (const status of ['requested', 'approved'] as const) {
+  test(`${status} stories toggle independently and retain their loaded content`, async ({ page }) => {
+    let roundRequests = 0
+    page.on('request', (request) => {
+      if (new URL(request.url()).pathname === `/api/content/round/${roundId}`) roundRequests += 1
+    })
+    await page.route('**/api/content/stories', async (route) => {
+      const response = await route.fetch()
+      const body = await response.json()
+      body.stories[0].permission_status = status
+      body.stories.push({
+        ...body.stories[0],
+        id: secondStoryId,
+        story_id: secondStoryId,
+        headline: 'Another shared round',
+      })
+      await route.fulfill({ response, json: body })
+    })
+    await page.route(`**/api/content/round/${roundId}`, async (route) => {
+      const response = await route.fetch()
+      const body = await response.json()
+      body.contract.creatorContentStory.permission.approval_requested_at = '2026-01-03T00:00:00.000Z'
+      body.contract.creatorContentStory.permission.granted_at = status === 'approved'
+        ? '2026-01-04T00:00:00.000Z' : null
+      await route.fulfill({ response, json: body })
+    })
+    await signIn(page)
+    await page.goto('/creator')
+    const first = page.getByTestId(`card-story-${storyId}`)
+    const second = page.getByTestId(`card-story-${secondStoryId}`)
+    const firstToggle = first.getByRole('button', { name: 'Expand story' })
+    const secondToggle = second.getByRole('button', { name: 'Expand story' })
+    await expect(firstToggle).toHaveAttribute('aria-expanded', 'false')
+    await expect(firstToggle).toHaveAttribute('aria-controls', `story-details-${storyId}`)
+    await expect(first.locator(`#story-details-${storyId}`)).toBeHidden()
+    await expect(secondToggle).toHaveAttribute('aria-expanded', 'false')
+    await expect(first.getByTestId(`text-story-headline-${storyId}`)).toBeVisible()
+    await expect.poll(() => roundRequests).toBe(2)
+
+    await firstToggle.click()
+    await expect(first.getByRole('button', { name: 'Collapse story' })).toHaveAttribute('aria-expanded', 'true')
+    await expect(first.getByTestId(`card-story-candidate-${candidateId}`)).toContainText('Fixture candidate summary.')
+    await expect(first.getByTestId(`section-coaching-reflection-${storyId}`)).toBeVisible()
+    await expect(first.getByTestId('scorecard-total-score')).toHaveText('85')
+    await expect(first.getByTestId(`button-copy-story-${candidateId}`)).toBeVisible()
+    await expect(first.getByTestId(`button-copy-reflection-${storyId}`)).toBeVisible()
+    await expect(secondToggle).toHaveAttribute('aria-expanded', 'false')
+    await expect(second.getByTestId(`card-story-candidate-${candidateId}`)).toBeHidden()
+    await expect(first.getByTestId(`button-download-scorecard-${storyId}`))
+      [status === 'approved' ? 'toBeEnabled' : 'toBeDisabled']()
+
+    await first.getByRole('button', { name: 'Collapse story' }).click()
+    await expect(first.getByTestId(`card-story-candidate-${candidateId}`)).toBeHidden()
+    await expect(first.getByRole('button', { name: 'Expand story' })).toHaveAttribute('aria-expanded', 'false')
+    await secondToggle.click()
+    await expect(second.getByTestId(`card-story-candidate-${candidateId}`)).toBeVisible()
+    await expect(first.getByTestId(`card-story-candidate-${candidateId}`)).toBeHidden()
+    await first.getByRole('button', { name: 'Expand story' }).click()
+    await expect(first.getByTestId(`card-story-candidate-${candidateId}`)).toBeVisible()
+    await expect(second.getByRole('button', { name: 'Collapse story' })).toHaveAttribute('aria-expanded', 'true')
+    await expect(first.getByText(status === 'approved' ? 'Approved by player' : 'Player approval required')).toBeVisible()
+    expect(roundRequests).toBe(2)
+
+    await page.setViewportSize({ width: 390, height: 844 })
+    await expect(first.getByRole('button', { name: 'Collapse story' })).toBeVisible()
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true)
+  })
+}
+
 test('Story and Reflection copy only displayed content and report clipboard failures', async ({ page }) => {
   await page.addInitScript(() => {
     const state = window as typeof window & { __copied: string[]; __copyFail: boolean }
@@ -139,7 +208,7 @@ test('Story and Reflection copy only displayed content and report clipboard fail
   await page.getByTestId(`button-copy-story-${candidateId}`).click()
   await expect(page.getByText('Failed to copy — clipboard access denied')).toBeVisible()
   await page.getByTestId(`button-copy-reflection-${storyId}`).click()
-  await expect(page.getByText('Failed to copy — clipboard access denied')).toBeVisible()
+  await expect(page.getByText('Failed to copy — clipboard access denied').last()).toBeVisible()
   expect(await page.evaluate(() => (window as typeof window & { __copied: string[] }).__copied)).toHaveLength(2)
 
   reflectionFallback = true
@@ -285,6 +354,7 @@ test('creator story queue persists candidates, approval, and dismissal state', a
   await expect(page.getByText('Player approval required')).toBeVisible()
   await expect(page.getByTestId(`button-request-approval-${storyId}`)).toBeDisabled()
   await expect(page.getByTestId(`button-request-approval-${storyId}`)).toHaveText(/Approval requested/)
+  await expect(page.getByRole('button', { name: 'Collapse story' })).toHaveAttribute('aria-expanded', 'true')
 
   await page.route(`**/api/content/round/${roundId}`, async (route) => {
     const response = await route.fetch()
@@ -293,6 +363,8 @@ test('creator story queue persists candidates, approval, and dismissal state', a
     await route.fulfill({ response, json: body })
   })
   await page.reload()
+  await expect(page.getByRole('button', { name: 'Expand story' })).toHaveAttribute('aria-expanded', 'false')
+  await page.getByRole('button', { name: 'Expand story' }).click()
   await expect(page.getByTestId(`card-story-candidate-${candidateId}`)).toBeVisible()
   const downloadButton = page.getByTestId(`button-download-scorecard-${storyId}`)
   await expect(downloadButton).toBeEnabled()
@@ -315,6 +387,8 @@ test('creator story queue persists candidates, approval, and dismissal state', a
   await signOut(page)
   await signIn(page)
   await page.goto('/creator')
+  await expect(page.getByRole('button', { name: 'Expand story' })).toBeVisible()
+  await page.getByRole('button', { name: 'Expand story' }).click()
   await expect(page.getByTestId(`card-story-candidate-${candidateId}`)).toBeVisible()
   await expect(page.getByTestId(`button-request-approval-${storyId}`)).toHaveText(/Approval requested/)
 

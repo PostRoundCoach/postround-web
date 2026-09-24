@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Calendar, CircleCheck, Clock3, Loader2, MapPin, RefreshCw, Send, Sparkles, Trash2, User } from 'lucide-react'
+import { Calendar, ChevronDown, CircleCheck, Clock3, Loader2, MapPin, RefreshCw, Send, Sparkles, Trash2, User } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { createClient } from '@/lib/supabase/client'
@@ -28,6 +28,7 @@ export function StoryCard({
   const [permissionStatus, setPermissionStatus] = useState(story.permissionStatus)
   const [isRequestingApproval, setIsRequestingApproval] = useState(false)
   const [approvalRequestFailed, setApprovalRequestFailed] = useState(false)
+  const [isExpanded, setIsExpanded] = useState(() => story.permissionStatus === 'pending')
   const requestSequence = useRef(0)
   const activeRequest = useRef<AbortController | null>(null)
 
@@ -157,16 +158,29 @@ export function StoryCard({
       data-testid={`card-story-${story.id}`}
     >
       <div className="p-6 sm:p-8">
-        <span className="mb-3 inline-flex items-center rounded-md bg-primary/10 px-2.5 py-0.5 text-xs font-semibold text-primary">
-          Post Round follower story
-        </span>
+        <div className="mb-3 flex items-start justify-between gap-4">
+          <span className="inline-flex items-center rounded-md bg-primary/10 px-2.5 py-0.5 text-xs font-semibold text-primary">
+            Post Round follower story
+          </span>
+          <button
+            type="button"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            aria-label={isExpanded ? 'Collapse story' : 'Expand story'}
+            aria-expanded={isExpanded}
+            aria-controls={`story-details-${story.id}`}
+            onClick={() => setIsExpanded((open) => !open)}
+            data-testid={`button-toggle-story-${story.id}`}
+          >
+            <ChevronDown className={`h-6 w-6 transition-transform ${isExpanded ? 'rotate-180' : ''}`} aria-hidden="true" />
+          </button>
+        </div>
         <h2 className="break-words font-serif text-2xl font-bold leading-normal" data-testid={`text-story-headline-${story.id}`}>
           {story.headline}
         </h2>
         <p className="mt-3 text-base leading-normal text-muted-foreground">{story.summary}</p>
       </div>
 
-      <div>
+      <div id={`story-details-${story.id}`} hidden={!isExpanded} className={isExpanded ? undefined : 'hidden'}>
         <div className="grid lg:grid-cols-[minmax(0,1fr)_22rem]">
         <div className="space-y-6 px-6 pb-6 sm:px-8 sm:pb-8">
 
