@@ -1,0 +1,779 @@
+# Creator Studio — Shareable Image Downloads
+
+## Objective
+
+Add on-demand downloadable shareable images to Creator Studio for:
+
+1. **Round Highlights**
+2. **Scorecard**
+3. **Round Buddy Quips**
+
+These are intended primarily as **visual overlays/assets for creator videos**, not as standalone AI-generated artwork.
+
+Do **not** generate any images when a Creator Story is first revealed or when the page loads.
+
+Each asset should be generated **only when the creator clicks its download action**, then automatically downloaded.
+
+Use deterministic rendering from existing structured data.
+
+**Do not introduce AI image generation.**
+
+---
+
+# 1. Important Architecture Rule
+
+Before implementing anything, inspect the existing Creator Studio data-loading path and reuse the data that is already being loaded.
+
+The existing Creator Studio round/story contract should remain the source of truth wherever possible.
+
+**Do not create a separate collection of Supabase queries for each download button unless the existing contract genuinely does not expose a required field.**
+
+The intended architecture is:
+
+**Existing Creator Studio data → deterministic renderer → PNG → browser download**
+
+not:
+
+**Download button → new independent Supabase data model/query → image**
+
+The renderer should receive a well-defined data object assembled from the existing Creator Studio contract.
+
+---
+
+# 2. Known Supabase Data Sources
+
+The following schemas/data have been inspected and should be treated as the known underlying sources.
+
+## `story_candidates`
+
+This is the qualification/story-candidate source.
+
+Relevant fields:
+
+* `id`
+* `round_id`
+* `user_id`
+* `story_type`
+* `significance_score`
+* `headline`
+* `summary`
+* `story_data`
+* `status`
+* `created_at`
+* `updated_at`
+
+Example:
+
+```text
+story_type: perfect_fairways
+headline: Hit every fairway — 6 of 6
+summary: An exceptionally accurate round off the tee: every fairway found, keeping the round in play throughout.
+story_data.supporting_data.fairways_hit: 6
+story_data.supporting_data.total_fairways: 6
+```
+
+Do not use `story_candidates` to re-qualify the story.
+
+It is the existing qualification/input data.
+
+Use its existing headline/summary/story data where appropriate for the Round Highlights asset.
+
+---
+
+## Creator Story / `rounds` content record
+
+The supplied existing creator-content record contains fields including:
+
+* `round_id`
+* `category`
+* `title`
+* `hook`
+* `script`
+* `stats_used`
+* `story_id`
+* `reflection`
+* `content_type`
+* `story_angle`
+* `why_interesting`
+* `angles`
+
+Example `stats_used`:
+
+```json
+{
+  "GIR": 9,
+  "score": 36,
+  "bogeys": 5,
+  "birdies": 3,
+  "three_putts": 5,
+  "fairways_hit": 6,
+  "total_fairways": 6
+}
+```
+
+Use the **existing Creator Story/round contract and its authoritative structured fields** rather than parsing prose such as `script` to extract statistics.
+
+Do not assume the supplied example object represents the raw/base `rounds` table schema. Inspect the existing query/API that provides it to Creator Studio and preserve that contract.
+
+For Round Highlights, structured stats should come from authoritative structured data wherever possible.
+
+---
+
+## `holes`
+
+Relevant fields include:
+
+* `id`
+* `round_id`
+* `hole_number`
+* `par`
+* `score`
+* `fairway_result`
+* `gir_result`
+* `distance_to_pin_yards`
+* `putts`
+* `chip_count`
+* `bunker_shot`
+* `sand_save`
+* `scramble_opportunity`
+* `scramble_success`
+* `penalty_strokes`
+* `player_notes`
+* `ai_feedback`
+* `playable_fairway_miss`
+* `playable_gir_miss`
+* `sand_shot_count`
+* `voice_transcript`
+
+Use the existing Scorecard path for scorecard rendering.
+
+Do not independently reconstruct the Scorecard from these fields if the existing Scorecard renderer already does this correctly.
+
+For Round Highlights, only use hole-level data if the existing Creator Studio contract requires it for a specific display element.
+
+---
+
+## `profiles`
+
+Relevant field:
+
+* `display_name`
+
+Use `profiles.display_name` through the existing Creator Studio data path as the player display name.
+
+Do not use email or other profile fields for display.
+
+Do not invent a display name when one is unavailable.
+
+---
+
+## `round_buddy_messages`
+
+Relevant fields:
+
+* `id`
+* `user_id`
+* `client_round_id`
+* `round_id`
+* `hole_number`
+* `speaker_type`
+* `exchange_id`
+* `turn_in_exchange`
+* `content`
+* `idempotency_key`
+* `created_at`
+
+Round Buddy quips should come from the existing stored Round Buddy data.
+
+For downloadable quips:
+
+* Use the exact stored `content`.
+* Use `speaker_type` to identify assistant/round-buddy messages.
+* Use `hole_number` when available.
+* Preserve the existing association with the Creator Studio round.
+* Do not regenerate the quip.
+* Do not paraphrase it.
+* Do not call an AI model to create a new quip.
+
+Only qualifying Round Buddy assistant messages should become downloadable Round Buddy assets.
+
+The implementation should inspect the existing application logic to determine how "qualifying" Round Buddy quips are currently identified rather than inventing a new qualification rule for this task.
+
+---
+
+## `story_permissions`
+
+Relevant fields:
+
+* `story_id`
+* `user_id`
+* `creator_id`
+* `permission_granted`
+* `granted_at`
+* `revoked_at`
+* `approval_requested_at`
+
+Do not bypass the existing Creator Studio permission/visibility logic.
+
+The download assets should only be available within the existing authorized Creator Studio story experience.
+
+Do not create a second permission system.
+
+---
+
+# 3. Round Highlights Image
+
+Create a branded horizontal image designed to sit naturally over creator video.
+
+## Canvas
+
+Use:
+
+**1080 × 480 px**
+
+This is intentionally a compact horizontal/video-overlay format.
+
+It is **not** a full-screen vertical social image.
+
+The design should have enough visual hierarchy to be readable when placed over creator video while remaining compact.
+
+## Content
+
+Build the image from existing authoritative round/story data.
+
+Potential content includes:
+
+* Player `display_name`
+* Course name
+* Round score
+* Score relative to par
+* Creator Story headline/title
+* Story highlights
+* Relevant round statistics
+* Other structured information already exposed by the Creator Studio contract
+
+Only display information that actually exists in the data.
+
+**Never invent, infer, or hallucinate statistics.**
+
+### Important
+
+Prefer authoritative structured round aggregates already established by the application.
+
+Do not scrape numbers out of the generated Creator Story `script`.
+
+Do not recalculate authoritative round statistics from holes unless the existing application architecture specifically requires it.
+
+For example, if structured data says:
+
+```json
+{
+  "score": 36,
+  "birdies": 3,
+  "bogeys": 5,
+  "three_putts": 5,
+  "fairways_hit": 6,
+  "total_fairways": 6,
+  "GIR": 9
+}
+```
+
+the renderer can safely use those values.
+
+It should not independently count holes to arrive at a potentially different result.
+
+## Branding
+
+Every Round Highlights image should include:
+
+**Post Round**
+**Play. Learn. Share.**
+
+Branding is part of the deterministic template.
+
+## Output
+
+Render as a PNG.
+
+Use an overlay-friendly rendering approach with transparency where appropriate.
+
+Do not create an opaque full-background image unless required by the established visual design.
+
+## Generation behavior
+
+When the creator clicks:
+
+**Download Round Highlights**
+
+the application should:
+
+1. Gather the already-loaded Creator Studio data.
+2. Render the 1080×480 asset deterministically.
+3. Encode it as a PNG.
+4. Automatically download it.
+5. Make no AI/model call.
+
+Show button-specific loading/progress while rendering.
+
+Prevent duplicate concurrent generation from rapid repeated clicks.
+
+---
+
+# 4. Scorecard Image
+
+Keep the existing larger Scorecard image format and existing Scorecard image-generation behavior.
+
+**Do not redesign or unnecessarily rewrite the existing Scorecard renderer.**
+
+First inspect the current Scorecard image-generation/download implementation and reuse its existing:
+
+* Rendering utilities
+* Canvas setup
+* Typography
+* Branding
+* PNG generation
+* Download handling
+* Scorecard layout
+* Existing scorecard data logic
+
+The Scorecard should continue to be generated **only when the creator clicks Download Scorecard**.
+
+---
+
+## Critical change: remove Round Buddy from Scorecard
+
+The Scorecard image must contain **no Round Buddy content**.
+
+Specifically:
+
+* No Round Buddy quips
+* No Round Buddy section
+* No Round Buddy labels
+* No Round Buddy commentary
+* No Round Buddy messages
+* No Round Buddy-derived copy
+
+Remove any existing Round Buddy reference from the Scorecard image-generation/rendering path.
+
+The Scorecard should represent the scorecard and relevant scorecard/round information only.
+
+Do not add Round Buddy content as part of this task.
+
+### Important architectural separation
+
+The three asset types are intentionally separate:
+
+**Round Highlights**
+→ Creator Story + authoritative round data
+
+**Scorecard**
+→ Existing Scorecard renderer/data path
+
+**Round Buddy**
+→ Stored Round Buddy assistant messages
+
+Do not merge these data sources simply because they all appear in Creator Studio.
+
+## Generation behavior
+
+When the creator clicks:
+
+**Download Scorecard**
+
+the application should:
+
+1. Use the existing Scorecard renderer.
+2. Generate the image on demand.
+3. Encode/download it using the existing mechanism.
+4. Preserve existing Scorecard behavior and appearance except for removing Round Buddy references.
+
+Do not generate it when the story loads.
+
+---
+
+# 5. Round Buddy Quip Images
+
+Round Buddy quips should be available as **individual downloadable horizontal overlays**.
+
+## Canvas
+
+Use:
+
+**1080 × 480 px**
+
+Use the same general visual language and dimensions as Round Highlights.
+
+## Content
+
+Each qualifying Round Buddy assistant quip gets its own downloadable image.
+
+Conceptually:
+
+**ROUND BUDDY**
+
+> “That was ambitious.”
+
+**HOLE 14**
+
+The actual text must come directly from stored `round_buddy_messages.content`.
+
+### Do not modify the quip
+
+Do not:
+
+* Rewrite
+* Paraphrase
+* Improve
+* Summarize
+* Regenerate
+* Ask an AI model to recreate
+
+the stored quip.
+
+Render the actual stored content.
+
+If `hole_number` exists, it may be displayed.
+
+If it does not exist, do not invent one.
+
+## Selecting qualifying quips
+
+Use the application's existing Round Buddy qualification logic if one already exists.
+
+Do not invent a new scoring/qualification algorithm as part of this task.
+
+The likely source is:
+
+`round_buddy_messages`
+
+filtered to the appropriate:
+
+* `round_id`
+* user/story context
+* `speaker_type = assistant`
+
+but inspect the existing application logic before implementing the final filter.
+
+## Branding
+
+Each Round Buddy image should include:
+
+**Post Round**
+**Play. Learn. Share.**
+
+Branding is deterministic.
+
+## Output
+
+Render as:
+
+**1080 × 480 transparent/overlay-friendly PNG**
+
+## Generation behavior
+
+Each quip should have its own:
+
+**Download**
+
+action.
+
+When clicked:
+
+1. Render only that quip.
+2. Use the 1080×480 PNG format.
+3. Automatically download it.
+4. Make no AI/model call.
+5. Prevent duplicate rapid clicks.
+
+Do **not** add a "Download All" action at this stage.
+
+## Empty state
+
+If there are no qualifying Round Buddy quips:
+
+* Do not display an empty Round Buddy download section.
+* Do not generate placeholder quips.
+* Do not generate an image.
+
+---
+
+# 6. Overlay-Friendly Rendering
+
+These assets are intended to be placed over creator video.
+
+For:
+
+* Round Highlights
+* Round Buddy Quips
+
+use an overlay-friendly PNG with transparency where appropriate.
+
+The visual design should avoid unnecessarily large opaque backgrounds.
+
+The graphic should feel like a polished Post Round layer that a creator can place over video.
+
+For Scorecard:
+
+* Preserve the existing Scorecard output format.
+* Do not rewrite the renderer simply to make it consistent with the new overlay assets.
+* If the existing renderer already supports transparent PNG output cleanly, it may be reused.
+* Otherwise, leave its existing format intact.
+
+Do not introduce a second image-generation infrastructure solely to support transparency.
+
+---
+
+# 7. Shared Rendering Architecture
+
+Before implementing anything, inspect the existing Scorecard image-generation code.
+
+The goal is to establish a small shared deterministic asset-rendering layer where practical.
+
+Reuse existing infrastructure for:
+
+* Canvas creation
+* Font loading
+* Typography
+* Post Round branding
+* PNG encoding
+* Browser download behavior
+* Rendering utilities
+
+Create separate renderers/templates for:
+
+* `RoundHighlights`
+* `Scorecard`
+* `RoundBuddyQuip`
+
+Do not duplicate existing Scorecard infrastructure unnecessarily.
+
+The intended architecture is:
+
+**Creator Studio contract/data → renderer → PNG → download**
+
+not:
+
+**Creator Story reveal → image generation**
+
+and not:
+
+**each download button → independent Supabase query**
+
+unless the existing contract genuinely lacks the required data.
+
+---
+
+# 8. Creator Story Loading
+
+Opening/revealing a Creator Story must remain fast.
+
+**Do not generate any images during story loading.**
+
+Loading the story should only load the content/data necessary to display Creator Studio.
+
+Images are generated strictly on demand.
+
+Expected behavior:
+
+* Story opens → no image generation
+* Click Download Round Highlights → generate Round Highlights
+* Click Download Scorecard → generate Scorecard
+* Click Download Quip #1 → generate only Quip #1
+
+This keeps normal Creator Studio interaction responsive.
+
+---
+
+# 9. Creator Studio UI
+
+Add a clear share/download area associated with the round/story.
+
+Suggested structure:
+
+## Shareable Assets
+
+### Round Highlights
+
+Short explanation that this is a compact video overlay.
+
+`Download Round Highlights`
+
+### Scorecard
+
+Existing scorecard download.
+
+`Download Scorecard`
+
+### Round Buddy
+
+Show this section only when qualifying Round Buddy quips exist.
+
+Each quip gets its own download action.
+
+Example:
+
+* Hole 6 — `Download`
+* Hole 7 — `Download`
+* Hole 8 — `Download`
+
+Keep the UI compact and creator-focused.
+
+Do not make image generation a prerequisite for viewing the Creator Story.
+
+---
+
+# 10. Data Integrity Rules
+
+## Round Highlights
+
+Primary sources:
+
+1. Existing Creator Studio round/story contract
+2. `story_candidates`
+3. `profiles.display_name`
+4. Authoritative structured round aggregates
+
+Use structured data.
+
+Do not parse generated prose to recover statistics.
+
+Do not invent missing values.
+
+## Scorecard
+
+Primary source:
+
+**Existing Scorecard data/rendering path**
+
+Do not replace it with a new Supabase query.
+
+Remove Round Buddy from the rendering path.
+
+## Round Buddy
+
+Primary source:
+
+**`round_buddy_messages`**
+
+Use stored assistant messages.
+
+Do not generate new content during image creation.
+
+## Permissions
+
+Continue respecting the existing:
+
+**`story_permissions`**
+
+logic and Creator Studio authorization.
+
+Do not create a new permission path.
+
+---
+
+# 11. Tests
+
+Add/extend tests covering the complete behavior.
+
+## General
+
+Verify:
+
+* Creator Story loads without generating any images.
+* No AI/model call occurs when the story opens.
+* Each download action generates only its requested asset.
+* PNG output is produced.
+* Browser download is triggered.
+* Rapid repeated clicks do not create duplicate concurrent generations.
+* Correct Post Round branding appears.
+* Actual loaded Creator Studio data is used.
+* No unnecessary duplicate Supabase query is introduced.
+
+## Round Highlights
+
+Verify:
+
+* Canvas/output is **1080×480**.
+* Correct round data is rendered.
+* `profiles.display_name` is used when available.
+* Structured round statistics are used.
+* No invented statistics appear.
+* Story headline/content comes from existing story data.
+* Branding is present.
+* Transparency/overlay-friendly output is preserved.
+* Asset generation occurs only after clicking Download Round Highlights.
+
+## Scorecard
+
+Verify:
+
+* Existing Scorecard image-generation behavior continues to work.
+* Existing Scorecard dimensions/output remain unchanged.
+* Round Buddy quips are **not present anywhere in the Scorecard image**.
+* No Round Buddy query is required by the Scorecard renderer.
+* Download still works.
+* Scorecard is not generated on story load.
+
+## Round Buddy
+
+Verify:
+
+* Only qualifying assistant Round Buddy messages are offered.
+* Each qualifying quip gets an individual download action.
+* Each generated asset is **1080×480**.
+* Exact stored `round_buddy_messages.content` is rendered.
+* Hole number is correct when available.
+* Branding is present.
+* No quip is rewritten or regenerated.
+* No Round Buddy section appears when there are no qualifying quips.
+* No "Download All" action is added.
+* Only the clicked quip is generated.
+* No AI/model call occurs.
+
+---
+
+# 12. Implementation Constraints
+
+1. **Do not use AI image generation.**
+2. **Do not generate images when Creator Story loads.**
+3. Generate each asset only on explicit creator download.
+4. Round Highlights = **1080×480 horizontal PNG**.
+5. Round Buddy Quips = **1080×480 horizontal PNG**.
+6. Scorecard remains its existing larger image format.
+7. Remove all Round Buddy references from Scorecard image rendering.
+8. Reuse the existing Scorecard image-generation/download infrastructure.
+9. Reuse the existing Creator Studio data contract wherever possible.
+10. Do not introduce unnecessary duplicate Supabase queries.
+11. Do not invent round statistics, hole information, or quip text.
+12. Use authoritative structured data rather than parsing generated prose.
+13. Preserve existing Creator Story behavior.
+14. Keep the UI responsive while an image is being generated.
+15. Prevent duplicate generation from rapid repeated clicks.
+16. Respect existing story permission/authorization logic.
+17. Keep Post Round / **Play. Learn. Share.** branding consistent across all assets.
+18. Do not add a "Download All" feature in this task.
+
+---
+
+# Definition of Done
+
+A creator can open a Creator Story immediately without waiting for image generation.
+
+From Creator Studio they can independently:
+
+* Download a **1080×480 Round Highlights overlay**
+* Download the existing larger **Scorecard image**
+* Download each qualifying **Round Buddy quip as an individual 1080×480 overlay**
+
+Each asset:
+
+* Is generated only when requested.
+* Is automatically downloaded as a PNG.
+* Uses real application data.
+* Uses the existing Creator Studio data architecture.
+* Uses consistent Post Round branding.
+* Does not require AI image generation.
+
+The Scorecard contains **no Round Buddy references**.
+
+Round Highlights and Round Buddy use compact horizontal, overlay-friendly dimensions suitable for placement over creator video.
