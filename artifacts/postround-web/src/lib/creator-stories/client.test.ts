@@ -100,11 +100,8 @@ const roundContract = {
   scorecard: [{
     hole: 1, par: 4, score: 5, fairway: 'long', gir: 'long', putts: 2, chips: 1,
     bunker: false, sand_save: null, penalties: 0, player_note: 'Good drive',
+    voice_transcript: 'Full player words.\n\nAnother thought.',
   }],
-  roundBuddyMessages: [
-    { id: 'quip-1', content: 'Exact stored assistant quip.', hole_number: 4 },
-    { id: 'quip-2', content: 'Another assistant quip.', hole_number: null },
-  ],
   creatorContentStory: {
     available: true,
     permissionState: 'granted',
@@ -152,7 +149,6 @@ test('loads and strictly parses the authenticated round contract', async () => {
       'coachingReflection',
       'creatorContentStory',
       'round',
-      'roundBuddyMessages',
       'roundHighlights',
       'scorecard',
     ])
@@ -161,7 +157,8 @@ test('loads and strictly parses the authenticated round contract', async () => {
     assert.equal(result.contract.scorecard[0]?.player_note, 'Good drive')
     assert.equal(result.contract.roundHighlights.score_to_par, 20)
     assert.equal(result.contract.roundHighlights.triple_bogeys, 0)
-    assert.deepEqual(result.contract.roundBuddyMessages, roundContract.roundBuddyMessages)
+    assert.equal(result.contract.scorecard[0]?.voice_transcript, 'Full player words.\n\nAnother thought.')
+    assert.equal('roundBuddyMessages' in result.contract, false)
     assert.deepEqual(request, {
       url: 'https://api.postround.test/api/content/round/round-1',
       authorization: 'Bearer round-token',
@@ -199,7 +196,7 @@ test('rejects malformed round contracts without weakening documented nullability
   }
 })
 
-test('rejects malformed message payloads rather than exporting unrelated or fabricated text', async () => {
+test('rejects malformed transcripts without fabricating text; nullable attribution stays nullable', async () => {
   const originalFetch = globalThis.fetch
   const originalApiBase = process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL
   process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL = 'https://api.postround.test'
@@ -207,19 +204,22 @@ test('rejects malformed message payloads rather than exporting unrelated or fabr
     return { data: { session: { access_token: 'round-token' } }, error: null }
   } } } as unknown as SupabaseClient
   try {
-    for (const messages of [undefined, [{ id: 'bad', content: '', hole_number: null }],
-      [{ id: 'bad', content: 'Stored', hole_number: '4' }]]) {
+    for (const transcript of [undefined, 42, { content: 'assistant text' }]) {
       globalThis.fetch = (async () => Response.json({
-        ok: true, contract: { ...roundContract, roundBuddyMessages: messages },
+        ok: true, contract: { ...roundContract, scorecard: [
+          { ...roundContract.scorecard[0], voice_transcript: transcript },
+        ] },
       })) as typeof fetch
       await assert.rejects(fetchRoundContract(supabase, 'round-1'), CreatorStoryApiError)
     }
     globalThis.fetch = (async () => Response.json({
-      ok: true, contract: { ...roundContract, roundBuddyMessages: [], round: {
+      ok: true, contract: { ...roundContract, scorecard: [
+        { ...roundContract.scorecard[0], voice_transcript: null },
+      ], round: {
         ...roundContract.round, course_name: null, player_display_name: null,
       } },
     })) as typeof fetch
-    assert.deepEqual((await fetchRoundContract(supabase, 'round-1')).contract.roundBuddyMessages, [])
+    assert.equal((await fetchRoundContract(supabase, 'round-1')).contract.round.player_display_name, null)
   } finally {
     globalThis.fetch = originalFetch
     if (originalApiBase === undefined) delete process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL

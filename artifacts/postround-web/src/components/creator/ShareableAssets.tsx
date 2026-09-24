@@ -1,11 +1,12 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { Fragment, useRef, useState } from 'react'
 import { Download, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import type { RoundWebContract } from '@/lib/creator-stories/contracts'
 import { downloadSvgPng, safeFilePart } from './asset-export'
-import { highlightsSvg, OVERLAY_SIZE, roundBuddySvg } from './overlay-assets'
+import { highlightsSvg, OVERLAY_SIZE, playerNoteSvg } from './overlay-assets'
+import { selectPlayerNotes } from './playerNotes'
 
 export function ShareableAssets({ contract, storyId, approved }: {
   contract: RoundWebContract
@@ -35,21 +36,20 @@ export function ShareableAssets({ contract, storyId, approved }: {
   }
 
   const prefix = safeFilePart(contract.round.course_name)
-  const options = [
-    {
-      key: 'highlights', label: 'Round Highlights',
-      render: () => highlightsSvg(
-        contract.creatorContentStory.available ? contract.creatorContentStory.candidate.headline : '',
-        contract.round, contract.roundHighlights,
-      ),
-      filename: `${prefix}-round-highlights.png`,
-    },
-    ...contract.roundBuddyMessages.map((message, index) => ({
-      key: `buddy-${index}`, label: `Round Buddy${message.hole_number === null ? '' : ` · Hole ${message.hole_number}`}`,
-      render: () => roundBuddySvg(message),
-      filename: `${prefix}-round-buddy-${index + 1}.png`,
-    })),
-  ]
+  const playerName = contract.round.player_display_name?.trim()
+  const notes = playerName ? selectPlayerNotes(contract.scorecard) : []
+  const options = [{
+    key: 'highlights', label: 'Round Highlights',
+    render: () => highlightsSvg(
+      contract.creatorContentStory.available ? contract.creatorContentStory.candidate.headline : '',
+      contract.round, contract.roundHighlights,
+    ),
+    filename: `${prefix}-round-highlights.png`,
+  }, ...notes.map((hole) => ({
+    key: `note-${hole.hole}`, label: `Player Note · Hole ${hole.hole}`,
+    render: () => playerNoteSvg(hole.hole, playerName!, hole.voice_transcript!),
+    filename: `${prefix}-player-note-hole-${hole.hole}.png`,
+  }))]
 
   return (
     <section className="rounded-xl border border-border bg-muted/20 p-4 sm:p-5" data-testid={`section-shareable-assets-${storyId}`}>
@@ -58,19 +58,22 @@ export function ShareableAssets({ contract, storyId, approved }: {
         Transparent 1080 × 480 video overlays. {approved ? 'Ready to download.' : 'Player approval is required to download.'}
       </p>
       <div className="mt-4 grid gap-2">
-        {options.map((option) => (
-          <div key={option.key} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-background p-3">
-            <span className="text-sm font-medium">{option.label}</span>
-            <Button type="button" size="sm" variant="outline"
-              disabled={!approved || busy.includes(option.key)}
-              aria-busy={busy.includes(option.key)}
-              data-testid={`button-download-${option.key}-${storyId}`}
-              onClick={() => void download(option.key, option.render, option.filename)}>
-              {busy.includes(option.key) ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-              {busy.includes(option.key) ? 'Generating…' : `Download ${option.label}`}
-            </Button>
-            {errors[option.key] && <p className="w-full text-sm text-destructive" role="alert" data-testid={`status-${option.key}-download-error-${storyId}`}>{errors[option.key]}</p>}
-          </div>
+        {options.map((option, index) => (
+          <Fragment key={option.key}>
+            {index === 1 && <h4 className="pt-2 text-sm font-semibold">Player Notes via Round Buddy</h4>}
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-background p-3">
+              <span className="text-sm font-medium">{option.label}</span>
+              <Button type="button" size="sm" variant="outline"
+                disabled={!approved || busy.includes(option.key)}
+                aria-busy={busy.includes(option.key)}
+                data-testid={`button-download-${option.key}-${storyId}`}
+                onClick={() => void download(option.key, option.render, option.filename)}>
+                {busy.includes(option.key) ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                {busy.includes(option.key) ? 'Generating…' : `Download ${option.label}`}
+              </Button>
+              {errors[option.key] && <p className="w-full text-sm text-destructive" role="alert" data-testid={`status-${option.key}-download-error-${storyId}`}>{errors[option.key]}</p>}
+            </div>
+          </Fragment>
         ))}
       </div>
     </section>

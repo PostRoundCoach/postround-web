@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { highlightsSvg, roundBuddySvg, OVERLAY_SIZE } from './overlay-assets.ts'
+import { highlightsSvg, playerNoteSvg, OVERLAY_SIZE } from './overlay-assets.ts'
 import type { RoundHighlights } from '../../lib/creator-stories/contracts.ts'
 
 const originalDocument = globalThis.document
@@ -29,15 +29,22 @@ test('overlays use stored content and nullable data without eager canvas work or
     // The frame starts at x=40/y=40; corners are unpainted and retain PNG alpha.
     assert.doesNotMatch(svg, /<rect x="0" y="0"/)
 
-    const exact = 'Stored "assistant" message & reply.'
-    const buddy = roundBuddySvg({ id: 'm1', content: exact, hole_number: 7 })
-    assert.match(buddy, /ROUND BUDDY  •  HOLE 7/)
-    assert.match(buddy, /Stored &quot;assistant&quot; message &amp; reply\./)
-    assert.doesNotMatch(roundBuddySvg({ id: 'm2', content: exact, hole_number: null }), /HOLE/)
-    const longText = 'Stay with the shot. '.repeat(40)
-    assert.ok(roundBuddySvg({ id: 'm3', content: longText, hole_number: null }).includes('Stay with the shot.'))
-    assert.throws(() => roundBuddySvg({ id: 'm4', content: 'Very long. '.repeat(5000), hole_number: null }),
+    const exact = 'Just missed the fairway left, nice approach shot, hit the green, beautiful long putt. 25 feet for Birdie.\n\nOne pot.'
+    const note = playerNoteSvg(7, 'BirdieDog', exact)
+    assert.match(note, /PLAYER NOTE  •  HOLE 7/)
+    assert.match(note, /In the words of BirdieDog:/)
+    assert.match(note, /Just missed the fairway left/)
+    assert.match(note, /25 feet for Birdie\./)
+    assert.match(note, /<tspan x="82" dy="[^"]*"><\/tspan><tspan x="82"/)
+    assert.match(note, /One pot\./)
+    assert.doesNotMatch(note, /assistant message|ROUND BUDDY/)
+    assert.match(note, /Play\. Learn\. Share\./)
+    assert.doesNotMatch(note, /<rect x="0" y="0"/)
+    const longText = 'Stay with the shot. '.repeat(22)
+    assert.ok(playerNoteSvg(1, 'Another Player', longText).includes('Stay with the shot.'))
+    assert.throws(() => playerNoteSvg(4, 'BirdieDog', 'Very long. '.repeat(5000)),
       /too long to fit legibly/)
+    assert.throws(() => playerNoteSvg(4, '', exact), /Player name/)
   } finally {
     globalThis.document = originalDocument
   }

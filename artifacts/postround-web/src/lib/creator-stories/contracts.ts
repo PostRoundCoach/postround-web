@@ -189,12 +189,7 @@ export interface RoundScorecardEntry {
   sand_save: boolean | null
   penalties: number | null
   player_note: string | null
-}
-
-export interface RoundBuddyMessage {
-  id: string
-  content: string
-  hole_number: number | null
+  voice_transcript: string | null
 }
 
 export interface StoryPermissionTimestamps {
@@ -260,7 +255,6 @@ export interface RoundWebContract {
   round: RoundSummary
   roundHighlights: RoundHighlights
   scorecard: RoundScorecardEntry[]
-  roundBuddyMessages: RoundBuddyMessage[]
   creatorContentStory: RoundCreatorContentStory
   coachingReflection: RoundCoachingReflection
 }

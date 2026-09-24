@@ -27,9 +27,9 @@ test('orders authoritative non-zero scoring categories from exceptional to ordin
 
 test('selects only evidence-backed standout and notable holes while preserving notes', () => {
   const holes: RoundScorecardEntry[] = [
-    { hole: 1, par: 4, score: 3, fairway: 'hit', gir: 'hit', putts: 1, chips: 0, bunker: false, sand_save: null, penalties: 0, player_note: 'Made a 20-foot putt' },
-    { hole: 2, par: 4, score: 7, fairway: 'left', gir: 'short', putts: 2, chips: 2, bunker: false, sand_save: null, penalties: 1, player_note: null },
-    { hole: 3, par: 4, score: 4, fairway: 'hit', gir: 'hit', putts: 2, chips: 0, bunker: false, sand_save: null, penalties: 0, player_note: null },
+    { hole: 1, par: 4, score: 3, fairway: 'hit', gir: 'hit', putts: 1, chips: 0, bunker: false, sand_save: null, penalties: 0, player_note: 'Made a 20-foot putt', voice_transcript: null },
+    { hole: 2, par: 4, score: 7, fairway: 'left', gir: 'short', putts: 2, chips: 2, bunker: false, sand_save: null, penalties: 1, player_note: null, voice_transcript: null },
+    { hole: 3, par: 4, score: 4, fairway: 'hit', gir: 'hit', putts: 2, chips: 0, bunker: false, sand_save: null, penalties: 0, player_note: null, voice_transcript: null },
   ]
   const moments = selectRoundMoments(holes)
   assert.deepEqual(moments.standout, [{ hole: 1, label: 'Birdie', description: 'Made a 20-foot putt' }])

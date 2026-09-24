@@ -240,6 +240,21 @@ test('unavailable or empty content never offers a misleading Copy action', async
 })
 
 test('approved story downloads independent transparent overlays and the existing scorecard without fetching again', async ({ page }) => {
+  await page.addInitScript(() => {
+    const original = URL.createObjectURL.bind(URL)
+    const state = window as typeof window & { __svgExports: string[]; __encodes: number }
+    state.__svgExports = []
+    state.__encodes = 0
+    URL.createObjectURL = (blob: Blob | MediaSource) => {
+      if (blob instanceof Blob && blob.type.includes('svg')) void blob.text().then((text) => state.__svgExports.push(text))
+      return original(blob)
+    }
+    const toBlob = HTMLCanvasElement.prototype.toBlob
+    HTMLCanvasElement.prototype.toBlob = function (...args) {
+      state.__encodes++
+      return toBlob.apply(this, args)
+    }
+  })
   let roundRequests = 0
   const contentRequests: string[] = []
   page.on('request', (request) => {
@@ -251,20 +266,24 @@ test('approved story downloads independent transparent overlays and the existing
     const response = await route.fetch()
     const body = await response.json()
     body.contract.creatorContentStory.permission.granted_at = '2026-01-03T00:00:00.000Z'
-    body.contract.roundBuddyMessages[1].content = 'Keep going. '.repeat(60)
+    body.contract.round.player_display_name = 'BirdieDog'
+    body.contract.roundBuddyMessages = [{ content: 'An assistant message that must never be exported.' }]
     await route.fulfill({ response, json: body })
   })
   await signIn(page)
   await page.goto('/creator')
   await page.getByTestId(`button-download-highlights-${storyId}`).waitFor()
-  await expect(page.getByTestId(`section-shareable-assets-${storyId}`)).toContainText('Round Buddy · Hole 4')
-  await expect(page.getByTestId(`button-download-buddy-0-${storyId}`)).toBeEnabled()
-  await expect(page.getByTestId(`button-download-buddy-1-${storyId}`)).toBeEnabled()
+  await expect(page.getByTestId(`section-shareable-assets-${storyId}`)).toContainText('Player Notes via Round Buddy')
+  for (const hole of [1, 4, 7]) await expect(page.getByTestId(`button-download-note-${hole}-${storyId}`)).toBeEnabled()
+  for (const hole of [2, 3, 5, 6, 8, 9]) await expect(page.getByTestId(`button-download-note-${hole}-${storyId}`)).toHaveCount(0)
+  await expect(page.getByRole('button', { name: /Download Player Note · Hole 7/ })).toHaveCount(1)
+  expect(await page.evaluate(() => (window as typeof window & { __encodes: number }).__encodes)).toBe(0)
   const before = contentRequests.length
   for (const [testId, filename, width, height] of [
     [`button-download-highlights-${storyId}`, 'fixture-golf-club-round-highlights.png', 1080, 480],
-    [`button-download-buddy-0-${storyId}`, 'fixture-golf-club-round-buddy-1.png', 1080, 480],
-    [`button-download-buddy-1-${storyId}`, 'fixture-golf-club-round-buddy-2.png', 1080, 480],
+    [`button-download-note-1-${storyId}`, 'fixture-golf-club-player-note-hole-1.png', 1080, 480],
+    [`button-download-note-4-${storyId}`, 'fixture-golf-club-player-note-hole-4.png', 1080, 480],
+    [`button-download-note-7-${storyId}`, 'fixture-golf-club-player-note-hole-7.png', 1080, 480],
     [`button-download-scorecard-${storyId}`, 'fixture-golf-club-scorecard.png', 1080, 1350],
   ] as const) {
     const promise = page.waitForEvent('download')
@@ -277,6 +296,22 @@ test('approved story downloads independent transparent overlays and the existing
     expect(png.readUInt32BE(20)).toBe(height)
     expect(png[25]).toBe(6) // RGBA, retains alpha for video overlays.
   }
+  await expect.poll(() => page.evaluate(() => (window as typeof window & { __svgExports: string[] }).__svgExports.filter((svg) => svg.includes('PLAYER NOTE')).length)).toBe(3)
+  const svgs = await page.evaluate(() => (window as typeof window & { __svgExports: string[] }).__svgExports)
+  expect(svgs.some((svg) => svg.includes('ROUND HIGHLIGHTS'))).toBe(true)
+  const notes = svgs.filter((svg) => svg.includes('PLAYER NOTE'))
+  for (const [index, transcript] of [
+    'First hole, hit the fairway with my 3-wood and hold out for an eagle, no putts.',
+    'Long, massive drive down the middle of the fairway, hit the green, one putt for Birdie.',
+    'Just missed the fairway left, nice approach shot, hit the green, beautiful long putt. 25 feet for Birdie.\n\nOne pot.',
+  ].entries()) {
+    const svg = notes[index]
+    expect(svg).toContain('In the words of BirdieDog:')
+    expect(svg).not.toContain('An assistant message')
+    const lines = [...svg.matchAll(/<tspan x="82" dy="[^"]*">([^<]*)<\/tspan>/g)].map((match) => match[1])
+    expect(lines.join(' ').replace(/\s+/g, ' ')).toContain(transcript.replace(/\s+/g, ' '))
+    if (index === 2) expect(lines).toContain('')
+  }
   expect(contentRequests).toHaveLength(before)
   expect(roundRequests).toBe(1)
   const scorecardSvg = await page.getByTestId(`preview-share-scorecard-${storyId}`).evaluate((svg) => svg.outerHTML)
@@ -284,11 +319,10 @@ test('approved story downloads independent transparent overlays and the existing
   expect(scorecardSvg).toContain('Includes player notes')
 })
 
-test('unapproved and empty-message stories offer no quip downloads and do not encode images on reveal', async ({ page }) => {
+test('unapproved and unattributed stories offer no note downloads and do not encode images on reveal', async ({ page }) => {
   await page.route(`**/api/content/round/${roundId}`, async (route) => {
     const response = await route.fetch()
     const body = await response.json()
-    body.contract.roundBuddyMessages = []
     body.contract.round.player_display_name = null
     body.contract.roundHighlights.total_score = null
     await route.fulfill({ response, json: body })
@@ -306,7 +340,37 @@ test('unapproved and empty-message stories offer no quip downloads and do not en
   await page.getByTestId(`button-download-highlights-${storyId}`).waitFor()
   expect(await page.evaluate(() => (window as typeof window & { __encodes: number }).__encodes)).toBe(0)
   await expect(page.getByTestId(`button-download-highlights-${storyId}`)).toBeDisabled()
-  await expect(page.getByTestId(`button-download-buddy-0-${storyId}`)).toHaveCount(0)
+  await expect(page.getByTestId(`button-download-note-1-${storyId}`)).toHaveCount(0)
+})
+
+test('player approval gates notes and an oversized transcript reports an individual export error', async ({ page }) => {
+  await page.route(`**/api/content/round/${roundId}`, async (route) => {
+    const response = await route.fetch()
+    const body = await response.json()
+    body.contract.round.player_display_name = 'BirdieDog'
+    body.contract.scorecard[6].voice_transcript = 'This is much too long to render. '.repeat(500)
+    await route.fulfill({ response, json: body })
+  })
+  await signIn(page)
+  await page.goto('/creator')
+  const note = page.getByTestId(`button-download-note-7-${storyId}`)
+  await expect(note).toBeDisabled()
+  await expect(page.getByTestId(`button-download-note-1-${storyId}`)).toBeDisabled()
+  await page.unroute(`**/api/content/round/${roundId}`)
+  await page.route(`**/api/content/round/${roundId}`, async (route) => {
+    const response = await route.fetch()
+    const body = await response.json()
+    body.contract.round.player_display_name = 'BirdieDog'
+    body.contract.creatorContentStory.permission.granted_at = '2026-01-03T00:00:00.000Z'
+    body.contract.scorecard[6].voice_transcript = 'This is much too long to render. '.repeat(500)
+    await route.fulfill({ response, json: body })
+  })
+  await page.reload()
+  await expect(note).toBeEnabled()
+  await note.click()
+  await expect(page.getByTestId(`status-note-7-download-error-${storyId}`)).toContainText('too long to fit legibly')
+  await expect(page.getByTestId(`button-download-note-1-${storyId}`)).toBeEnabled()
+  await expect(page.getByTestId(`button-download-scorecard-${storyId}`)).toBeEnabled()
 })
 
 test('available content refresh is read-only, in place, guarded, and recoverable', async ({ page }) => {
@@ -396,7 +460,7 @@ test('creator story queue persists candidates, approval, and dismissal state', a
   await expect(page.getByTestId('scorecard-full-details')).toContainText('Front 9: 45')
   await expect(page.getByTestId('scorecard-full-details')).toContainText('Back 9: 40')
   await expect(page.getByTestId('scorecard-hole-note-1')).toHaveText(
-    /Stayed patient after the approach finished short/,
+    /hold out for an eagle/,
   )
   await expect(page.getByTestId(`section-coaching-reflection-${storyId}`)).toContainText(
     'The round stabilized when the player stayed patient.',

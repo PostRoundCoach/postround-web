@@ -1,4 +1,4 @@
-import type { RoundHighlights, RoundSummary, RoundBuddyMessage } from '@/lib/creator-stories/contracts'
+import type { RoundHighlights, RoundSummary } from '@/lib/creator-stories/contracts'
 
 const WIDTH = 1080
 const HEIGHT = 480
@@ -61,7 +61,9 @@ export function highlightsSvg(headline: string, round: RoundSummary, stats: Roun
     ${facts ? textBlock(facts, 82, 360, 916, 32, 21) : ''}`)
 }
 
-export function roundBuddySvg(message: RoundBuddyMessage) {
-  return frame(message.hole_number === null ? 'ROUND BUDDY' : `ROUND BUDDY  •  HOLE ${message.hole_number}`,
-    textBlock(message.content, 82, 164, 916, 224, 34))
+export function playerNoteSvg(hole: number, playerName: string, transcript: string) {
+  if (!playerName.trim() || !transcript.trim()) throw new Error('Player name and transcript are required for this note.')
+  return frame(`PLAYER NOTE  •  HOLE ${hole}`,
+    `${textBlock(`In the words of ${playerName}:`, 82, 151, 916, 50, 27).replace('fill="#fff"', 'fill="#a8e0b5"')}
+    ${textBlock(transcript, 82, 205, 916, 178, 30)}`)
 }

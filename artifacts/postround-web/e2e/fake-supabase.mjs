@@ -171,11 +171,20 @@ const roundContract = {
     albatrosses: candidate.round.albatrosses,
     hole_in_one: candidate.round.hole_in_one,
   },
-  scorecard: candidate.round.scorecard,
-  roundBuddyMessages: [
-    { id: 'quip-1', content: 'The putt found the center of the cup.', hole_number: 4 },
-    { id: 'quip-2', content: 'You kept your composure.', hole_number: null },
-  ],
+  scorecard: Array.from({ length: 9 }, (_, index) => {
+    const hole = index + 1
+    const notes = {
+      1: ['hold out for an eagle', 'First hole, hit the fairway with my 3-wood and hold out for an eagle, no putts.'],
+      4: ['Long drive, hit green, one putt for birdie.', 'Long, massive drive down the middle of the fairway, hit the green, one putt for Birdie.'],
+      7: ['nice approach shot, beautiful long putt', 'Just missed the fairway left, nice approach shot, hit the green, beautiful long putt. 25 feet for Birdie.\n\nOne pot.'],
+    }
+    const [player_note, voice_transcript] = notes[hole] ?? [null, [2, 6, 8, 9].includes(hole) ? 'An ordinary hole transcript.' : null]
+    return {
+      ...candidate.round.scorecard[0], hole, par: 4,
+      score: hole === 1 ? 2 : hole === 4 || hole === 7 ? 3 : 4,
+      player_note, voice_transcript,
+    }
+  }),
   creatorContentStory: {
     available: true,
     permissionState: 'granted',

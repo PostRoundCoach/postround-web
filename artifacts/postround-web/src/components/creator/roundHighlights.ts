@@ -30,7 +30,7 @@ export function relativeToPar(value: number | null): string {
   return value > 0 ? `+${value}` : String(value)
 }
 
-function scoreLabel(hole: RoundScorecardEntry): string | null {
+function scoreLabel(hole: Pick<RoundScorecardEntry, 'score' | 'par'>): string | null {
   if (hole.score === null || hole.par === null) return null
   const difference = hole.score - hole.par
   if (hole.score === 1) return 'Hole-in-one'
@@ -50,7 +50,7 @@ function conciseNote(note: string | null): string | null {
   return normalized.length > 90 ? `${normalized.slice(0, 89).trimEnd()}…` : normalized
 }
 
-export function selectRoundMoments(scorecard: RoundScorecardEntry[]): {
+export function selectRoundMoments(scorecard: Pick<RoundScorecardEntry, 'hole' | 'par' | 'score' | 'penalties' | 'chips' | 'player_note'>[]): {
   standout: HighlightMoment[]
   other: HighlightMoment[]
 } {

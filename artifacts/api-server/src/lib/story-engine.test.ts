@@ -1085,6 +1085,7 @@ test("round web contract authorizes by round and returns isolated experiences", 
   const storyId = "11111111-1111-1111-1111-111111111111";
   const playerId = "dddddddd-dddd-dddd-dddd-dddddddddddd";
   const paths: string[] = [];
+  let approved = true;
   const context: SupabaseRequestContext = {
     ...requestContext,
     proxy: async (path) => {
@@ -1096,7 +1097,7 @@ test("round web contract authorizes by round and returns isolated experiences", 
       }]);
       if (path.includes("story_permissions?")) return Response.json([{
         id: "permission", story_id: storyId, user_id: playerId, permission_granted: true,
-        approval_requested_at: null, granted_at: "2026-09-10T12:00:00Z", revoked_at: null,
+        approval_requested_at: null, granted_at: approved ? "2026-09-10T12:00:00Z" : null, revoked_at: null,
       }]);
       if (path.includes("rounds?")) return Response.json([{
         id: roundId, user_id: playerId, played_at: "2026-09-09", course_name: "Pebble Beach",
@@ -1112,16 +1113,13 @@ test("round web contract authorizes by round and returns isolated experiences", 
         {
           hole_number: 2, par: 3, score: 4, fairway_result: "none", gir_result: "short",
           putts: 2, chip_count: 1, bunker_shot: false, sand_save: null, penalty_strokes: 0, player_notes: null,
+          voice_transcript: "Ordinary hole transcript",
         },
         {
           hole_number: 1, par: 4, score: 5, fairway_result: "long", gir_result: "long",
           putts: 2, chip_count: 1, bunker_shot: false, sand_save: null, penalty_strokes: 0,
-          player_notes: "Good drive",
+          player_notes: "Good drive", voice_transcript: "Full player words.\n\nSecond paragraph.",
         },
-      ]);
-      if (path.includes("round_buddy_messages?")) return Response.json([
-        { id: "quip-1", content: "Exact assistant words.", hole_number: 4, round_id: roundId, user_id: playerId, speaker_type: "assistant" },
-        { id: "quip-2", content: "Another assistant message.", hole_number: null, round_id: roundId, user_id: playerId, speaker_type: "assistant" },
       ]);
       if (path.includes("content_type=eq.creator_story")) return Response.json([{
         id: "idea-1", category: "Surprise", title: "A turn", hook: "The turn changed everything",
@@ -1142,13 +1140,14 @@ test("round web contract authorizes by round and returns isolated experiences", 
     "course_name", "played_at", "player_display_name", "tees",
   ]);
   assert.deepEqual(contract.scorecard.map((hole) => hole.hole), [1, 2]);
-  assert.deepEqual(contract.roundBuddyMessages, [
-    { id: "quip-1", content: "Exact assistant words.", hole_number: 4 },
-    { id: "quip-2", content: "Another assistant message.", hole_number: null },
-  ]);
-  assert.ok(paths.some((path) => path.includes("round_buddy_messages?")
-    && path.includes(`round_id=eq.${roundId}`) && path.includes(`user_id=eq.${playerId}`)
-    && path.includes("speaker_type=eq.assistant") && path.includes("limit=50")));
+  assert.equal(contract.scorecard[0]?.voice_transcript, "Full player words.\n\nSecond paragraph.");
+  assert.equal(contract.scorecard[1]?.voice_transcript, "Ordinary hole transcript");
+  assert.ok(paths.some((path) => path.includes("holes?select=")
+    && path.includes("player_notes,voice_transcript") && path.includes(`round_id=eq.${roundId}`)));
+  assert.ok(paths.some((path) => path.includes("profiles?select=display_name")
+    && path.includes(`id=eq.${playerId}`)));
+  assert.ok(paths.every((path) => !path.includes("round_buddy_messages?")));
+  assert.equal("roundBuddyMessages" in contract, false);
   assert.equal(contract.creatorContentStory.available, true);
   assert.equal(contract.creatorContentStory.contentIdea?.id, "idea-1");
   assert.deepEqual(contract.creatorContentStory.contentIdea?.angles, [
@@ -1157,6 +1156,10 @@ test("round web contract authorizes by round and returns isolated experiences", 
   assert.equal(contract.coachingReflection.available, true);
   assert.ok(paths.every((path) => !path.includes("player_stories")));
   assert.ok(paths.some((path) => path.includes(`round_id=eq.${roundId}`)));
+  approved = false;
+  const pending = await fetchRoundWebContract(context, roundId);
+  assert.deepEqual(pending.scorecard.map((hole) => hole.voice_transcript), [null, null]);
+  assert.equal(pending.scorecard[0]?.player_note, "Good drive");
 });
 
 test("round web contract rejects an ineligible candidate before reading the round", async () => {
@@ -1178,14 +1181,10 @@ test("round web contract rejects an ineligible candidate before reading the roun
   assert.ok(!paths.some((path) => path.includes("round_buddy_messages?")));
 });
 
-test("round web contract fails closed on mismatched or unavailable assistant messages", async () => {
+test("round web contract fails closed when authorized hole data is unavailable", async () => {
   const roundId = "cccccccc-cccc-cccc-cccc-cccccccccccc";
   const playerId = "dddddddd-dddd-dddd-dddd-dddddddddddd";
-  for (const messageResponse of [
-    Response.json([{ id: "wrong", content: "Not this player's", hole_number: 1,
-      round_id: roundId, user_id: "other", speaker_type: "assistant" }]),
-    new Response("Unavailable", { status: 503 }),
-  ]) {
+  for (const holeResponse of [new Response("Unavailable", { status: 503 })]) {
     const context: SupabaseRequestContext = {
       ...requestContext,
       proxy: async (path) => {
@@ -1198,7 +1197,7 @@ test("round web contract fails closed on mismatched or unavailable assistant mes
           granted_at: null, revoked_at: null, approval_requested_at: null,
         }]);
         if (path.includes("rounds?")) return Response.json([{ id: roundId, user_id: playerId, played_at: "2026-09-09", course_name: null, tees: null }]);
-        if (path.includes("round_buddy_messages?")) return messageResponse.clone();
+        if (path.includes("holes?")) return holeResponse.clone();
         return Response.json([]);
       },
     };

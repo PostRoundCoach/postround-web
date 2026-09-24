@@ -277,11 +277,12 @@ function parseRoundScorecard(value: unknown): RoundScorecardEntry[] | null {
       || !isIntOrNull(hole.chips) || !isIntOrNull(hole.penalties)
       || !isFairway(hole.fairway) || !isGir(hole.gir)
       || !isBooleanOrNull(hole.bunker) || !isBooleanOrNull(hole.sand_save)
-      || !isStringOrNull(hole.player_note)) return null
+      || !isStringOrNull(hole.player_note) || !isStringOrNull(hole.voice_transcript)) return null
     result.push({
       hole: hole.hole, par: hole.par, score: hole.score, fairway: hole.fairway,
       gir: hole.gir, putts: hole.putts, chips: hole.chips, bunker: hole.bunker,
       sand_save: hole.sand_save, penalties: hole.penalties, player_note: hole.player_note,
+      voice_transcript: hole.voice_transcript,
     })
   }
   return result
@@ -317,14 +318,6 @@ function parseRoundContentIdea(value: unknown): RoundContentIdea | null {
 
 function parseRoundContract(value: unknown): RoundWebContract | null {
   const root = asObject(value)
-  const messages = root?.roundBuddyMessages
-  if (!Array.isArray(messages) || messages.length > 50) return null
-  const roundBuddyMessages = messages.map(asObject)
-  if (roundBuddyMessages.some((message) => !message
-    || typeof message.id !== 'string' || typeof message.content !== 'string'
-    || !message.content.trim()
-    || (message.hole_number !== null && (typeof message.hole_number !== 'number'
-      || !Number.isInteger(message.hole_number) || message.hole_number < 1 || message.hole_number > 18)))) return null
   const round = asObject(root?.round)
   const highlights = parseRoundHighlights(root?.roundHighlights)
   const scorecard = parseRoundScorecard(root?.scorecard)
@@ -382,10 +375,6 @@ function parseRoundContract(value: unknown): RoundWebContract | null {
       player_display_name: round.player_display_name,
     },
     roundHighlights: highlights, scorecard, creatorContentStory, coachingReflection,
-    roundBuddyMessages: roundBuddyMessages.map((message) => ({
-      id: message!.id as string, content: message!.content as string,
-      hole_number: message!.hole_number as number | null,
-    })),
   }
 }
 
