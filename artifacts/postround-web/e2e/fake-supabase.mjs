@@ -12,6 +12,10 @@ const users = {
     creator: true,
   },
 }
+let delays = { login: 0, profile: 0, stories: 0 }
+let failLogin = false
+let creatorAllowed = true
+let failProfile = false
 
 const storyId = '20000000-0000-4000-8000-000000000001'
 const creatorId = '10000000-0000-4000-8000-000000000002'
@@ -262,6 +266,20 @@ const server = http.createServer((request, response) => {
 
   const url = new URL(request.url ?? '/', 'http://127.0.0.1:54321')
 
+  if (request.method === 'POST' && url.pathname === '/__test/config') {
+    let body = ''
+    request.on('data', (chunk) => { body += chunk })
+    request.on('end', () => {
+      const config = JSON.parse(body || '{}')
+      delays = { login: 0, profile: 0, stories: 0, ...config.delays }
+      failLogin = Boolean(config.failLogin)
+      creatorAllowed = config.creatorAllowed !== false
+      failProfile = Boolean(config.failProfile)
+      send(response, 200, {})
+    })
+    return
+  }
+
   if (request.method === 'POST' && url.pathname === '/auth/v1/token') {
     let body = ''
     request.on('data', (chunk) => { body += chunk })
@@ -278,14 +296,15 @@ const server = http.createServer((request, response) => {
         ? Object.values(users).find(({ id }) => credentials.refresh_token === `refresh-${id}`)
         : users[credentials.email]
       if (!user) return send(response, 400, { message: 'Invalid login credentials' })
+      if (failLogin) return setTimeout(() => send(response, 503, { message: 'Sign in temporarily unavailable' }), delays.login)
 
-      send(response, 200, {
+      setTimeout(() => send(response, 200, {
         access_token: tokenFor(user),
         expires_in: 3600,
         refresh_token: `refresh-${user.id}`,
         token_type: 'bearer',
         user: userResponse(user),
-      })
+      }), delays.login)
     })
     return
   }
@@ -318,13 +337,13 @@ const server = http.createServer((request, response) => {
   }
 
   if (request.method === 'GET' && url.pathname === '/api/content/stories') {
-    return send(response, 200, {
+    return setTimeout(() => send(response, 200, {
       ok: true,
       stories: dismissed ? [] : [{
         ...story,
         permission_status: approved ? 'approved' : approvalRequested ? 'requested' : 'pending',
       }],
-    })
+    }), delays.stories)
   }
 
   if (request.method === 'GET' && url.pathname === `/api/content/round/${story.round_id}`) {
@@ -350,6 +369,7 @@ const server = http.createServer((request, response) => {
   }
 
   if (request.method === 'GET' && url.pathname === '/rest/v1/creator_profiles') {
+    if (failProfile) return setTimeout(() => send(response, 503, { message: 'Profile unavailable' }), delays.profile)
     const user = userFromRequest(request)
     const slugFilter = url.searchParams.get('slug')
     const statusFilter = url.searchParams.get('status')
@@ -358,7 +378,7 @@ const server = http.createServer((request, response) => {
       const profile = statusFilter === 'eq.active' ? publicCreators[slug] ?? null : null
       return send(response, 200, profile)
     }
-    const profile = user?.creator
+    const profile = user?.creator && creatorAllowed
       ? {
           id: '10000000-0000-4000-8000-000000000002',
           user_id: user.id,
@@ -372,7 +392,7 @@ const server = http.createServer((request, response) => {
           updated_at: '2026-01-01T00:00:00.000Z',
         }
       : null
-    return send(response, 200, profile)
+    return setTimeout(() => send(response, 200, profile), delays.profile)
   }
 
   if (request.method === 'GET' && url.pathname === '/rest/v1/profiles') {

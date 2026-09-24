@@ -8,6 +8,7 @@ import Link from 'next/link'
 import { CreatorContentTile } from '@/components/dashboard/CreatorContentTile'
 import { fetchCreatorLandingSummary } from '@/lib/creator-stories/client'
 import { getDashboardCreatorProfile } from '@/lib/creator-stories/server-profile'
+import { PortalTransitionReady } from '@/components/portal/PortalTransition'
 
 interface Profile {
   display_name: string | null
@@ -109,6 +110,7 @@ export default async function DashboardPage({
 
   return (
     <div className="p-6 lg:p-8 max-w-7xl mx-auto">
+      <PortalTransitionReady path="/dashboard" />
       {/* Admin access denied banner */}
       {errorParam === 'admin_required' && (
         <div className="mb-6 flex items-center gap-3 rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">

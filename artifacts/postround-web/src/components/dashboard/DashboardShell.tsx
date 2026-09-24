@@ -13,6 +13,7 @@ import { SignOutButton } from '@/components/auth/SignOutButton'
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
 import { getDashboardNavItems } from './navigation'
+import { PortalTransitionLink } from '@/components/portal/PortalTransition'
 
 interface DashboardShellProps {
   children: React.ReactNode
@@ -52,7 +53,17 @@ function Sidebar({
           const isActive = pathname === item.href
           
           return (
-            <Link
+            item.href === '/creator' ? <PortalTransitionLink
+              key={item.href}
+              href="/creator"
+              className={cn(
+                'flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors text-sm font-medium',
+                'text-gray-300 hover:bg-[#1B5E35]/20 hover:text-white'
+              )}
+            >
+              <Icon className="h-5 w-5" />
+              {item.label}
+            </PortalTransitionLink> : <Link
               key={item.href}
               href={item.href}
               className={cn(

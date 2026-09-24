@@ -1,6 +1,6 @@
 'use client'
 
-import { Suspense, useState, FormEvent } from 'react'
+import { Suspense, useRef, useState, FormEvent } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Loader2, Mail, Eye, EyeOff } from 'lucide-react'
+import { usePortalTransition } from '@/components/portal/PortalTransition'
 
 function LoginForm() {
   const router = useRouter()
@@ -17,6 +18,8 @@ function LoginForm() {
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const submissionLocked = useRef(false)
+  const { begin, end } = usePortalTransition()
 
   const supabase = createClient()
 
@@ -32,34 +35,53 @@ function LoginForm() {
 
   const handleSignIn = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault()
+    if (submissionLocked.current) return
+    const nextParam = searchParams.get('next')
+    const safeNext = nextParam === '/delete-account' ? nextParam : '/dashboard'
+    if (!begin(safeNext, () => {
+      submissionLocked.current = false
+      setIsLoading(false)
+      setError('Sign in took too long. Please try again.')
+    })) return
+    submissionLocked.current = true
     setIsLoading(true)
     setError(null)
 
-    const { error: signInError } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    })
+    try {
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      })
 
-    setIsLoading(false)
-
-    if (signInError) {
-      if (
-        signInError.message.toLowerCase().includes('invalid login') ||
-        signInError.message.toLowerCase().includes('invalid credentials') ||
-        signInError.status === 400
-      ) {
-        setError('Incorrect email or password. Please try again.')
-      } else {
-        setError(signInError.message)
+      if (signInError) {
+        if (
+          signInError.message.toLowerCase().includes('invalid login') ||
+          signInError.message.toLowerCase().includes('invalid credentials') ||
+          signInError.status === 400
+        ) {
+          setError('Incorrect email or password. Please try again.')
+        } else if (
+          !signInError.message || signInError.message === '{}'
+          || (signInError.status ?? 0) >= 500 || /failed to fetch/i.test(signInError.message)
+        ) {
+          setError('We couldn’t sign you in. Please try again.')
+        } else {
+          setError(signInError.message)
+        }
+        end()
+        submissionLocked.current = false
+        setIsLoading(false)
+        return
       }
-      return
+
+      router.push(safeNext)
+      router.refresh()
+    } catch {
+      end()
+      submissionLocked.current = false
+      setIsLoading(false)
+      setError('We couldn’t sign you in. Please try again.')
     }
-
-    const nextParam = searchParams.get('next')
-    const safeNext = nextParam === '/delete-account' ? nextParam : '/dashboard'
-
-    router.push(safeNext)
-    router.refresh()
   }
 
   return (

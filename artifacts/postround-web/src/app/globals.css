@@ -148,6 +148,15 @@
   }
 }
 
+@keyframes portal-loading-appear {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.portal-loading-delay {
+  opacity: 0;
+  animation: portal-loading-appear 0s 200ms forwards;
+}
+
 @layer components {
   .legal-content {
     @apply space-y-10 text-base leading-7 text-muted-foreground;

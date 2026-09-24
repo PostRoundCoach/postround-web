@@ -1,4 +1,4 @@
-import Link from 'next/link'
+import { PortalTransitionLink } from '@/components/portal/PortalTransition'
 import { ArrowRight, PenLine } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import type { CreatorLandingSummary } from '@/lib/creator-stories/client'
@@ -17,12 +17,12 @@ export function CreatorContentTile({ summary }: { summary: CreatorLandingSummary
             {creatorTileMetrics(summary).map((metric) => <span key={metric}>{metric}</span>)}
           </div>
         </div>
-        <Link
+        <PortalTransitionLink
           href="/creator"
           className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-md bg-[#D4AF37] px-4 py-2 text-sm font-semibold text-[#0D1B12] hover:bg-[#C19F27] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#D4AF37]"
         >
           Open Creator Studio <ArrowRight className="h-4 w-4" aria-hidden="true" />
-        </Link>
+        </PortalTransitionLink>
       </CardContent>
     </Card>
   )
