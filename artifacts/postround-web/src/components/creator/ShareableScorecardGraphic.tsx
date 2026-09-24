@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { Download, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
@@ -10,6 +10,7 @@ import type {
   RoundSummary,
   StoryPermissionStatus,
 } from '@/lib/creator-stories/contracts'
+import { downloadSvgPng, safeFilePart } from './asset-export'
 
 const WIDTH = 1080
 const HEIGHT = 1350
@@ -23,14 +24,6 @@ function scoreToPar(highlights: RoundHighlights) {
   const difference = highlights.total_score - highlights.course_par
   if (difference === 0) return 'E'
   return difference > 0 ? `+${difference}` : String(difference)
-}
-
-function safeFilePart(value: string | null) {
-  return (value || 'round-scorecard')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-|-$/g, '')
-    .slice(0, 60) || 'round-scorecard'
 }
 
 export function ShareableScorecardGraphic({
@@ -49,6 +42,7 @@ export function ShareableScorecardGraphic({
   const [includeNotes, setIncludeNotes] = useState(true)
   const [isDownloading, setIsDownloading] = useState(false)
   const [downloadFailed, setDownloadFailed] = useState(false)
+  const downloading = useRef(false)
   const canExport = permissionStatus === 'approved'
   const sortedHoles = useMemo(
     () => [...scorecard].sort((a, b) => a.hole - b.hole),
@@ -56,7 +50,8 @@ export function ShareableScorecardGraphic({
   )
 
   const handleDownload = async () => {
-    if (!canExport || isDownloading) return
+    if (!canExport || downloading.current) return
+    downloading.current = true
     setIsDownloading(true)
     setDownloadFailed(false)
 
@@ -64,38 +59,12 @@ export function ShareableScorecardGraphic({
       const svg = document.querySelector<SVGSVGElement>(`#share-scorecard-${graphicId}`)
       if (!svg) throw new Error('Scorecard preview is unavailable')
 
-      const serialized = new XMLSerializer().serializeToString(svg)
-      const source = new Blob([serialized], { type: 'image/svg+xml;charset=utf-8' })
-      const sourceUrl = URL.createObjectURL(source)
-
-      try {
-        const image = new Image()
-        image.decoding = 'async'
-        image.src = sourceUrl
-        await image.decode()
-
-        const canvas = document.createElement('canvas')
-        canvas.width = WIDTH
-        canvas.height = HEIGHT
-        const context = canvas.getContext('2d')
-        if (!context) throw new Error('Image rendering is unavailable')
-        context.drawImage(image, 0, 0, WIDTH, HEIGHT)
-
-        const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'))
-        if (!blob) throw new Error('Image generation failed')
-
-        const downloadUrl = URL.createObjectURL(blob)
-        const link = document.createElement('a')
-        link.href = downloadUrl
-        link.download = `${safeFilePart(round.course_name)}-scorecard.png`
-        link.click()
-        URL.revokeObjectURL(downloadUrl)
-      } finally {
-        URL.revokeObjectURL(sourceUrl)
-      }
+      await downloadSvgPng(new XMLSerializer().serializeToString(svg), WIDTH, HEIGHT,
+        `${safeFilePart(round.course_name)}-scorecard.png`)
     } catch {
       setDownloadFailed(true)
     } finally {
+      downloading.current = false
       setIsDownloading(false)
     }
   }
@@ -110,7 +79,7 @@ export function ShareableScorecardGraphic({
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <label htmlFor={`notes-${graphicId}`} className="text-sm font-medium">Round Buddy notes</label>
+          <label htmlFor={`notes-${graphicId}`} className="text-sm font-medium">Player notes</label>
           <Switch
             id={`notes-${graphicId}`}
             checked={includeNotes}
@@ -183,7 +152,7 @@ export function ShareableScorecardGraphic({
           ))}
 
           <text x="540" y="1260" textAnchor="middle" fill="#68736d" fontFamily="Arial, sans-serif" fontSize="18">
-            {includeNotes ? 'Includes Round Buddy notes' : 'Scorecard only'}  •  postround.co
+             {includeNotes ? 'Includes player notes' : 'Scorecard only'}  •  postround.co
           </text>
         </svg>
       </div>

@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { readFile } from 'node:fs/promises'
 
 test.setTimeout(90_000)
 
@@ -236,6 +237,76 @@ test('unavailable or empty content never offers a misleading Copy action', async
   await expect(page.getByTestId(`status-candidates-empty-${storyId}`)).toBeVisible()
   await expect(page.getByTestId(`button-copy-story-${candidateId}`)).toHaveCount(0)
   await expect(page.getByTestId(`button-copy-reflection-${storyId}`)).toHaveCount(0)
+})
+
+test('approved story downloads independent transparent overlays and the existing scorecard without fetching again', async ({ page }) => {
+  let roundRequests = 0
+  const contentRequests: string[] = []
+  page.on('request', (request) => {
+    const path = new URL(request.url()).pathname
+    if (path.startsWith('/api/content/')) contentRequests.push(path)
+    if (path === `/api/content/round/${roundId}`) roundRequests++
+  })
+  await page.route(`**/api/content/round/${roundId}`, async (route) => {
+    const response = await route.fetch()
+    const body = await response.json()
+    body.contract.creatorContentStory.permission.granted_at = '2026-01-03T00:00:00.000Z'
+    body.contract.roundBuddyMessages[1].content = 'Keep going. '.repeat(60)
+    await route.fulfill({ response, json: body })
+  })
+  await signIn(page)
+  await page.goto('/creator')
+  await page.getByTestId(`button-download-highlights-${storyId}`).waitFor()
+  await expect(page.getByTestId(`section-shareable-assets-${storyId}`)).toContainText('Round Buddy · Hole 4')
+  await expect(page.getByTestId(`button-download-buddy-0-${storyId}`)).toBeEnabled()
+  await expect(page.getByTestId(`button-download-buddy-1-${storyId}`)).toBeEnabled()
+  const before = contentRequests.length
+  for (const [testId, filename, width, height] of [
+    [`button-download-highlights-${storyId}`, 'fixture-golf-club-round-highlights.png', 1080, 480],
+    [`button-download-buddy-0-${storyId}`, 'fixture-golf-club-round-buddy-1.png', 1080, 480],
+    [`button-download-buddy-1-${storyId}`, 'fixture-golf-club-round-buddy-2.png', 1080, 480],
+    [`button-download-scorecard-${storyId}`, 'fixture-golf-club-scorecard.png', 1080, 1350],
+  ] as const) {
+    const promise = page.waitForEvent('download')
+    await page.getByTestId(testId).click()
+    const download = await promise
+    expect(download.suggestedFilename()).toBe(filename)
+    const png = await readFile(await download.path())
+    expect(png.subarray(0, 8).toString('hex')).toBe('89504e470d0a1a0a')
+    expect(png.readUInt32BE(16)).toBe(width)
+    expect(png.readUInt32BE(20)).toBe(height)
+    expect(png[25]).toBe(6) // RGBA, retains alpha for video overlays.
+  }
+  expect(contentRequests).toHaveLength(before)
+  expect(roundRequests).toBe(1)
+  const scorecardSvg = await page.getByTestId(`preview-share-scorecard-${storyId}`).evaluate((svg) => svg.outerHTML)
+  expect(scorecardSvg).not.toContain('Round Buddy')
+  expect(scorecardSvg).toContain('Includes player notes')
+})
+
+test('unapproved and empty-message stories offer no quip downloads and do not encode images on reveal', async ({ page }) => {
+  await page.route(`**/api/content/round/${roundId}`, async (route) => {
+    const response = await route.fetch()
+    const body = await response.json()
+    body.contract.roundBuddyMessages = []
+    body.contract.round.player_display_name = null
+    body.contract.roundHighlights.total_score = null
+    await route.fulfill({ response, json: body })
+  })
+  await page.addInitScript(() => {
+    const original = HTMLCanvasElement.prototype.toBlob
+    ;(window as typeof window & { __encodes: number }).__encodes = 0
+    HTMLCanvasElement.prototype.toBlob = function (...args) {
+      ;(window as typeof window & { __encodes: number }).__encodes++
+      return original.apply(this, args)
+    }
+  })
+  await signIn(page)
+  await page.goto('/creator')
+  await page.getByTestId(`button-download-highlights-${storyId}`).waitFor()
+  expect(await page.evaluate(() => (window as typeof window & { __encodes: number }).__encodes)).toBe(0)
+  await expect(page.getByTestId(`button-download-highlights-${storyId}`)).toBeDisabled()
+  await expect(page.getByTestId(`button-download-buddy-0-${storyId}`)).toHaveCount(0)
 })
 
 test('available content refresh is read-only, in place, guarded, and recoverable', async ({ page }) => {

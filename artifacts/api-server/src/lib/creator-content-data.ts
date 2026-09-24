@@ -6,6 +6,7 @@ import type {
   CreatorEditorialAngle,
   CreatorContentStory,
   RoundHighlights,
+  RoundBuddyMessage,
   RoundSummary,
   RoundWebContract,
   ScorecardEntry,
@@ -550,7 +551,7 @@ async function fetchRoundWebContractData(
   const round = rounds[0];
   if (!round) throw new CreatorContentError(404, "The requested round does not exist.");
 
-  const [profilesForRound, holes, creatorIdeas, coachingIdeas] = await Promise.all([
+  const [profilesForRound, holes, creatorIdeas, coachingIdeas, messages] = await Promise.all([
     rest<RoundProfileRow[]>(
       context,
       `profiles?select=display_name&id=eq.${encodeURIComponent(round.user_id)}&limit=1`,
@@ -567,7 +568,17 @@ async function fetchRoundWebContractData(
       context,
       `content_ideas?select=id,category,title,hook,script,story_angle,why_interesting,reflection,created_at,status,content_type,angles&round_id=eq.${encodeURIComponent(roundId)}&story_id=eq.${encodeURIComponent(candidate.id)}&category=eq.coaching_reflection&status=neq.generating&order=created_at.asc,id.asc&limit=1`,
     ),
+    rest<(RoundBuddyMessage & { round_id: string; user_id: string; speaker_type: string })[]>(
+      context,
+      `round_buddy_messages?select=id,content,hole_number,round_id,user_id,speaker_type&round_id=eq.${encodeURIComponent(roundId)}&user_id=eq.${encodeURIComponent(round.user_id)}&speaker_type=eq.assistant&content=not.is.null&order=created_at.asc,id.asc&limit=50`,
+    ),
   ]);
+  if (!Array.isArray(messages) || messages.some((message) =>
+    typeof message.id !== "string" || typeof message.content !== "string"
+    || !message.content.trim()
+    || message.round_id !== roundId || message.user_id !== round.user_id || message.speaker_type !== "assistant"
+    || (message.hole_number !== null && (!Number.isInteger(message.hole_number) || message.hole_number < 1 || message.hole_number > 18))
+  )) throw new CreatorContentError(500, "The Round Buddy message contract is invalid.");
 
   const candidateSummary: StoryCandidateSummary = {
     id: candidate.id, story_type: candidate.story_type, headline: candidate.headline,
@@ -606,6 +617,7 @@ async function fetchRoundWebContractData(
     },
     roundHighlights: mapRoundHighlights(round),
     scorecard,
+    roundBuddyMessages: messages.map(({ id, content, hole_number }) => ({ id, content, hole_number })),
     creatorContentStory,
     coachingReflection,
   };

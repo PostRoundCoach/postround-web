@@ -191,6 +191,12 @@ export interface RoundScorecardEntry {
   player_note: string | null
 }
 
+export interface RoundBuddyMessage {
+  id: string
+  content: string
+  hole_number: number | null
+}
+
 export interface StoryPermissionTimestamps {
   granted_at: string | null
   revoked_at: string | null
@@ -254,6 +260,7 @@ export interface RoundWebContract {
   round: RoundSummary
   roundHighlights: RoundHighlights
   scorecard: RoundScorecardEntry[]
+  roundBuddyMessages: RoundBuddyMessage[]
   creatorContentStory: RoundCreatorContentStory
   coachingReflection: RoundCoachingReflection
 }

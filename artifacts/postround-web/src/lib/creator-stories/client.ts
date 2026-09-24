@@ -317,6 +317,14 @@ function parseRoundContentIdea(value: unknown): RoundContentIdea | null {
 
 function parseRoundContract(value: unknown): RoundWebContract | null {
   const root = asObject(value)
+  const messages = root?.roundBuddyMessages
+  if (!Array.isArray(messages) || messages.length > 50) return null
+  const roundBuddyMessages = messages.map(asObject)
+  if (roundBuddyMessages.some((message) => !message
+    || typeof message.id !== 'string' || typeof message.content !== 'string'
+    || !message.content.trim()
+    || (message.hole_number !== null && (typeof message.hole_number !== 'number'
+      || !Number.isInteger(message.hole_number) || message.hole_number < 1 || message.hole_number > 18)))) return null
   const round = asObject(root?.round)
   const highlights = parseRoundHighlights(root?.roundHighlights)
   const scorecard = parseRoundScorecard(root?.scorecard)
@@ -374,6 +382,10 @@ function parseRoundContract(value: unknown): RoundWebContract | null {
       player_display_name: round.player_display_name,
     },
     roundHighlights: highlights, scorecard, creatorContentStory, coachingReflection,
+    roundBuddyMessages: roundBuddyMessages.map((message) => ({
+      id: message!.id as string, content: message!.content as string,
+      hole_number: message!.hole_number as number | null,
+    })),
   }
 }
 

@@ -10,6 +10,7 @@ import { fetchRoundContract, dismissCreatorStory, requestStoryApproval } from '@
 import { StoryCandidateCard } from './StoryCandidateCard'
 import { CreatorRoundScorecard } from './CreatorRoundScorecard'
 import { ShareableScorecardGraphic } from './ShareableScorecardGraphic'
+import { ShareableAssets } from './ShareableAssets'
 import { CreatorCopyButton, creatorCopyText } from './CreatorCopyButton'
 
 export function StoryCard({
@@ -432,14 +433,20 @@ export function StoryCard({
                   />
                 </div>
               )}
-           {roundContract && (
+            {roundContract && roundContract.creatorContentStory.available
+              && roundContract.creatorContentStory.candidate.id === story.id && (
              <div className="mt-8">
+                <ShareableAssets contract={roundContract} storyId={story.id}
+                  approved={permissionStatus === 'approved' && !!roundContract.creatorContentStory.permission.granted_at
+                    && roundContract.creatorContentStory.permission.revoked_at === null} />
+                <div className="mt-4" />
                <ShareableScorecardGraphic
                  graphicId={story.id}
                  round={roundContract.round}
                  roundHighlights={roundContract.roundHighlights}
                  scorecard={roundContract.scorecard}
-                 permissionStatus={permissionStatus}
+                  permissionStatus={permissionStatus === 'approved' && !!roundContract.creatorContentStory.permission.granted_at
+                    && roundContract.creatorContentStory.permission.revoked_at === null ? 'approved' : 'pending'}
                />
              </div>
            )}

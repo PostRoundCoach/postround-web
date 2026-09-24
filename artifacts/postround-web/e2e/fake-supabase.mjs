@@ -172,6 +172,10 @@ const roundContract = {
     hole_in_one: candidate.round.hole_in_one,
   },
   scorecard: candidate.round.scorecard,
+  roundBuddyMessages: [
+    { id: 'quip-1', content: 'The putt found the center of the cup.', hole_number: 4 },
+    { id: 'quip-2', content: 'You kept your composure.', hole_number: null },
+  ],
   creatorContentStory: {
     available: true,
     permissionState: 'granted',

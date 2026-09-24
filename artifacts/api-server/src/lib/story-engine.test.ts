@@ -1119,6 +1119,10 @@ test("round web contract authorizes by round and returns isolated experiences", 
           player_notes: "Good drive",
         },
       ]);
+      if (path.includes("round_buddy_messages?")) return Response.json([
+        { id: "quip-1", content: "Exact assistant words.", hole_number: 4, round_id: roundId, user_id: playerId, speaker_type: "assistant" },
+        { id: "quip-2", content: "Another assistant message.", hole_number: null, round_id: roundId, user_id: playerId, speaker_type: "assistant" },
+      ]);
       if (path.includes("content_type=eq.creator_story")) return Response.json([{
         id: "idea-1", category: "Surprise", title: "A turn", hook: "The turn changed everything",
         script: null, story_angle: "The comeback", why_interesting: "Stored", created_at: "2026-09-10",
@@ -1138,6 +1142,13 @@ test("round web contract authorizes by round and returns isolated experiences", 
     "course_name", "played_at", "player_display_name", "tees",
   ]);
   assert.deepEqual(contract.scorecard.map((hole) => hole.hole), [1, 2]);
+  assert.deepEqual(contract.roundBuddyMessages, [
+    { id: "quip-1", content: "Exact assistant words.", hole_number: 4 },
+    { id: "quip-2", content: "Another assistant message.", hole_number: null },
+  ]);
+  assert.ok(paths.some((path) => path.includes("round_buddy_messages?")
+    && path.includes(`round_id=eq.${roundId}`) && path.includes(`user_id=eq.${playerId}`)
+    && path.includes("speaker_type=eq.assistant") && path.includes("limit=50")));
   assert.equal(contract.creatorContentStory.available, true);
   assert.equal(contract.creatorContentStory.contentIdea?.id, "idea-1");
   assert.deepEqual(contract.creatorContentStory.contentIdea?.angles, [
@@ -1164,6 +1175,36 @@ test("round web contract rejects an ineligible candidate before reading the roun
     (error: unknown) => error instanceof CreatorContentError && error.status === 403,
   );
   assert.ok(!paths.some((path) => path.includes("/rounds?")));
+  assert.ok(!paths.some((path) => path.includes("round_buddy_messages?")));
+});
+
+test("round web contract fails closed on mismatched or unavailable assistant messages", async () => {
+  const roundId = "cccccccc-cccc-cccc-cccc-cccccccccccc";
+  const playerId = "dddddddd-dddd-dddd-dddd-dddddddddddd";
+  for (const messageResponse of [
+    Response.json([{ id: "wrong", content: "Not this player's", hole_number: 1,
+      round_id: roundId, user_id: "other", speaker_type: "assistant" }]),
+    new Response("Unavailable", { status: 503 }),
+  ]) {
+    const context: SupabaseRequestContext = {
+      ...requestContext,
+      proxy: async (path) => {
+        if (path.includes("creator_profiles?")) return Response.json([{ id: base.ownerId }]);
+        if (path.includes("story_candidates?")) return Response.json([{
+          id: base.storyId, user_id: playerId, status: "shared", headline: "Stored", summary: "", story_type: "recap",
+        }]);
+        if (path.includes("story_permissions?")) return Response.json([{
+          id: "permission", story_id: base.storyId, user_id: playerId, permission_granted: true,
+          granted_at: null, revoked_at: null, approval_requested_at: null,
+        }]);
+        if (path.includes("rounds?")) return Response.json([{ id: roundId, user_id: playerId, played_at: "2026-09-09", course_name: null, tees: null }]);
+        if (path.includes("round_buddy_messages?")) return messageResponse.clone();
+        return Response.json([]);
+      },
+    };
+    await assert.rejects(fetchRoundWebContract(context, roundId),
+      (error: unknown) => error instanceof CreatorContentError && error.status >= 500);
+  }
 });
 
 test("approval requests reuse the active pending permission and never approve it", async () => {
