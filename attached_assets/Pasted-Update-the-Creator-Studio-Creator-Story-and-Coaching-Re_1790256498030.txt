@@ -1,0 +1,94 @@
+Update the Creator Studio Creator Story and Coaching Reflection panels.
+
+This is a UI/presentation and clipboard interaction change only. Do not change story generation, prompts, qualification, API contracts, database schema, entitlements, or underlying content.
+
+## 1. CREATOR STORY — EXPANDED BY DEFAULT
+
+Find the Creator Story content tile/panel in Creator Studio.
+
+Current behavior:
+
+* The Creator Story tile/content is initially collapsed.
+* The story angle (for example "How Did That Happen?") behaves like an expandable button.
+
+Change it so:
+
+* Creator Story is EXPANDED by default when the Creator Studio/round view launches.
+* Keep the Creator Story tile expanded, consistent with the Coaching Reflection panel.
+* The story angle must NOT function as an accordion/expand button.
+* Do not introduce a new collapsed/expanded interaction unless one already exists in the established panel design.
+
+## 2. CREATOR STORY — REFORMAT CONTENT PANEL
+
+Make the Creator Story panel visually/functionally similar to the Coaching Reflection panel.
+
+The entire story should appear as one continuous content panel.
+
+Current example:
+
+How Did That Happen?
+
+Perfect Fairways, Yet Five Bogeys?
+
+Despite a flawless performance off the tee, the player ended the round over par. What went wrong?
+
+Ready-to-use script
+
+At Holiday Park Executive Nine, ...
+
+Change to:
+
+Creator Story                                      Copy
+
+How Did That Happen?
+
+Perfect Fairways, Yet Five Bogeys?
+
+Despite a flawless performance off the tee, the player ended the round over par. What went wrong?
+
+At Holiday Park Executive Nine, ...
+
+Requirements:
+
+* "How Did That Happen?" is DISPLAY-ONLY text.
+* It must not look like a button.
+* It must not expand/collapse the story.
+* Remove the "Ready-to-use script" label entirely.
+* Keep the generated story/script text unchanged.
+* Preserve the existing typography hierarchy where appropriate.
+* Keep the presentation clean and consistent with Coaching Reflection.
+* Do not duplicate the generated content.
+* Do not alter markdown/content generation.
+
+## 3. ADD COPY BUTTON TO CREATOR STORY
+
+Add a Copy button to the Creator Story panel.
+
+Requirements:
+
+* Copy the complete usable Creator Story content to the clipboard.
+* Do not copy UI-only labels such as:
+
+  * Creator Story
+  * Copy
+  * "Ready-to-use script"
+* "Ready-to-use script" is being removed from the UI anyway.
+* Inspect existing clipboard/copy utilities and reuse them where appropriate.
+* Use the existing success toast/feedback pattern if one already exists.
+* Handle clipboard failure using the existing error/feedback pattern.
+* Do not introduce a new notification system.
+
+The copied content should be clean and creator-ready.
+
+Inspect existing copy behavior/utilities before deciding exactly which content fields belong in the clipboard output. Preserve the existing product convention if one already exists.
+
+## 4. ADD COPY BUTTON TO COACHING REFLECTION
+
+Add the same Copy capability to the existing Coaching Reflection panel.
+
+Requirements:
+
+* Add a Copy button in the Coaching Reflection panel header/top-right area.
+* Make its placement and visual treatment consistent with the Creator Story Copy button.
+* Copy the complete Coaching Reflection content to the clipboard.
+* Do not copy UI-only lab
