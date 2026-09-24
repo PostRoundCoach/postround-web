@@ -267,6 +267,7 @@ export interface CreatorContentIdea {
   id: string
   story_id: string
   category: string
+  story_angle?: string | null
   title: string
   hook: string
   script: string

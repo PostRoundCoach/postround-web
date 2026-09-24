@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Calendar, ChevronDown, CircleCheck, Clock3, Loader2, MapPin, RefreshCw, Send, Sparkles, Trash2, User } from 'lucide-react'
+import { Calendar, CircleCheck, Clock3, Loader2, MapPin, RefreshCw, Send, Sparkles, Trash2, User } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { createClient } from '@/lib/supabase/client'
@@ -10,6 +10,7 @@ import { fetchRoundContract, dismissCreatorStory, requestStoryApproval } from '@
 import { StoryCandidateCard } from './StoryCandidateCard'
 import { CreatorRoundScorecard } from './CreatorRoundScorecard'
 import { ShareableScorecardGraphic } from './ShareableScorecardGraphic'
+import { CreatorCopyButton, creatorCopyText } from './CreatorCopyButton'
 
 export function StoryCard({
   story,
@@ -27,7 +28,6 @@ export function StoryCard({
   const [permissionStatus, setPermissionStatus] = useState(story.permissionStatus)
   const [isRequestingApproval, setIsRequestingApproval] = useState(false)
   const [approvalRequestFailed, setApprovalRequestFailed] = useState(false)
-  const [isExpanded, setIsExpanded] = useState(false)
   const requestSequence = useRef(0)
   const activeRequest = useRef<AbortController | null>(null)
 
@@ -55,6 +55,7 @@ export function StoryCard({
         id: idea.id,
         story_id: story.id,
         category: idea.category,
+        story_angle: idea.story_angle,
         title: idea.title,
         hook: idea.hook,
         script: idea.script ?? '',
@@ -109,11 +110,6 @@ export function StoryCard({
     await loadCandidates(supabase, 'retry')
   }
 
-  const handleViewContent = () => {
-    setIsExpanded(true)
-    void handleRetryIdeas()
-  }
-
   const handleDismiss = async () => {
     if (isDismissing || isFetchingIdeas) return
 
@@ -161,45 +157,16 @@ export function StoryCard({
       data-testid={`card-story-${story.id}`}
     >
       <div className="p-6 sm:p-8">
-        <button
-          type="button"
-          className="group flex w-full items-start justify-between gap-4 rounded-lg text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-          aria-expanded={isExpanded}
-          aria-controls={`story-details-${story.id}`}
-          onClick={() => setIsExpanded((open) => !open)}
-          data-testid={`button-toggle-story-${story.id}`}
-        >
-          <span className="min-w-0">
-            <span className="mb-3 inline-flex items-center rounded-md bg-primary/10 px-2.5 py-0.5 text-xs font-semibold text-primary">
-              Post Round follower story
-            </span>
-            <span
-              role="heading"
-              aria-level={2}
-              className="block break-words font-serif text-2xl font-bold leading-normal"
-              data-testid={`text-story-headline-${story.id}`}
-            >
-              {story.headline}
-            </span>
-            <span className="mt-3 block text-base leading-normal text-muted-foreground">
-              {story.summary}
-            </span>
-          </span>
-          <ChevronDown className={`mt-1 h-6 w-6 shrink-0 text-muted-foreground transition-transform ${isExpanded ? 'rotate-180' : ''}`} aria-hidden="true" />
-        </button>
-        <Button
-          className="mt-5 w-full sm:w-auto"
-          onClick={handleViewContent}
-          data-testid={`button-view-content-${story.id}`}
-        >
-          {isFetchingIdeas
-            ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-            : <Sparkles className="h-4 w-4" aria-hidden="true" />}
-          View generated content
-        </Button>
+        <span className="mb-3 inline-flex items-center rounded-md bg-primary/10 px-2.5 py-0.5 text-xs font-semibold text-primary">
+          Post Round follower story
+        </span>
+        <h2 className="break-words font-serif text-2xl font-bold leading-normal" data-testid={`text-story-headline-${story.id}`}>
+          {story.headline}
+        </h2>
+        <p className="mt-3 text-base leading-normal text-muted-foreground">{story.summary}</p>
       </div>
 
-      <div id={`story-details-${story.id}`} hidden={!isExpanded}>
+      <div>
         <div className="grid lg:grid-cols-[minmax(0,1fr)_22rem]">
         <div className="space-y-6 px-6 pb-6 sm:px-8 sm:pb-8">
 
@@ -252,9 +219,9 @@ export function StoryCard({
               <Sparkles className="h-6 w-6 text-primary" />
             </div>
             <h3 className="font-serif text-xl font-bold">Find the story in this round</h3>
-            <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-               View content already generated from this player’s Story and source round.
-            </p>
+             <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                Content generated from this player’s Story and source round appears below.
+             </p>
 
             <Button
               type="button"
@@ -355,7 +322,6 @@ export function StoryCard({
             <p className="text-xs font-bold uppercase tracking-[0.18em] text-primary">
                Generated content ideas
             </p>
-            <h3 className="mt-2 font-serif text-2xl font-bold">{story.headline}</h3>
             <div className="mt-4 flex flex-col gap-3 rounded-xl border border-border bg-background p-4 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-start gap-3">
                 {permissionStatus === 'approved'
@@ -416,7 +382,18 @@ export function StoryCard({
            )}
              {roundContract?.coachingReflection.available && (
                 <section className="mt-8 rounded-xl border border-border bg-background p-5" data-testid={`section-coaching-reflection-${story.id}`}>
-                 <p className="text-xs font-bold uppercase tracking-widest text-primary">Coaching reflection</p>
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <p className="text-xs font-bold uppercase tracking-widest text-primary">Coaching reflection</p>
+                    <CreatorCopyButton
+                      text={creatorCopyText(
+                        roundContract.coachingReflection.content.title,
+                        roundContract.coachingReflection.content.hook,
+                        roundContract.coachingReflection.content.reflection ?? roundContract.coachingReflection.content.script,
+                      )}
+                      name="Coaching Reflection"
+                      testId={`button-copy-reflection-${story.id}`}
+                    />
+                  </div>
                  <h3 className="mt-2 font-serif text-2xl font-bold">{roundContract.coachingReflection.content.title}</h3>
                  <p className="mt-3 font-medium">{roundContract.coachingReflection.content.hook}</p>
                  {(roundContract.coachingReflection.content.reflection ?? roundContract.coachingReflection.content.script) && (

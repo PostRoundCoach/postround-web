@@ -15,9 +15,8 @@ async function openCreatorStory(page: Page, viewport: { width: number; height: n
 
   await page.goto('/creator')
   await expect(page.getByTestId(`card-story-${storyId}`)).toBeVisible()
-  await page.getByTestId(`button-view-content-${storyId}`).click()
+  await expect(page.getByTestId('section-story-candidates-' + storyId)).toBeVisible()
   await expect(page.getByTestId(`card-story-candidate-${candidateId}`)).toBeVisible()
-  await page.getByTestId(`card-story-candidate-${candidateId}`).getByText('View full details and context').click()
   await expect(page.getByTestId('round-highlights')).toBeVisible()
   await page.addStyleTag({ content: 'body > div > header { display: none !important; }' })
 }
