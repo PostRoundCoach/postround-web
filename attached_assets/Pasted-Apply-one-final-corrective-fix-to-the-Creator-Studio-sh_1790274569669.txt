@@ -1,0 +1,176 @@
+Apply one final corrective fix to the Creator Studio shareable-assets feature.
+
+The shareable-assets implementation has already passed its API, web, and authenticated browser testing. **Do not redo or redesign the completed feature.** Preserve the existing working download/rendering architecture and make only the changes below.
+
+## 1. Correct the product concept
+
+These assets should **not** be called “Round Buddy quips” and should not be treated as Round Buddy messages.
+
+Use the product concept:
+
+**Player Notes via Round Buddy**
+
+Round Buddy is the capture mechanism. The shareable content is the player's notable/shareable note associated with a hole.
+
+### UI terminology
+
+Change the Shareable Assets subsection from:
+
+**Round Buddy**
+
+to:
+
+**Player Notes via Round Buddy**
+
+Individual assets should be labeled:
+
+* **Player Note · Hole 1**
+* **Player Note · Hole 4**
+* **Player Note · Hole 7**
+
+Do not use “Round Buddy Quip” anywhere in this shareable-assets UI.
+
+## 2. Correct the data source
+
+The current implementation incorrectly uses:
+
+`round_buddy_messages.content`
+
+as the text for the downloadable assets.
+
+Do **not** use Round Buddy conversational messages as the shareable Player Note text.
+
+Instead, use the **existing player-context/player-note data already used by the Creator Studio round details to produce notable-hole content**.
+
+The page already demonstrates the correct source. For the current test round, the visible notable holes are:
+
+* **#1 · Eagle** — `hold out for an eagle`
+* **#4 · Birdie** — `Long drive, hit green, one putt for birdie.`
+* **#7 · Birdie** — `nice approach shot, beautiful long putt`
+
+Those exact player-note values should drive the corresponding downloadable assets.
+
+Do not:
+
+* rewrite the text
+* regenerate it with AI
+* parse Creator Story prose
+* substitute `round_buddy_messages.content`
+* invent a new qualification algorithm
+
+Trace the existing structured player-context/player-note data and reuse it.
+
+## 3. Only notable holes get assets
+
+This is **not a hole-by-hole transcript export**.
+
+Only notable/qualifying holes that actually contain player-note content should have a downloadable Player Note asset.
+
+For the current test round, the Shareable Assets section should contain exactly:
+
+* Round Highlights
+* Player Note · Hole 1
+* Player Note · Hole 4
+* Player Note · Hole 7
+* Scorecard
+
+There should be **no Player Note download buttons for holes 2, 3, 5, 6, 8, or 9**.
+
+Also eliminate any duplicate entry if the source collection currently produces the same hole more than once.
+
+## 4. Preserve the existing image behavior
+
+Do not change the working rendering/download implementation.
+
+Player Note assets remain:
+
+* PNG
+* 1080 × 480
+* transparent / video-overlay friendly
+* Post Round branded
+* “Play. Learn. Share.”
+* individually downloadable
+* rendered only when the individual button is clicked
+* no AI/image generation
+* no load-time image generation
+* no “Download All”
+
+The exact player-note text should appear in the image.
+
+## 5. Preserve the completed feature
+
+Do not regress or redesign:
+
+* Round Highlights
+* existing 1080 × 1350 Scorecard export
+* Creator Story behavior
+* approval/permission gating
+* authorized Creator Studio round response
+* deterministic rendering infrastructure
+* on-demand downloads
+* existing Supabase/API architecture
+* responsive Creator Studio behavior
+
+Do not alter the Round Buddy capture system itself.
+
+This is specifically a **Creator Studio terminology + data-source + qualification correction**.
+
+## 6. Tests
+
+Update only the tests necessary to prove this correction.
+
+Verify:
+
+1. Player Note assets use the existing player-context/player-note source.
+2. `round_buddy_messages.content` is not used as the shareable Player Note text.
+3. Only notable/qualifying holes with player-note content produce assets.
+4. The test round produces exactly Hole 1, Hole 4, and Hole 7.
+5. Hole 7 is not duplicated.
+6. Exact player-note text is preserved.
+7. No AI/model call is introduced.
+8. Existing on-click PNG generation/download behavior remains intact.
+9. Existing approval/authorization remains intact.
+10. Round Highlights and Scorecard continue to pass their existing tests.
+
+### Definition of done
+
+Creator Studio clearly presents these as:
+
+**Player Notes via Round Buddy**
+
+with individual downloadable assets such as:
+
+**Player Note · Hole 1**
+`hold out for an eagle`
+
+**Player Note · Hole 4**
+`Long drive, hit green, one putt for birdie.`
+
+**Player Note · Hole 7**
+`nice approach shot, beautiful long putt`
+
+No transcript-style assets for ordinary holes, no Round Buddy conversational messages used as shareable text, and no changes to the already-tested Round Highlights or Scorecard functionality. Though the player notes should include the full transcript not just a highlight, as should the cooresponding image
+
+here's the source for the Player notes: id,round_id,hole_number,par,score,fairway_result,gir_result,distance_to_pin_yards,putts,chip_count,bunker_shot,sand_save,scramble_opportunity,scramble_success,penalty_strokes,player_notes,ai_feedback,created_at,updated_at,playable_fairway_miss,playable_gir_miss,sand_shot_count,voice_transcript
+
+c91fefc1-b5ce-4269-8623-9270780c6b00,efcf3404-15b2-4289-a541-6eaa1c591d39,3,4,5,left,short,,2,1,false,,true,false,0,,,2026-09-24 18:16:51.546434+00,2026-09-24 18:16:51.546434+00,,,0,miss the fairway left miss the green short one chip two putts for bogey
+
+833a53de-edcb-4f0a-bd5d-41779e509b70,efcf3404-15b2-4289-a541-6eaa1c591d39,7,4,3,left,hit,,1,0,false,,false,,0,"nice approach shot, beautiful long putt",,2026-09-24 18:16:51.546434+00,2026-09-24 18:16:51.546434+00,,,0,"Just missed the fairway left, nice approach shot, hit the green, beautiful long putt. 25 feet for Birdie.
+
+One pot."
+
+39aea7ce-f8b4-4c34-90cf-0a49e4571a3b,efcf3404-15b2-4289-a541-6eaa1c591d39,4,4,3,hit,hit,,1,0,false,,false,,0,"Long drive, hit green, one putt for birdie.",,2026-09-24 18:16:51.546434+00,2026-09-24 18:16:51.546434+00,,,0,"Long, massive drive down the middle of the fairway, hit the green, one putt for Birdie."
+
+16c608f3-4a8e-473d-a955-05d5dca47a39,efcf3404-15b2-4289-a541-6eaa1c591d39,5,4,5,right,short,,2,1,false,,true,false,0,,,2026-09-24 18:16:51.546434+00,2026-09-24 18:16:51.546434+00,true,true,0,"Missed the fairway right, missed the green short, chipped on two putts for bogey."
+
+19be1b93-ba5e-44eb-9d80-c5dc690e6b8b,efcf3404-15b2-4289-a541-6eaa1c591d39,6,3,3,none,hit,,2,0,false,,false,,0,,,2026-09-24 18:16:51.546434+00,2026-09-24 18:16:51.546434+00,,,0,"Hit the green, two putts for par."
+
+224b79ce-d084-4f7c-902c-94e612f16986,efcf3404-15b2-4289-a541-6eaa1c591d39,1,4,2,hit,hit,,0,1,false,,false,,0,hold out for an eagle,,2026-09-24 18:16:51.546434+00,2026-09-24 18:16:51.546434+00,,,0,"First hole, hit the fairway with my 3-wood and hold out for an eagle, no putts."
+
+2a402acd-cf68-4000-b719-be916e722eaa,efcf3404-15b2-4289-a541-6eaa1c591d39,8,3,3,none,hit,,2,0,false,,false,,0,,,2026-09-24 18:16:51.546434+00,2026-09-24 18:16:51.546434+00,,,0,Hit the green two putts for par.
+
+3db81ce1-e3d7-41bf-aa1e-98699ae70594,efcf3404-15b2-4289-a541-6eaa1c591d39,2,3,3,none,hit,,2,0,false,,false,,0,,,2026-09-24 18:16:51.546434+00,2026-09-24 18:16:51.546434+00,,,0,Hit the green two putts for par.
+
+932eef2e-3d7d-477b-877b-ed410352026c,efcf3404-15b2-4289-a541-6eaa1c591d39,9,5,5,hit,hit,,2,0,false,,false,,0,,,2026-09-24 18:16:51.546434+00,2026-09-24 18:16:51.546434+00,,,0,"Hit the fairway, hit the green, two putts for a par."
+
+also I'd like to include the full note, not just a highlight of the qualified holes
