@@ -1,0 +1,68 @@
+### Creator Studio — Restore Collapsible Submitted Stories
+
+In the **Creator Studio**, restore the ability to collapse the large submitted/approved story panel.
+
+### Current issue
+
+Previously, when a submitted story was opened in the Creator Studio, the large story panel had an **arrow control in the top-right corner** that allowed the creator to collapse the panel back to its compact state.
+
+During the recent Creator Story UI changes, this collapse control appears to have been removed.
+
+We want the previous behavior restored.
+
+### Required behavior
+
+1. **Submitted stories must be collapsible**
+
+   * When a submitted/approved story is expanded into the large story panel, display a clear **collapse arrow/button in the top-right corner**.
+   * Clicking the arrow should collapse the story back to its compact/closed state.
+   * The user should not need to navigate away from the page to collapse it.
+
+2. **Preserve the current expanded story design**
+
+   * Do **not** revert the recent Creator Story changes.
+   * Keep the current story content, layout, Copy button, Coaching Reflection, angles, and other recently implemented functionality intact.
+   * This task is specifically about restoring the **expand/collapse interaction**.
+
+3. **Correct state behavior**
+
+   * Expanding a submitted story should show the large panel.
+   * Clicking the top-right collapse control should return it to the compact state.
+   * Re-opening the story should work normally, the content should not need to be reloaded.
+   * Only the intended story panel should collapse; don't collapse the entire Creator Studio section.
+
+4. **Visual consistency**
+
+   * Use the same arrow/icon style and placement as the previous Creator Studio implementation if that component or styling still exists elsewhere in the codebase.
+   * Position it consistently in the **top-right of the large story panel**.
+   * Make the entire control clearly clickable and accessible.
+   * Add an appropriate accessible label such as `Collapse story`.
+
+### Investigation first
+
+Before modifying code:
+
+* Find the current Creator Studio submitted/approved story panel component.
+* Inspect the recent Creator Story changes to determine where the previous collapse behavior was removed.
+* Search the codebase/history for the previous arrow/collapse implementation if necessary.
+* Reuse existing state and components where possible rather than creating a second, competing expansion system.
+
+### Tests / verification
+
+Add or update tests to verify:
+
+* Submitted story can be expanded.
+* Expanded story displays the collapse control.
+* Clicking the collapse control returns the story to its compact state.
+* The story can subsequently be expanded again.
+* Existing Copy functionality and story content remain unaffected.
+
+Run the relevant Creator Studio tests and the existing test suite for the affected area.
+
+### Acceptance criteria
+
+The Creator Studio should once again behave like this:
+
+**Compact submitted story → click story → large story panel → click top-right arrow → compact submitted story**
+
+Do not make unrelated UI or architectural changes.

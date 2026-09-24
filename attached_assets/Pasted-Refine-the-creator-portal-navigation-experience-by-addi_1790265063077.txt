@@ -1,0 +1,83 @@
+Refine the creator portal navigation experience by adding clear loading states during authentication and page transitions.
+
+### Problem
+
+When a user selects **Login**, authentication/navigation currently takes long enough that the page can appear frozen. There is no immediate visual feedback that the request is being processed.
+
+The same issue can occur when navigating between the **Creator Dashboard** and **Creator Studio**. These transitions should provide clear feedback while the destination page/authenticated data is loading.
+
+### Requirements
+
+#### 1. Login loading state
+
+When the user selects **Login**:
+
+* Immediately enter a loading state.
+* Disable the login action while the request is in progress.
+* Show a centered, visually consistent loading indicator.
+* Keep the existing page/content visible underneath the loading treatment rather than showing a blank page.
+* The loading state must clear correctly on:
+
+  * successful authentication/navigation
+  * authentication failure
+  * unexpected errors
+* Prevent duplicate login submissions while loading.
+
+#### 2. Dashboard ↔ Creator Studio transitions
+
+Apply the same loading treatment to navigation between:
+
+* Creator Dashboard → Creator Studio
+* Creator Studio → Creator Dashboard
+
+The loading state should begin as soon as navigation is initiated and remain visible until the destination page is ready.
+
+**Important:** For Creator Studio, the stories themselves do **not** need to finish loading before the loading state ends. The requirement is simply that the Creator Studio page/shell is ready and usable. Story content can continue loading normally after the page appears.
+
+Likewise, do not unnecessarily wait for secondary or non-blocking data before considering the destination page ready.
+
+#### 3. Reusable loading component/pattern
+
+Create or reuse a single portal loading-state component/pattern rather than implementing separate spinners for each page.
+
+The visual treatment should be consistent across:
+
+* Login
+* Dashboard navigation
+* Creator Studio navigation
+* Any equivalent authenticated creator-portal page transitions where the same issue exists
+
+Follow the existing creator portal visual language. Do not introduce a new design system or unnecessary visual changes.
+
+#### 4. Avoid loading flashes
+
+If the transition completes almost immediately, avoid showing a distracting spinner flash.
+
+Use a small threshold (approximately 150–250 ms) before displaying the loading indicator. If the operation completes before that threshold, no loading UI needs to appear.
+
+Once the threshold is crossed, the indicator should remain visible until the relevant blocking operation completes.
+
+#### 5. Error handling
+
+Do not leave the interface permanently stuck in a loading state.
+
+Ensure all loading states have proper cleanup through success/error/finally paths.
+
+### Validation
+
+Test at minimum:
+
+1. Login with normal network conditions.
+2. Login with an intentionally delayed response.
+3. Login failure.
+4. Dashboard → Creator Studio.
+5. Creator Studio → Dashboard.
+6. Delayed destination/data loading.
+7. Rapid repeated clicks on Login/navigation controls.
+8. Fast transitions to confirm there is no distracting loading flash.
+9. Refresh/direct navigation into authenticated creator pages.
+10. Confirm Creator Studio becomes usable without unnecessarily waiting for stories or secondary content to finish loading.
+
+Run the relevant existing tests and add focused tests for the new loading behavior where appropriate.
+
+Do not change authentication logic, routing architecture, creator permissions, or dashboard functionality beyond what is required to provide the loading feedback.
