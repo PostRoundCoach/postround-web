@@ -1,5 +1,9 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Users, FileText, BarChart2, Cpu } from 'lucide-react'
+import { Users, FileText, BarChart2, Cpu, MousePointerClick } from 'lucide-react'
+import Link from 'next/link'
+import { requireAdmin, referralService, message, overview } from '@/lib/creator-attribution/read-model'
+
+export const dynamic = 'force-dynamic'
 
 const placeholderCards = [
   { title: 'Users', icon: Users, description: 'Manage registered users and their accounts.' },
@@ -8,7 +12,12 @@ const placeholderCards = [
   { title: 'AI Usage', icon: Cpu, description: 'Token usage, cost tracking, and model performance.' },
 ]
 
-export default function AdminDashboardPage() {
+export default async function AdminDashboardPage() {
+  await requireAdmin()
+  let counts: Awaited<ReturnType<typeof overview>> | null = null
+  let loadError: string | null = null
+  try { counts = await overview(await referralService()) }
+  catch (cause) { console.error('[Creator attribution] dashboard unavailable', cause); loadError = message(cause) }
   return (
     <div className="p-6 lg:p-8 max-w-7xl mx-auto">
       <div className="mb-8">
@@ -17,6 +26,22 @@ export default function AdminDashboardPage() {
       </div>
 
       <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+        <Link href="/admin/creator-attribution" className="block h-full focus-visible:outline focus-visible:outline-[#D4AF37] rounded-xl">
+          <Card className="h-full hover:border-[#52B788] transition-colors">
+            <CardHeader className="pb-3"><div className="flex items-center gap-2">
+              <div className="h-8 w-8 rounded-lg bg-[#1B5E35]/20 border border-[#1B5E35]/30 flex items-center justify-center"><MousePointerClick className="h-4 w-4 text-[#52B788]" /></div>
+              <CardTitle className="font-serif text-base">Creator Attribution</CardTitle>
+            </div></CardHeader>
+            <CardContent className="text-xs text-muted-foreground space-y-2">
+              {loadError ? <p>Unavailable: {loadError}</p> : counts && <>
+                <p>{counts.creators} creators · {counts.links} links</p>
+                <p>{counts.players} attributed players · {counts.subscribers} active subscribers</p>
+              </>}
+              <p>Compensation: Not configured</p>
+              <span className="text-[#52B788] font-medium">View attribution →</span>
+            </CardContent>
+          </Card>
+        </Link>
         {placeholderCards.map(({ title, icon: Icon, description }) => (
           <Card key={title}>
             <CardHeader className="pb-3">

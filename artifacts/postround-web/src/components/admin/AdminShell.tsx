@@ -12,6 +12,7 @@ import {
   Settings,
   Menu,
   ShieldCheck,
+  MousePointerClick,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { SignOutButton } from '@/components/auth/SignOutButton'
@@ -27,6 +28,7 @@ const navItems = [
   { href: '/admin', icon: LayoutDashboard, label: 'Dashboard', exact: true },
   { href: '/admin/content', icon: FileText, label: 'Content Studio', exact: false },
   { href: '/admin/users', icon: Users, label: 'Users', exact: false },
+  { href: '/admin/creator-attribution', icon: MousePointerClick, label: 'Creator Attribution', exact: false },
   { href: '/admin/analytics', icon: BarChart2, label: 'Analytics', exact: false },
   { href: '/admin/settings', icon: Settings, label: 'Settings', exact: false },
 ]
