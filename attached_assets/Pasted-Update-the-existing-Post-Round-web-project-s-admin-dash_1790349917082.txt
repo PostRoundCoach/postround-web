@@ -1,0 +1,410 @@
+Update the existing Post Round web project's **admin dashboard** at `/admin`.
+
+## Objective
+
+Add a new admin dashboard tile called:
+
+# Creator Attribution
+
+This tile will become the central admin area for monitoring the creator referral/attribution system and, eventually, calculating and tracking creator compensation.
+
+The referral infrastructure is **already implemented** in the database. Do not create a new referral system.
+
+The existing backend includes:
+
+* `referral_links`
+* `referral_events`
+* `attributions`
+* existing referral creation/issue RPC
+* existing referral claim RPC
+* creator relationships
+* user/subscription information
+
+Use the existing infrastructure and database relationships.
+
+---
+
+# 1. Add a "Creator Attribution" tile to `/admin`
+
+Find the existing admin dashboard layout and add a new tile/card consistent with the existing dashboard design.
+
+The tile should be labeled:
+
+**Creator Attribution**
+
+Suggested supporting text:
+
+**Track creator referrals, attributed players, subscriptions, and compensation.**
+
+The tile should display a small useful summary rather than just being a navigation button.
+
+For example:
+
+**Creator Attribution**
+
+`12` Active Creators
+`184` Attributed Players
+`37` Subscribers
+`$1,295` Creator Compensation
+
+These numbers are examples only. Use real database data.
+
+If some metrics cannot currently be calculated reliably from the existing schema, omit them rather than inventing them.
+
+The tile should link to the Creator Attribution admin view.
+
+---
+
+# 2. Create the Creator Attribution admin view
+
+Create an admin page/view using the existing admin layout/navigation patterns.
+
+The primary table should be **creator-centric**.
+
+Suggested structure:
+
+| Creator | Referrals | Attributed Players | Subscribers | Revenue | Compensation |
+| ------- | --------: | -----------------: | ----------: | ------: | -----------: |
+| In2Golf |        47 |                 31 |           8 |    $XXX |          $XX |
+
+Use actual database values.
+
+Do not hard-code creators or values.
+
+---
+
+# 3. Creator attribution hierarchy
+
+The conceptual funnel should be:
+
+Creator
+
+→ Referral Link
+
+→ Referral Event
+
+→ Attribution
+
+→ User
+
+→ Subscription
+
+→ Compensation
+
+The UI should preserve these distinctions.
+
+In particular:
+
+**Referral events are NOT the same thing as attributed users.**
+
+An event indicates referral activity.
+
+An attribution indicates that a user has actually been associated with the creator.
+
+A subscription indicates monetization after attribution.
+
+Compensation should only be shown/calculated when the existing business rules and database information support it.
+
+---
+
+# 4. Creator detail
+
+Clicking a creator in the table should open a detailed view.
+
+Show:
+
+### Creator
+
+* Creator name
+* Creator slug
+* Creator ID
+* Referral link
+* Referral ID
+* Link creation date
+* Active/inactive state if available
+
+### Referral activity
+
+* Total referral events
+* First event
+* Most recent event
+* Platform/source information where available
+
+### Attributed players
+
+Show the users attributed to that creator.
+
+Suggested columns:
+
+| User | Attributed | Source | Subscription | Tier |
+| ---- | ---------- | ------ | ------------ | ---- |
+
+Use the existing user/subscription data.
+
+### Compensation
+
+Show compensation information where supported by the existing system.
+
+At minimum, design the UI so that compensation can eventually include:
+
+* Attributed subscribers
+* Qualifying subscriptions
+* Gross revenue
+* Creator share/rate
+* Calculated creator compensation
+* Compensation status
+* Compensation period
+
+**Do not invent compensation rules.**
+
+If the application does not yet have an authoritative compensation calculation, display the appropriate data that exists and leave the compensation calculation clearly marked as not yet configured rather than making up a formula.
+
+---
+
+# 5. Attribution detail/debugging
+
+The Creator Attribution area should also provide access to the underlying attribution records.
+
+For each attribution, make it possible to inspect:
+
+* Attribution ID
+* Creator
+* Referral link
+* Referral event
+* User
+* Attribution timestamp
+* Claim source
+* Platform
+* Relevant metadata
+* Subscription status
+
+This is particularly important during the current Android referral testing.
+
+I should be able to answer:
+
+> Did the referral event happen?
+
+> Was the user attributed?
+
+> Which creator was the user attributed to?
+
+> What user account received the attribution?
+
+> Did that user subsequently subscribe?
+
+---
+
+# 6. Overview metrics
+
+At the top of the Creator Attribution view, show useful aggregate metrics:
+
+* Active creator referral links
+* Total referral events
+* Total attributed users
+* Total attributed subscribers
+* Total qualifying revenue, if available
+* Total creator compensation, if available
+
+Do not manufacture metrics that cannot be derived reliably.
+
+---
+
+# 7. Filters
+
+Add practical filters:
+
+* Creator
+* Date range
+* Attribution status
+* Subscription status
+* Platform/source
+
+Also provide search for:
+
+* Creator name
+* Creator slug
+* Referral ID
+* User ID
+* Attribution ID
+
+Keep the interface operational and compact.
+
+---
+
+# 8. Compensation architecture
+
+This page is intended to eventually become the authoritative admin interface for creator compensation.
+
+However, **do not invent or hard-code a compensation model in this task**.
+
+Instead:
+
+1. Inspect whether the existing project already contains compensation/revenue-share logic.
+2. Reuse it if it exists.
+3. If it does not exist, structure the UI so compensation can be added cleanly later.
+4. Clearly distinguish actual calculated compensation from placeholder/unconfigured compensation.
+
+Do not silently assume a percentage or payout rule.
+
+---
+
+# 9. Security
+
+This is strictly an **admin feature**.
+
+Use the existing admin authentication and authorization mechanism.
+
+Do not expose creator attribution, user attribution, revenue, or compensation data publicly.
+
+Do not weaken Supabase RLS merely to make the dashboard work.
+
+Follow the existing project's established server-side/admin access pattern.
+
+---
+
+# 10. Do not modify the referral system
+
+This task is primarily an **admin observability and management UI** task.
+
+Do NOT change:
+
+* referral generation
+* referral links
+* referral events
+* attribution logic
+* claim RPC
+* mobile referral handling
+* existing referral contracts
+
+Only add backend queries/API endpoints if they are genuinely necessary to securely read the existing data.
+
+If a missing backend capability is discovered, use the smallest possible addition.
+
+---
+
+# 11. Admin dashboard tile design
+
+The new tile should feel native to the existing `/admin` dashboard.
+
+Do not redesign the admin dashboard.
+
+Do not create a giant analytics dashboard.
+
+The tile should provide:
+
+**Creator Attribution**
+
+Track creator acquisition and compensation.
+
+**Key metrics**
+
+* Creators
+* Attributed players
+* Subscribers
+* Compensation
+
+**Action**
+`View Attribution →`
+
+Use the project's existing cards, typography, spacing, icons, buttons, and responsive behavior.
+
+---
+
+# 12. Empty and loading states
+
+Handle:
+
+* No creators
+* No referral events
+* No attributions
+* No subscribers
+* No compensation configured
+* Loading
+* Query errors
+
+For example, if no compensation model exists yet:
+
+**Compensation not configured**
+
+rather than displaying `$0` and implying that the creator earned nothing.
+
+---
+
+# 13. Testing
+
+Add tests following the existing project's conventions.
+
+Verify:
+
+* Admin-only access
+* Dashboard tile renders
+* Aggregate counts are accurate
+* Creator attribution table loads
+* Creator drill-down works
+* Referral events and attributions remain distinct
+* Subscription information is associated correctly
+* Compensation is never fabricated
+* Filters work
+* Empty states work
+* Error states work
+
+Run the relevant existing test suite after implementation.
+
+---
+
+# 14. Important implementation instruction
+
+Before writing code, inspect the existing project.
+
+Specifically identify:
+
+1. Existing `/admin` page/layout
+2. Existing admin authentication
+3. Existing admin API/query patterns
+4. Existing creator data model
+5. Existing referral tables
+6. Existing attribution RPCs
+7. Existing subscription data model
+8. Existing compensation/revenue logic, if any
+9. Existing dashboard card/table components
+
+Then implement the feature using those existing patterns.
+
+**Do not create parallel infrastructure simply because an equivalent component or query does not immediately appear obvious.**
+
+---
+
+# Final deliverable
+
+When finished, report:
+
+1. Files created/modified
+2. The new `/admin` tile
+3. The Creator Attribution view/route
+4. Database tables/functions queried
+5. Any API/server functions added
+6. Compensation logic discovered or not yet configured
+7. Tests added/run
+8. Any schema gaps that remain
+
+The end result should be:
+
+`/admin`
+
+→ **Creator Attribution tile**
+
+→ **Creator Attribution admin view**
+
+→ Creator list
+
+→ Creator detail
+
+→ Referral events
+
+→ Attributions
+
+→ Subscribers
+
+→ Compensation
+
+This should become the central internal tool for managing the Post Round creator acquisition and compensation pipeline.
