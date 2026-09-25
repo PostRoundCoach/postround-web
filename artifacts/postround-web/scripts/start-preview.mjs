@@ -8,6 +8,16 @@ const publicPort = Number(process.env.PORT)
 const nextPort = publicPort + 1
 let nextReady = false
 
+// The workspace provides the public anon key as SUPABASE_ANON_KEY. Next.js
+// needs the NEXT_PUBLIC name when it starts so the browser and server use the
+// same project. Never substitute a service-role key here.
+const previewEnv = {
+  ...process.env,
+  NEXT_PUBLIC_SUPABASE_ANON_KEY:
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY,
+  PORT: String(nextPort),
+}
+
 if (!Number.isInteger(publicPort) || publicPort <= 0 || publicPort >= 65535) {
   throw new Error('PORT must be an integer between 1 and 65534')
 }
@@ -15,7 +25,7 @@ if (!Number.isInteger(publicPort) || publicPort <= 0 || publicPort >= 65535) {
 const next = spawn(
   process.execPath,
   [nextBin, 'dev', '-p', String(nextPort), '-H', '127.0.0.1'],
-  { env: { ...process.env, PORT: String(nextPort) }, stdio: 'inherit' },
+  { env: previewEnv, stdio: 'inherit' },
 )
 
 const startingPage = Buffer.from(

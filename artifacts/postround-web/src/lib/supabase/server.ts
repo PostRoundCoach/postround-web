@@ -12,7 +12,10 @@ export async function createClient() {
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
   if (!url || !key) {
-    throw new Error('[Supabase] Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY')
+    throw new Error(
+      '[Supabase] Authentication is not configured. Set NEXT_PUBLIC_SUPABASE_URL and ' +
+      'NEXT_PUBLIC_SUPABASE_ANON_KEY for the same Supabase project, then restart the web preview.'
+    )
   }
 
   return createServerClient(url, key, {
