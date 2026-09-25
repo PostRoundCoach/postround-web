@@ -1,0 +1,56 @@
+## Task: Determine the exact In2Golf test referral URL
+
+Do not modify the referral implementation yet. I want to use the existing In2Golf creator slug page for an end-to-end referral smoke test before the Play Store listing exists.
+
+### Goal
+
+Inspect the existing referral implementation and determine the **exact URL/link that the In2Golf creator page should use for a temporary “Test App Referral” CTA**.
+
+The test page is:
+
+`https://www.postroundcoach.com/creators/in2golf`
+
+The creator is:
+
+* Name: In2Golf
+* Slug: `in2golf`
+
+### Inspect
+
+Trace the existing implementation across the web and mobile code to determine:
+
+1. How an issued creator referral link is created.
+2. What URL/path format an issued referral link uses.
+3. Where/how the `pr_ref` UUID is added to that URL.
+4. How the mobile app captures `pr_ref`.
+5. Whether the referral URL is expected to go through the creator slug page first, directly to the app, or through another redirect/deep-link mechanism.
+6. Whether In2Golf already has an issued referral link in the database.
+7. If it does, report the exact test URL that should be used.
+8. If it does not, identify the existing mechanism/API/admin action that would issue one for In2Golf.
+
+### Important
+
+Do **not** invent a referral URL format.
+
+Do **not** create or modify referral records.
+
+Do **not** change the mobile referral code.
+
+Do **not** change the slug page yet.
+
+I only want the exact existing URL/mechanism we should use for the smoke test.
+
+### Expected output
+
+Report:
+
+* **Recommended Test App Referral URL:** [exact URL, if already available]
+* **Creator:** In2Golf
+* **Slug:** `in2golf`
+* **Referral ID:** [if applicable]
+* **How the URL works:** brief explanation
+* **Where `pr_ref` comes from:** brief explanation
+* **Whether the slug page should redirect/use this URL:** yes/no with explanation
+* **If no link exists:** exact existing step needed to issue one
+
+Also identify the relevant source files/routes/functions that establish the answer.
