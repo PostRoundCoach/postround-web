@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
+import { claimPendingWebReferral } from '@/lib/referrals/claim'
 
 /**
  * Handles Supabase auth redirects (password reset, email confirmation, etc.)
@@ -10,7 +11,9 @@ import { cookies } from 'next/headers'
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url)
   const code = searchParams.get('code')
-  const next = searchParams.get('next') ?? '/dashboard'
+  const requestedNext = searchParams.get('next')
+  const next = requestedNext === '/reset-password' || requestedNext === '/delete-account'
+    ? requestedNext : '/dashboard'
 
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
     return NextResponse.redirect(`${origin}/login`)
@@ -37,6 +40,11 @@ export async function GET(request: NextRequest) {
 
     const { error } = await supabase.auth.exchangeCodeForSession(code)
     if (!error) {
+      try {
+        await claimPendingWebReferral()
+      } catch {
+        // Keep the pending cookie for a later authenticated claim attempt.
+      }
       // Use the site URL for production, fall back to request origin in dev
       const baseUrl = process.env.NEXT_PUBLIC_SITE_URL ?? origin
       return NextResponse.redirect(`${baseUrl}${next}`)

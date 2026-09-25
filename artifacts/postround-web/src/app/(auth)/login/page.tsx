@@ -74,6 +74,12 @@ function LoginForm() {
         return
       }
 
+      const claim = await fetch('/referrals/claim', { method: 'POST' })
+      if (!claim.ok) {
+        router.push('/dashboard?referral=pending')
+        router.refresh()
+        return
+      }
       router.push(safeNext)
       router.refresh()
     } catch {

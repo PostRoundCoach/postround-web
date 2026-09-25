@@ -3,6 +3,8 @@
 This directory is the source of truth for the external Supabase database used by
 Post Round Coach.
 
+Creator referral schema, handoff, security and deployment details: [creator-referrals.md](creator-referrals.md).
+
 ## Authoritative records
 
 - **Desired schema history:** the reviewed SQL files in `migrations/`, in filename

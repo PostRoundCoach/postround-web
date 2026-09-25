@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { DashboardShell } from '@/components/dashboard/DashboardShell'
 import { getDashboardCreatorProfile } from '@/lib/creator-stories/server-profile'
+import { PendingReferralClaim } from '@/components/auth/PendingReferralClaim'
 
 export default async function DashboardLayout({
   children,
@@ -20,6 +21,7 @@ export default async function DashboardLayout({
 
   return (
     <DashboardShell user={user} hasCreatorProfile={hasCreatorProfile}>
+      <PendingReferralClaim />
       {children}
     </DashboardShell>
   )

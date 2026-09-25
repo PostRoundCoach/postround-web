@@ -44,6 +44,9 @@ const publicCreators = {
     creator_social_accounts: [],
   },
 }
+const referralEvents = new Map()
+const referralAttributions = new Map()
+let referralCounter = 0
 const story = {
   id: storyId,
   story_id: storyId,
@@ -345,6 +348,38 @@ const server = http.createServer((request, response) => {
       }
 
       return send(response, 200, publicCreators[input.requested_slug] ?? null)
+    })
+    return
+  }
+
+  if (request.method === 'POST' && url.pathname === '/rest/v1/rpc/issue_creator_referral') {
+    let body = ''
+    request.on('data', (chunk) => { body += chunk })
+    request.on('end', () => {
+      const input = JSON.parse(body || '{}')
+      if (!publicCreators[input.requested_slug]) return send(response, 200, null)
+      const id = `90000000-0000-4000-8000-${String(++referralCounter).padStart(12, '0')}`
+      referralEvents.set(id, { slug: input.requested_slug, platform: input.requested_platform })
+      return send(response, 200, id)
+    })
+    return
+  }
+
+  if (request.method === 'POST' && url.pathname === '/rest/v1/rpc/claim_creator_referral') {
+    let body = ''
+    request.on('data', (chunk) => { body += chunk })
+    request.on('end', () => {
+      const user = userFromRequest(request)
+      if (!user) return send(response, 401, { code: '28000', message: 'Authentication required' })
+      const input = JSON.parse(body || '{}')
+      const event = referralEvents.get(input.evidence_id)
+      if (!event) return send(response, 400, { code: '22023', message: 'Invalid referral evidence' })
+      if (!referralAttributions.has(user.id) &&
+          ![...referralAttributions.values()].some((row) => row.event === input.evidence_id)) {
+        referralAttributions.set(user.id, { event: input.evidence_id, creator_id: event.slug, attributed_at: new Date().toISOString() })
+      }
+      const row = referralAttributions.get(user.id)
+      send(response, 200, row ? [{ creator_id: row.creator_id, attributed_at: row.attributed_at }] : [])
     })
     return
   }

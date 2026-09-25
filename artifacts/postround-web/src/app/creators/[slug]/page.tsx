@@ -50,5 +50,5 @@ export default async function CreatorPage({ params }: CreatorPageProps) {
   const creator = await getPublicCreatorBySlug(slug)
   if (!creator) notFound()
 
-  return <PublicCreatorProfile {...creator} />
+  return <PublicCreatorProfile {...creator} referralHref={`/r/${slug}`} />
 }

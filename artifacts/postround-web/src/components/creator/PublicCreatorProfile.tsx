@@ -8,6 +8,7 @@ export interface SocialAccount {
 }
 
 export interface PublicCreatorProfileProps {
+  referralHref?: string
   displayName: string
   bio: string | null
   avatarUrl: string | null
@@ -35,6 +36,7 @@ const platformIcon = (platform: string) => {
 }
 
 export function PublicCreatorProfile({
+  referralHref,
   displayName,
   bio,
   avatarUrl,
@@ -139,6 +141,12 @@ export function PublicCreatorProfile({
           <p className="max-w-md text-sm leading-relaxed text-white/50">
             Capture your round, learn from every moment, and share the stories that made it yours.
           </p>
+          {referralHref && <Link
+            href={referralHref}
+            className="rounded-full bg-[#D4AF37] px-6 py-3 text-sm font-bold text-[#0D1B12] transition hover:bg-[#e2c35a] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+          >
+            Get Post Round with this creator
+          </Link>}
           <Link
             href="/"
             className="rounded-full bg-[#D4AF37] px-6 py-3 text-sm font-bold text-[#0D1B12] transition hover:-translate-y-0.5 hover:bg-[#e2c35a] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"

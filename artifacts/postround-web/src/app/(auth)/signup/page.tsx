@@ -68,13 +68,27 @@ export default function SignUpPage() {
       type: 'email',
     })
 
-    setIsLoading(false)
-
     if (verifyError) {
+      setIsLoading(false)
       setError('Invalid or expired code. Please try again.')
       return
     }
 
+    try {
+      const claim = await fetch('/referrals/claim', { method: 'POST' })
+      if (!claim.ok) {
+        setIsLoading(false)
+        router.push('/dashboard?referral=pending')
+        router.refresh()
+        return
+      }
+    } catch {
+      setIsLoading(false)
+      router.push('/dashboard?referral=pending')
+      router.refresh()
+      return
+    }
+    setIsLoading(false)
     router.push('/dashboard')
     router.refresh()
   }
