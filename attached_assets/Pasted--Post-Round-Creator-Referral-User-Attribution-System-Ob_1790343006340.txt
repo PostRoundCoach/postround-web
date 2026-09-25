@@ -1,0 +1,867 @@
+# Post Round — Creator Referral & User Attribution System
+
+## Objective
+
+Build the foundational creator referral and user-attribution system for Post Round.
+
+The purpose is to connect the existing public creator slug infrastructure to eventual Google Play and Apple App Store distribution, and to permanently attribute a Post Round user to the creator who referred them.
+
+This system will eventually support creator compensation of **20% of qualifying subscription revenue for the first 3 months of a referred user's subscription**, so attribution must be durable, auditable, and immutable once established.
+
+The system must be designed so that Google Play / App Store production URLs can be added later without redesigning the database or referral architecture.
+
+---
+
+# 1. Existing database architecture
+
+## creator_profiles
+
+Current structure:
+
+```text
+id
+user_id
+display_name
+bio
+avatar_url
+status
+created_at
+updated_at
+slug
+advanced_creator
+```
+
+Example:
+
+```text
+id: 0d3c3e3e-c040-456a-9aec-a3083fccbaed
+user_id: 0d3c3e3e-c040-456a-9aec-a3083fccbaed
+display_name: In2Golf
+slug: in2golf
+status: active
+advanced_creator: false
+```
+
+Important:
+
+* `slug` is the existing public creator identifier.
+* Creator public pages already exist.
+* Do NOT replace or redesign the existing slug infrastructure.
+* Do NOT assume `creator_profiles.id` and `creator_profiles.user_id` are interchangeable.
+* Inspect existing foreign keys and relationships before implementing anything.
+
+Existing creator pages include:
+
+```text
+/creators/in2golf
+/creators/theghqcrew
+```
+
+---
+
+## profiles
+
+Current structure includes:
+
+```text
+id
+display_name
+home_course
+handicap
+dominant_hand
+preferred_tees
+created_at
+updated_at
+email
+home_course_id
+role
+subscription_plan
+subscription_status
+stripe_customer_id
+stripe_subscription_id
+current_period_end
+subscription_currency
+handicap_index
+lowest_handicap
+last_handicap_update
+handicap_rounds
+report_credits_remaining
+round_buddy_intro_seen
+favorite_creator_id
+story_sharing_prompt_preference
+creator_prompt_seen
+story_voice_style
+voice_auto_capture
+```
+
+The `profiles.id` is the Post Round application's authenticated user identifier.
+
+Do NOT add `creator_id` or `referred_by_creator_id` to `profiles` as the authoritative attribution mechanism.
+
+Attribution must be represented by a dedicated immutable attribution record.
+
+---
+
+## creator_social_profiles
+
+Existing structure:
+
+```text
+id
+creator_id
+platform
+handle
+profile_url
+created_at
+updated_at
+```
+
+Do not modify this table unless there is a concrete technical reason.
+
+---
+
+# 2. Existing creator slug architecture
+
+Creator public pages already use:
+
+```text
+https://www.postroundcoach.com/creators/{slug}
+```
+
+Examples:
+
+```text
+https://www.postroundcoach.com/creators/in2golf
+https://www.postroundcoach.com/creators/theghqcrew
+```
+
+The referral system must build on this architecture.
+
+Do not create a separate creator identity system.
+
+---
+
+# 3. Desired referral architecture
+
+Create a permanent referral endpoint:
+
+```text
+/r/{creator_slug}
+```
+
+Examples:
+
+```text
+https://www.postroundcoach.com/r/in2golf
+https://www.postroundcoach.com/r/theghqcrew
+```
+
+This endpoint is the canonical creator acquisition URL.
+
+The creator should never need to change their public referral URL when the app moves from development to production or when the App Store / Google Play URLs become available.
+
+The referral endpoint should:
+
+1. Resolve the creator using `creator_profiles.slug`.
+2. Verify the creator is active.
+3. Record the referral event.
+4. Generate/preserve an attribution token where appropriate.
+5. Redirect to the appropriate platform destination.
+6. Use configurable platform destinations.
+7. Never hard-code creator-specific application logic.
+
+The system must support an arbitrary number of creators.
+
+Do NOT implement:
+
+```javascript
+if (slug === "in2golf") ...
+if (slug === "theghqcrew") ...
+```
+
+Creator lookup must be database-driven.
+
+---
+
+# 4. Database design
+
+First inspect the existing database migrations, foreign keys, RLS policies, indexes, and naming conventions.
+
+Then create the minimum required schema using Post Round's existing migration conventions.
+
+Prefer UUID primary keys if that matches the existing database.
+
+## Table: creator_referral_links
+
+Create a table representing a creator's referral identity.
+
+Suggested fields:
+
+```text
+id
+creator_id
+referral_code
+platform
+active
+created_at
+updated_at
+```
+
+Requirements:
+
+* `creator_id` must reference the existing creator profile table.
+* `referral_code` should normally equal the creator's slug.
+* `platform` should support a platform-neutral/all-platform referral as well as future platform-specific links if required.
+* Enforce appropriate uniqueness.
+* Do not duplicate creator identity unnecessarily.
+
+The initial referral links should support:
+
+```text
+in2golf
+theghqcrew
+```
+
+---
+
+# 5. Table: creator_referral_events
+
+Create an event table for referral/acquisition activity.
+
+Suggested fields:
+
+```text
+id
+referral_link_id
+creator_id
+platform
+campaign
+anonymous_token
+occurred_at
+metadata
+```
+
+Purpose:
+
+Record that someone interacted with a creator referral link before we necessarily know who the Post Round user is.
+
+This table is for acquisition analytics and debugging.
+
+Do not use it as the authoritative user attribution record.
+
+Potential platform values:
+
+```text
+web
+android
+ios
+unknown
+```
+
+Potential campaign value:
+
+```text
+creator_referral
+```
+
+The schema should remain extensible.
+
+Do not store unnecessary personally identifiable information.
+
+---
+
+# 6. Table: creator_attributions
+
+Create the authoritative creator-to-user attribution table.
+
+Suggested fields:
+
+```text
+id
+creator_id
+user_id
+referral_link_id
+platform
+attribution_method
+attribution_source
+attributed_at
+created_at
+metadata
+```
+
+Relationships:
+
+```text
+creator_id → creator_profiles.id
+user_id → profiles.id
+referral_link_id → creator_referral_links.id
+```
+
+This table is the source of truth for:
+
+> "This Post Round user was referred by this creator."
+
+## Critical business rule
+
+A user should have at most one original creator attribution.
+
+Once an attribution is established, it must not be silently overwritten because the user later clicks another creator's link.
+
+For example:
+
+```text
+User signs up through In2Golf
+        ↓
+creator_attributions
+creator = In2Golf
+        ↓
+User later clicks The GHQ Crew
+        ↓
+DO NOT replace In2Golf attribution
+```
+
+The first valid attribution wins.
+
+Implement a database-level uniqueness constraint preventing multiple active/original creator attributions for the same user.
+
+Do not rely solely on frontend logic.
+
+---
+
+# 7. Attribution method
+
+The system must record HOW attribution occurred.
+
+Examples:
+
+```text
+android_install_referrer
+ios_campaign
+web_referral
+manual
+other
+```
+
+The exact enum/database implementation should follow the existing project's conventions.
+
+This is important for debugging and future analytics.
+
+---
+
+# 8. Attribution source
+
+Record the original source/campaign information separately from the creator identity.
+
+Examples:
+
+```text
+source = creator_referral
+campaign = in2golf
+```
+
+Do not use the creator slug as the sole historical record.
+
+The database should retain the creator foreign key as the authoritative relationship.
+
+---
+
+# 9. Android implementation
+
+Before changing native code, inspect the actual Post Round mobile stack.
+
+Determine:
+
+* Expo SDK version
+* React Native version
+* Expo Router vs React Navigation
+* EAS configuration
+* Android package/application ID
+* current app scheme
+* existing deep-link configuration
+* whether native Android code exists
+* whether Expo prebuild is used
+* whether an Android native module is already available for Play Install Referrer
+
+Do not assume the implementation approach.
+
+The eventual Android flow should be:
+
+```text
+Creator referral URL
+        ↓
+Post Round referral endpoint
+        ↓
+Google Play
+        ↓
+Install
+        ↓
+First app launch
+        ↓
+Google Play Install Referrer
+        ↓
+creator referral identifier
+        ↓
+Post Round backend
+        ↓
+authenticated Post Round user
+        ↓
+creator_attributions
+```
+
+Use Google's supported Play Install Referrer mechanism rather than attempting to infer attribution from app installation alone.
+
+The production Google Play URL does not exist yet.
+
+Therefore:
+
+* build the app-side attribution architecture now
+* make store destination configurable
+* do not block implementation on the final Google Play URL
+* provide a clean integration point for the production Play Store URL later
+
+---
+
+# 10. iOS implementation
+
+Inspect the current Expo/EAS/iOS architecture before implementing.
+
+Determine the appropriate Apple-supported approach for creator campaign attribution and deep linking.
+
+The production App Store URL is not available yet.
+
+Do not block the database or web referral infrastructure on this.
+
+Prepare the architecture so that the eventual iOS campaign/referral identifier can be mapped back to:
+
+```text
+creator_profiles.id
+```
+
+and then to:
+
+```text
+creator_attributions
+```
+
+Do not invent an unsupported App Store attribution mechanism.
+
+If native implementation is not currently possible without the production App Store configuration, document the exact remaining configuration required rather than creating a fragile workaround.
+
+---
+
+# 11. Referral landing endpoint
+
+Implement:
+
+```text
+/r/:slug
+```
+
+The endpoint should:
+
+1. Look up the creator by `creator_profiles.slug`.
+2. Verify `status = active`.
+3. Resolve/create the creator referral link.
+4. Record a referral event.
+5. Determine platform from the request where possible.
+6. Redirect to the appropriate configured destination.
+
+Configuration should support something conceptually like:
+
+```text
+ANDROID_STORE_URL
+IOS_STORE_URL
+WEB_FALLBACK_URL
+```
+
+Do not hard-code these values into application logic.
+
+Until production store URLs exist, the endpoint may redirect to an appropriate temporary/fallback destination.
+
+---
+
+# 12. Preserve attribution across the install/signup gap
+
+This is a core requirement.
+
+The user may:
+
+```text
+click referral
+    ↓
+visit store
+    ↓
+install app
+    ↓
+open app later
+    ↓
+create account
+```
+
+The attribution system must not assume the user is authenticated when they first click the referral.
+
+The implementation should therefore support an anonymous referral identifier/token that can survive the transition from referral click to eventual authenticated account creation.
+
+The exact mechanism should be selected after inspecting the mobile/web stack.
+
+Do not put raw personally identifying information into referral URLs or anonymous referral tokens.
+
+---
+
+# 13. Account creation attribution
+
+When a new authenticated Post Round user becomes available, the system should attempt to resolve any pending creator referral attribution.
+
+If a valid referral exists:
+
+```text
+creator_attributions
+```
+
+should be created exactly once.
+
+The operation must be safe to retry.
+
+For example:
+
+```text
+first launch
+→ attempt attribution
+
+signup
+→ attempt attribution
+
+app restart
+→ attempt attribution
+```
+
+These repeated attempts must not create duplicate attribution records.
+
+Use database constraints / idempotent server-side logic.
+
+---
+
+# 14. Creator compensation requirements
+
+Creator attribution will eventually support creator compensation:
+
+**20% of qualifying subscription revenue for the first 3 months of a referred user's subscription.**
+
+Do not implement a compensation ledger unless required for the attribution implementation.
+
+However, the attribution schema must preserve the information needed to calculate compensation later.
+
+At minimum we must be able to determine:
+
+```text
+creator
+referred user
+original attribution timestamp
+attribution source
+platform
+```
+
+This allows a future compensation system to calculate:
+
+```text
+subscription start
++
+first 3 months
++
+qualifying revenue
++
+20%
+```
+
+Do not derive creator attribution from Stripe metadata alone.
+
+The Post Round database attribution record must remain the authoritative source for who referred the user.
+
+---
+
+# 15. Stripe/subscription compatibility
+
+Inspect the existing subscription architecture.
+
+Determine where subscription events are currently stored and how `profiles.subscription_plan`, `subscription_status`, `stripe_customer_id`, `stripe_subscription_id`, and `current_period_end` are maintained.
+
+Do not change subscription behavior as part of this task unless required.
+
+The goal is simply to ensure that the future compensation system can join:
+
+```text
+creator_attributions.user_id
+        ↓
+profiles.id
+        ↓
+Stripe customer/subscription
+```
+
+without ambiguity.
+
+---
+
+# 16. Security / RLS
+
+Follow the existing Supabase security architecture.
+
+Creator attribution records must not be writable directly by arbitrary clients.
+
+The client must not be able to claim:
+
+```text
+creator_id = desired_creator
+```
+
+and thereby assign itself to a creator.
+
+Creator attribution should be created through a trusted server-side path / RPC / backend operation.
+
+Users may be allowed to read their own attribution if useful, but they must not be able to modify it.
+
+Creators must not be able to modify attribution records.
+
+Implement appropriate RLS policies.
+
+---
+
+# 17. Creator page integration
+
+Do not redesign the existing creator pages.
+
+Add the referral/download behavior to the existing creator page architecture.
+
+For example:
+
+```text
+/creators/in2golf
+```
+
+should eventually contain a download CTA whose destination is:
+
+```text
+/r/in2golf
+```
+
+rather than directly linking to Google Play or Apple.
+
+This allows the referral infrastructure to remain permanent.
+
+Do the same for:
+
+```text
+/creators/theghqcrew
+```
+
+The creator page should not need to know the eventual store URL.
+
+---
+
+# 18. Testing requirements
+
+Create automated tests for at least:
+
+### Creator lookup
+
+```text
+/r/in2golf
+→ resolves In2Golf
+
+/r/theghqcrew
+→ resolves The GHQ Crew
+```
+
+### Invalid creator
+
+```text
+/r/not-a-real-creator
+→ appropriate 404/redirect behavior
+```
+
+### Inactive creator
+
+An inactive creator must not receive new referral attribution.
+
+### Referral event
+
+Visiting:
+
+```text
+/r/in2golf
+```
+
+creates the expected referral event.
+
+### Attribution
+
+A valid referral can eventually produce:
+
+```text
+creator_attributions
+```
+
+with:
+
+```text
+creator_id = In2Golf
+user_id = authenticated user
+```
+
+### First attribution wins
+
+Test:
+
+```text
+In2Golf referral
+→ user signup
+→ In2Golf attribution
+
+GHQ referral later
+→ attribution remains In2Golf
+```
+
+### Idempotency
+
+Repeated attribution attempts must result in exactly one attribution.
+
+### Security
+
+A client cannot arbitrarily assign itself to a creator.
+
+### Existing functionality
+
+All existing creator profile, creator dashboard, player, story, and subscription tests must continue to pass.
+
+---
+
+# 19. Do not overbuild
+
+Do NOT implement:
+
+* creator commission payouts
+* Stripe Connect
+* creator payment processing
+* creator conversion dashboards
+* creator rankings
+* marketing dashboards
+* complicated multi-touch attribution
+* automatic attribution reassignment
+* referral codes separate from creator slugs unless technically required
+* a second creator identity system
+
+This task is about establishing the reliable foundation.
+
+---
+
+# 20. Deliverables
+
+At completion provide:
+
+### Database
+
+* migration(s)
+* tables created
+* indexes
+* foreign keys
+* unique constraints
+* RLS policies
+
+### Web
+
+* `/r/:slug`
+* creator page CTA integration if appropriate
+* configurable store destinations
+
+### Mobile
+
+* documented Android attribution implementation
+* documented iOS implementation/status
+* any required Expo/EAS configuration
+* any required native configuration
+
+### Tests
+
+* unit tests
+* integration tests
+* database/RLS tests where appropriate
+
+### Documentation
+
+Document the eventual production flow:
+
+```text
+Creator page
+    ↓
+/r/{slug}
+    ↓
+Google Play / App Store
+    ↓
+Install
+    ↓
+First launch
+    ↓
+Account creation
+    ↓
+creator_attributions
+    ↓
+future subscription compensation
+```
+
+Also explicitly document what remains to be configured once the Google Play and Apple App Store production URLs are available.
+
+---
+
+# 21. Important implementation principle
+
+Do not make assumptions about the current Post Round mobile stack.
+
+First inspect the repository and report:
+
+1. current Expo SDK
+2. React Native version
+3. routing
+4. EAS configuration
+5. Android package
+6. iOS bundle identifier
+7. current linking/deep-link configuration
+8. Supabase authentication flow
+9. current account creation flow
+10. existing subscription/Stripe architecture
+
+Then implement the referral system using the architecture that best fits the existing application.
+
+The existing creator slug system is the foundation.
+
+The desired end state is:
+
+```text
+creator_profiles
+       │
+       │ slug
+       ▼
+/creators/{slug}
+       │
+       ▼
+/r/{slug}
+       │
+       ├──────── Android ────────┐
+       │                         │
+       └──────── iOS ────────────┤
+                                 ▼
+                          Post Round app
+                                 │
+                                 ▼
+                              profiles
+                                 │
+                                 ▼
+                     creator_attributions
+                                 │
+                                 ▼
+                       future compensation
+```
+
+Do not redesign the existing creator architecture.
+Do not add attribution directly to `profiles`.
+Do not make the store URL the permanent referral identity.
+Do not make creator attribution editable by clients.
+Do not block the infrastructure on the current absence of App Store / Google Play production URLs.
