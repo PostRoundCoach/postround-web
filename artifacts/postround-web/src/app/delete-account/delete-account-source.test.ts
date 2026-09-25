@@ -8,12 +8,12 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const sourcePath = path.join(__dirname, 'DeleteAccountClient.tsx')
 const sourceCode = fs.readFileSync(sourcePath, 'utf-8')
 
-test('DeleteAccountClient includes exact confirmation requirement', () => {
-  // Should check that it specifically looks for "DELETE"
-  assert.ok(
-    sourceCode.includes("!acknowledged || confirmationText !== 'DELETE'"),
-    'Component must strictly enforce "DELETE" confirmation string'
-  )
+test('DeleteAccountClient shares its exact confirmation gate between button and submit', () => {
+  assert.ok(sourceCode.includes("confirmationText === 'DELETE'"))
+  assert.ok(sourceCode.includes('Boolean(session) && acknowledged'))
+  assert.ok(sourceCode.includes('!isDeleting'))
+  assert.ok(sourceCode.includes('if (!canDelete || !session) return'))
+  assert.ok(sourceCode.includes('disabled={!canDelete}'))
   assert.ok(sourceCode.includes('checked={acknowledged}'))
 })
 

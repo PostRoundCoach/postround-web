@@ -22,6 +22,7 @@ export function DeleteAccountClient() {
   const [acknowledged, setAcknowledged] = useState(false)
 
   const supabase = useMemo(() => createClient(), [])
+  const canDelete = Boolean(session) && acknowledged && confirmationText === 'DELETE' && !isDeleting
 
   useEffect(() => {
     async function checkSession() {
@@ -38,8 +39,7 @@ export function DeleteAccountClient() {
 
   const handleDelete = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!acknowledged || confirmationText !== 'DELETE') return
-    if (!session) return
+    if (!canDelete || !session) return
 
     setIsDeleting(true)
     setDeleteStatus('idle')
@@ -182,7 +182,7 @@ export function DeleteAccountClient() {
               value={confirmationText}
               onChange={(e) => setConfirmationText(e.target.value)}
               disabled={isDeleting}
-              className="h-11 font-mono uppercase"
+              className="h-11 font-mono"
               autoComplete="off"
             />
           </div>
@@ -192,7 +192,7 @@ export function DeleteAccountClient() {
             variant="destructive"
             size="lg"
             className="w-full"
-            disabled={!acknowledged || confirmationText !== 'DELETE' || isDeleting}
+            disabled={!canDelete}
           >
             {isDeleting ? (
               <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Deleting Account...</>

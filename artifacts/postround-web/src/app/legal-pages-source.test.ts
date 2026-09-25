@@ -55,7 +55,7 @@ test('account deletion entry points and confirmation flow remain present', () =>
   const client = read('delete-account/DeleteAccountClient.tsx')
   assert.ok(page.includes('<DeleteAccountClient />'))
   assert.ok(client.includes('href="/login?next=/delete-account"'))
-  assert.ok(client.includes("confirmationText !== 'DELETE'"))
+  assert.ok(client.includes("confirmationText === 'DELETE'"))
   assert.ok(client.includes('requestAccountDeletion(session.access_token)'))
   assert.ok(client.includes('supabase.auth.signOut()'))
 })
