@@ -49,16 +49,18 @@ function frame(kind: string, body: string) {
 }
 
 export function highlightsSvg(headline: string, round: RoundSummary, stats: RoundHighlights) {
-  const metadata = [round.player_display_name, round.course_name, round.tees && `${round.tees} tees`, round.played_at].filter(Boolean).join('  •  ')
+  const metadata = [round.player_display_name, round.course_name, round.tees && `${round.tees} tees`].filter(Boolean).join('  •  ')
   const facts = [
     stats.total_score !== null && `Score ${stats.total_score}`,
     stats.score_to_par !== null && `To par ${stats.score_to_par > 0 ? '+' : ''}${stats.score_to_par}`,
     stats.total_putts !== null && `${stats.total_putts} putts`,
     stats.birdies !== null && `${stats.birdies} birdies`,
+    stats.fairways_hit != null && stats.total_fairways != null && `Fairways ${stats.fairways_hit}/${stats.total_fairways}`,
+    stats.gir_hit != null && stats.total_gir != null && `GIR ${stats.gir_hit}/${stats.total_gir}`,
   ].filter(Boolean).join('   •   ')
-  return frame('ROUND HIGHLIGHTS', `${textBlock(headline, 82, 164, 916, 112, 43)}
-    ${metadata ? textBlock(metadata, 82, 295, 916, 56, 22) : ''}
-    ${facts ? textBlock(facts, 82, 360, 916, 32, 21) : ''}`)
+  return frame('ROUND HIGHLIGHTS', `${textBlock(headline, 82, 155, 916, 98, 43)}
+    ${metadata ? textBlock(metadata, 82, 253, 916, 67, 26) : ''}
+    ${facts ? textBlock(facts, 82, 332, 916, 62, 24) : ''}`)
 }
 
 export function playerNoteSvg(hole: number, playerName: string, transcript: string) {

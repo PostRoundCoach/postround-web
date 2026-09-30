@@ -267,12 +267,22 @@ test('approved story downloads independent transparent overlays and the existing
     const body = await response.json()
     body.contract.creatorContentStory.permission.granted_at = '2026-01-03T00:00:00.000Z'
     body.contract.round.player_display_name = 'BirdieDog'
+    body.contract.round.played_at = '2042-11-29'
     body.contract.roundBuddyMessages = [{ content: 'An assistant message that must never be exported.' }]
+    await route.fulfill({ response, json: body })
+  })
+  await page.route('**/api/content/stories', async (route) => {
+    const response = await route.fetch()
+    const body = await response.json()
+    body.stories[0].story_data.round_date = '2042-11-29'
     await route.fulfill({ response, json: body })
   })
   await signIn(page)
   await page.goto('/creator')
   await page.getByTestId(`button-download-highlights-${storyId}`).waitFor()
+  await expect(page.getByTestId(`card-story-${storyId}`)).toContainText('2042-11-29')
+  const scorecardPreview = page.getByTestId(`preview-share-scorecard-${storyId}`)
+  await expect(scorecardPreview).not.toContainText('2042-11-29')
   await expect(page.getByTestId(`section-shareable-assets-${storyId}`)).toContainText('Player Notes via Round Buddy')
   for (const hole of [1, 4, 7]) await expect(page.getByTestId(`button-download-note-${hole}-${storyId}`)).toBeEnabled()
   for (const hole of [2, 3, 5, 6, 8, 9]) await expect(page.getByTestId(`button-download-note-${hole}-${storyId}`)).toHaveCount(0)
@@ -298,7 +308,12 @@ test('approved story downloads independent transparent overlays and the existing
   }
   await expect.poll(() => page.evaluate(() => (window as typeof window & { __svgExports: string[] }).__svgExports.filter((svg) => svg.includes('PLAYER NOTE')).length)).toBe(3)
   const svgs = await page.evaluate(() => (window as typeof window & { __svgExports: string[] }).__svgExports)
+  expect(svgs).toHaveLength(5)
+  for (const svg of svgs) expect(svg).not.toContain('2042-11-29')
   expect(svgs.some((svg) => svg.includes('ROUND HIGHLIGHTS'))).toBe(true)
+  const highlights = svgs.find((svg) => svg.includes('ROUND HIGHLIGHTS'))!
+  expect(highlights).toContain('Fairways 8/14')
+  expect(highlights).toContain('GIR 7/18')
   const notes = svgs.filter((svg) => svg.includes('PLAYER NOTE'))
   for (const [index, transcript] of [
     'First hole, hit the fairway with my 3-wood and hold out for an eagle, no putts.',
@@ -315,6 +330,7 @@ test('approved story downloads independent transparent overlays and the existing
   expect(contentRequests).toHaveLength(before)
   expect(roundRequests).toBe(1)
   const scorecardSvg = await page.getByTestId(`preview-share-scorecard-${storyId}`).evaluate((svg) => svg.outerHTML)
+  expect(scorecardSvg).not.toContain('2042-11-29')
   expect(scorecardSvg).not.toContain('Round Buddy')
   expect(scorecardSvg).toContain('Includes player notes')
 })
@@ -340,6 +356,7 @@ test('unapproved and unattributed stories offer no note downloads and do not enc
   await page.getByTestId(`button-download-highlights-${storyId}`).waitFor()
   expect(await page.evaluate(() => (window as typeof window & { __encodes: number }).__encodes)).toBe(0)
   await expect(page.getByTestId(`button-download-highlights-${storyId}`)).toBeDisabled()
+  await expect(page.getByTestId(`button-download-scorecard-${storyId}`)).toBeDisabled()
   await expect(page.getByTestId(`button-download-note-1-${storyId}`)).toHaveCount(0)
 })
 

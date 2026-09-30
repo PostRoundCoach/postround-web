@@ -106,7 +106,7 @@ export function ShareableScorecardGraphic({
             {round.course_name || 'Round scorecard'}
           </text>
           <text x="88" y="218" fill="#68736d" fontFamily="Arial, sans-serif" fontSize="22">
-            {[round.player_display_name, round.played_at, round.tees ? `${round.tees} tees` : null].filter(Boolean).join('  •  ')}
+            {[round.player_display_name, round.tees ? `${round.tees} tees` : null].filter(Boolean).join('  •  ')}
           </text>
 
           <rect x="88" y="250" width="280" height="126" rx="20" fill="#eaf3ed" />
