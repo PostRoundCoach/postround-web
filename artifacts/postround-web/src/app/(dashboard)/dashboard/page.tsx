@@ -1,10 +1,8 @@
 import { createClient } from '@/lib/supabase/server'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { Button } from '@/components/ui/button'
 import { SignOutButton } from '@/components/auth/SignOutButton'
-import { CalendarDays, TrendingUp, Dna, FileText, Crown, Flag } from 'lucide-react'
-import Link from 'next/link'
+import { CalendarDays, TrendingUp, Flag } from 'lucide-react'
 import { CreatorContentTile } from '@/components/dashboard/CreatorContentTile'
 import { fetchCreatorLandingSummary } from '@/lib/creator-stories/client'
 import { getDashboardCreatorProfile } from '@/lib/creator-stories/server-profile'
@@ -197,13 +195,6 @@ export default async function DashboardPage({
                 <TrendingUp className="h-5 w-5 text-[#52B788]" />
                 <CardTitle className="font-serif text-xl">Recent Rounds</CardTitle>
               </div>
-              {roundCount > 0 && (
-                <Link href="/dashboard/rounds">
-                  <Button variant="ghost" size="sm" className="text-[#D4AF37] hover:text-[#C19F27]">
-                    View all
-                  </Button>
-                </Link>
-              )}
             </div>
             <CardDescription>Your latest rounds from the app</CardDescription>
           </CardHeader>
@@ -249,88 +240,6 @@ export default async function DashboardPage({
           </CardContent>
          </Card>
 
-         {/* Player DNA Card */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <Dna className="h-5 w-5 text-[#D4AF37]" />
-              <CardTitle className="font-serif text-xl">Player DNA</CardTitle>
-            </div>
-            <CardDescription>Your unique patterns</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="text-center py-8">
-              <div className="h-12 w-12 rounded-full bg-muted/50 flex items-center justify-center mx-auto mb-3">
-                <Dna className="h-6 w-6 text-muted-foreground" />
-              </div>
-              <p className="text-sm text-muted-foreground">
-                {roundCount === 0
-                  ? 'Complete a round review to see your patterns.'
-                  : 'Full DNA analysis coming soon.'}
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* AI Coaching Reports Card */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <FileText className="h-5 w-5 text-[#52B788]" />
-              <CardTitle className="font-serif text-xl">AI Coaching Reports</CardTitle>
-            </div>
-            <CardDescription>Personalized insights</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {recentRounds.some(r => r.ai_summary) ? (
-              <div className="space-y-3">
-                {recentRounds.filter(r => r.ai_summary).slice(0, 2).map(round => (
-                  <div key={round.id} className="p-3 rounded-lg bg-muted/30 border border-border">
-                    <p className="text-xs text-muted-foreground mb-1">
-                      {round.course_name} · {new Date(round.played_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                    </p>
-                    <p className="text-xs text-foreground line-clamp-3">{round.ai_summary}</p>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-8">
-                <div className="h-12 w-12 rounded-full bg-muted/50 flex items-center justify-center mx-auto mb-3">
-                  <FileText className="h-6 w-6 text-muted-foreground" />
-                </div>
-                <p className="text-sm text-muted-foreground">
-                  {roundCount === 0 ? 'No coaching reports yet.' : 'No AI summaries on recent rounds.'}
-                </p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Subscription Status Card */}
-        <Card className="md:col-span-2 lg:col-span-1">
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <Crown className="h-5 w-5 text-[#D4AF37]" />
-              <CardTitle className="font-serif text-xl">Subscription</CardTitle>
-            </div>
-            <CardDescription>Manage your plan</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-col gap-4">
-              <div>
-                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-muted/50 border border-border mb-2">
-                  <span className="text-sm font-medium">Free Plan</span>
-                </div>
-                <p className="text-sm text-muted-foreground">
-                  Upgrade to unlock full AI coaching, unlimited rounds, and advanced Player DNA insights.
-                </p>
-              </div>
-              <Button variant="gold" size="lg" disabled className="w-full">
-                Upgrade Plan
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
          </>)}
       </div>
     </div>

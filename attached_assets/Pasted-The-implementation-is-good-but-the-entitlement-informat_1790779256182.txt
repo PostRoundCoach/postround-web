@@ -1,0 +1,79 @@
+The implementation is good, but the entitlement information is currently incomplete.
+
+The previous task left:
+
+* Subscription allowances
+* Remaining PR Credits
+* Paid prices
+
+as "unavailable" because deployed sources could not be verified.
+
+However, we already have a **Post Round Entitlement Contract** extracted from the current application/API specifically for this purpose.
+
+## Task
+
+Use the provided **Post Round Entitlement Contract** as the authoritative source for the web copy.
+
+Do NOT require access to deployed production sources if the contract already contains the required information.
+
+### Apply the contract values to:
+
+* Subscription tile
+* Billing page
+* Plan/allowance descriptions
+* PR Credit balance/description where applicable
+* Paid pricing
+* Upgrade messaging
+
+The web application should display the values documented in the entitlement contract rather than showing "unavailable."
+
+## Important
+
+Do not invent or infer values.
+
+If a value is explicitly established in the entitlement contract, use it.
+
+If the contract itself identifies a value as unresolved or requiring confirmation, leave that specific value unchanged and report it.
+
+In particular, preserve the two known contract ambiguities:
+
+1. Free report allowance discrepancy
+2. Voice Recap credit-cost discrepancy
+
+Do not resolve either by guessing.
+
+## Scope
+
+Do not change:
+
+* Mobile application logic
+* API entitlement logic
+* Supabase logic
+* Stripe logic
+* Credit consumption
+* Authorization
+* Creator/admin permissions
+
+This is only about accurately displaying the already-established entitlement information on the web.
+
+## Verification
+
+After the change:
+
+* Run web tests
+* Run typecheck
+* Confirm the preview starts cleanly
+* Check that no "unavailable" placeholder remains for a value explicitly provided by the entitlement contract
+* Report any contract value that could not be applied because the contract itself does not establish it
+
+Do not require a signed-in browser session for this task if one is unavailable.
+
+### Final report
+
+Tell me exactly:
+
+* Which entitlement values were populated from the contract
+* Which values remain unresolved
+* Which pages/components were changed
+* Test/typecheck results
+* Confirmation that no underlying entitlement logic was modified

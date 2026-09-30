@@ -7,7 +7,7 @@ test('ordinary players never receive creator navigation', () => {
 
   assert.equal(items.some((item) => item.href === '/creator'), false)
   assert.deepEqual(items.map(({ label }) => label), [
-    'Dashboard', 'My Rounds', 'Coaching Reports', 'Player DNA', 'Profile', 'Billing', 'Settings',
+    'Dashboard', 'Profile', 'Settings',
   ])
 })
 

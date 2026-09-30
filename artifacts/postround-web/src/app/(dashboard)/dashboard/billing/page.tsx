@@ -1,130 +1,78 @@
+import { redirect } from 'next/navigation'
+import { createClient } from '@/lib/supabase/server'
+import { getPlayerSubscription } from '@/lib/subscription/server'
+import { presentSubscription } from '@/lib/subscription/presentation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Crown, Check } from 'lucide-react'
 
-export default function BillingPage() {
+const plans = [
+  { id: 'free', name: 'Free', description: 'Basic round capture and eligible AI activities, subject to your available balances.' },
+  { id: 'player', name: 'Player', description: 'Player features and a monthly shared PR Credit allowance when subscribed.' },
+  { id: 'performance', name: 'Performance', description: 'Player features and additional coaching and analytics, with a finite monthly shared PR Credit allowance when subscribed.' },
+] as const
+
+export default async function BillingPage() {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
+
+  const subscription = presentSubscription(await getPlayerSubscription(user.id))
+
   return (
     <div className="p-6 lg:p-8 max-w-6xl mx-auto">
       <div className="mb-8">
-        <h1 className="font-serif text-3xl font-bold text-foreground mb-1">
-          Billing & Subscription
-        </h1>
-        <p className="text-muted-foreground">
-          Manage your subscription and payment methods
-        </p>
+        <h1 className="font-serif text-3xl font-bold text-foreground mb-1">Billing &amp; Subscription</h1>
+        <p className="text-muted-foreground">View your recorded subscription. Plan changes are not available here yet.</p>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-3 mb-6">
-        {/* Free Plan */}
-        <Card className="border-2 border-primary">
-          <CardHeader>
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 border border-primary/20 w-fit mb-2">
-              <span className="text-xs font-medium text-primary">Current Plan</span>
-            </div>
-            <CardTitle className="font-serif text-2xl">Free</CardTitle>
-            <CardDescription className="text-2xl font-bold">$0<span className="text-sm font-normal text-muted-foreground">/month</span></CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ul className="space-y-3 mb-6">
-              <li className="flex items-start gap-2 text-sm">
-                <Check className="h-4 w-4 text-primary shrink-0 mt-0.5" />
-                <span>3 round reviews per month</span>
-              </li>
-              <li className="flex items-start gap-2 text-sm">
-                <Check className="h-4 w-4 text-primary shrink-0 mt-0.5" />
-                <span>Basic AI insights</span>
-              </li>
-              <li className="flex items-start gap-2 text-sm">
-                <Check className="h-4 w-4 text-primary shrink-0 mt-0.5" />
-                <span>Player DNA snapshot</span>
-              </li>
-            </ul>
-            <Button variant="outline" className="w-full" disabled>
-              Current Plan
-            </Button>
-          </CardContent>
-        </Card>
-
-        {/* Pro Plan */}
-        <Card className="border-2 border-[#D4AF37] relative">
-          <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-            <div className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-[#D4AF37] text-[#0D1B12] text-xs font-bold">
-              <Crown className="h-3 w-3" />
-              POPULAR
-            </div>
-          </div>
-          <CardHeader>
-            <CardTitle className="font-serif text-2xl">Pro</CardTitle>
-            <CardDescription className="text-2xl font-bold">$19<span className="text-sm font-normal text-muted-foreground">/month</span></CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ul className="space-y-3 mb-6">
-              <li className="flex items-start gap-2 text-sm">
-                <Check className="h-4 w-4 text-[#D4AF37] shrink-0 mt-0.5" />
-                <span>Unlimited round reviews</span>
-              </li>
-              <li className="flex items-start gap-2 text-sm">
-                <Check className="h-4 w-4 text-[#D4AF37] shrink-0 mt-0.5" />
-                <span>Advanced AI coaching</span>
-              </li>
-              <li className="flex items-start gap-2 text-sm">
-                <Check className="h-4 w-4 text-[#D4AF37] shrink-0 mt-0.5" />
-                <span>Full Player DNA analysis</span>
-              </li>
-              <li className="flex items-start gap-2 text-sm">
-                <Check className="h-4 w-4 text-[#D4AF37] shrink-0 mt-0.5" />
-                <span>Performance trends</span>
-              </li>
-            </ul>
-            <Button variant="gold" className="w-full" disabled>
-              Upgrade to Pro
-            </Button>
-          </CardContent>
-        </Card>
-
-        {/* Elite Plan */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="font-serif text-2xl">Elite</CardTitle>
-            <CardDescription className="text-2xl font-bold">$49<span className="text-sm font-normal text-muted-foreground">/month</span></CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ul className="space-y-3 mb-6">
-              <li className="flex items-start gap-2 text-sm">
-                <Check className="h-4 w-4 text-primary shrink-0 mt-0.5" />
-                <span>Everything in Pro</span>
-              </li>
-              <li className="flex items-start gap-2 text-sm">
-                <Check className="h-4 w-4 text-primary shrink-0 mt-0.5" />
-                <span>1-on-1 coaching sessions</span>
-              </li>
-              <li className="flex items-start gap-2 text-sm">
-                <Check className="h-4 w-4 text-primary shrink-0 mt-0.5" />
-                <span>Custom training plans</span>
-              </li>
-              <li className="flex items-start gap-2 text-sm">
-                <Check className="h-4 w-4 text-primary shrink-0 mt-0.5" />
-                <span>Priority support</span>
-              </li>
-            </ul>
-            <Button variant="outline" className="w-full" disabled>
-              Upgrade to Elite
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-
-      <Card>
+      <Card className="mb-6">
         <CardHeader>
-          <CardTitle className="font-serif text-xl">Payment Method</CardTitle>
-          <CardDescription>Manage your payment information</CardDescription>
+          <CardTitle className="font-serif text-xl">Your subscription</CardTitle>
+          <CardDescription>Read from your signed-in account</CardDescription>
         </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground">
-            No payment method on file. Add a payment method when you upgrade.
+        <CardContent className="space-y-2 text-sm">
+          <p>Recorded plan: <strong>{subscription.plan}</strong></p>
+          <p>Subscription status: <strong>{subscription.status}</strong></p>
+          <p>{subscription.access}</p>
+          <p>{subscription.reportBalance}</p>
+          <p>Included PR Credits remaining: unavailable</p>
+          <p>Purchased PR Credits remaining: unavailable</p>
+          <p className="text-muted-foreground">
+            Included PR Credits are shared across eligible AI activities. Purchased credits are separate
+            and do not unlock paid-only features or replenish Free AI Round Reports.
+            Remaining PR Credit balances cannot be confirmed on this page.
           </p>
         </CardContent>
       </Card>
+
+      <div className="grid gap-6 lg:grid-cols-3 mb-6">
+        {plans.map((plan) => (
+          <Card key={plan.id} className={subscription.knownPlan === plan.id ? 'border-2 border-primary' : ''}>
+            <CardHeader>
+              {subscription.knownPlan === plan.id && (
+                <span className="text-xs font-medium text-primary">Recorded plan</span>
+              )}
+              <CardTitle className="font-serif text-2xl">{plan.name}</CardTitle>
+              <CardDescription>{plan.description}</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                {plan.id === 'free'
+                  ? 'Lifetime included PR Credits and a separate lifetime AI Round Report balance. Allowances are unavailable.'
+                  : 'Monthly included PR Credits and AI Round Report access depend on an active or trialing subscription. Allowances are unavailable.'}
+              </p>
+              {plan.id !== 'free' && <p className="text-sm text-muted-foreground">Live price and currency unavailable.</p>}
+              <Button variant={plan.id === 'player' ? 'gold' : 'outline'} className="w-full" disabled>
+                {subscription.knownPlan === plan.id ? 'Recorded Plan' : plan.id === 'free' ? 'Select Free' : `Upgrade to ${plan.name}`}
+              </Button>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+      <p className="text-sm text-muted-foreground">
+        Plan allowances and paid pricing are not shown until the deployed catalog and live pricing can be confirmed.
+        No purchase or plan change is available on this page.
+      </p>
     </div>
   )
 }

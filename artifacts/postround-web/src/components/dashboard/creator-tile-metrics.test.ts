@@ -29,10 +29,10 @@ test('creator landing keeps its summary and personal profile, while player tiles
   assert.match(page, /creatorProfile \? 'Account Profile' : 'Player Profile'/)
   assert.match(page, /!creatorProfile && roundCount > 0/)
   assert.ok(page.indexOf('{!creatorProfile && (<>') < page.indexOf('{/* Recent Rounds Card */}'))
-  assert.ok(page.indexOf('{/* Subscription Status Card */}') < page.indexOf('</>)}'))
-  for (const existing of ['Player Profile', 'Recent Rounds', 'Player DNA', 'AI Coaching Reports', 'Subscription']) {
+  for (const existing of ['Player Profile', 'Recent Rounds']) {
     assert.ok(page.includes(existing))
   }
+  assert.doesNotMatch(page, /View all|CardTitle className="font-serif text-xl">(?:Player DNA|AI Coaching Reports|Subscription)|href="\/dashboard\/billing"|getPlayerSubscription/)
   assert.match(tile, /href="\/creator"/)
   assert.match(tile, /Open Creator Studio/)
   assert.match(tile, /flex flex-col.*sm:flex-row/)
