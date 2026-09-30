@@ -235,6 +235,8 @@ test('projects only approved story fields and safely parses optional story data'
     summary: 'The approved summary',
     round_id: 'round-private',
     status: 'shared',
+    significance_score: 73,
+    created_at: '2026-09-04T12:00:00Z',
     story_data: {
       round_date: '2026-09-04',
       course_name: 'Waskesiu Golf Course',
@@ -256,6 +258,8 @@ test('projects only approved story fields and safely parses optional story data'
     golferDisplayName: 'Aaron',
     supportingFacts: ['6/6 fairways'],
     permissionStatus: 'pending',
+    significanceScore: 73,
+    createdAt: '2026-09-04T12:00:00Z',
   })
   assert.equal(story.roundId, 'round-private')
   assert.equal('private_notes' in story, false)
@@ -343,6 +347,7 @@ test('loads the creator queue from the authoritative API and hydrates request st
       id: 'shared-story', story_type: 'personal_best', headline: 'Shared headline',
       summary: 'Shared summary', story_data: {}, round_id: 'shared-round',
       status: 'shared', permission_status: 'requested',
+      significance_score: 73, created_at: '2026-09-10T12:00:00Z',
     }],
   })) as typeof fetch
   const supabase = { auth: { async getSession() {
@@ -351,6 +356,41 @@ test('loads the creator queue from the authoritative API and hydrates request st
   try {
     const stories = await fetchPermissionedCreatorStories(supabase, 'creator-1')
     assert.equal(stories[0]?.permissionStatus, 'requested')
+    assert.equal(stories[0]?.significanceScore, 73)
+    assert.equal(stories[0]?.createdAt, '2026-09-10T12:00:00Z')
+  } finally {
+    globalThis.fetch = originalFetch
+    if (originalApiBase === undefined) delete process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL
+    else process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL = originalApiBase
+  }
+})
+
+test('rejects missing or malformed candidate filtering metadata rather than guessing from story data', async () => {
+  const originalFetch = globalThis.fetch
+  const originalApiBase = process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL
+  process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL = 'https://api.postround.test'
+  const supabase = { auth: { async getSession() {
+    return { data: { session: { access_token: 'test-access-token' } }, error: null }
+  } } } as unknown as SupabaseClient
+  const baseStory = {
+    id: 'story-1', story_type: 'round_recap', headline: 'Story',
+    summary: 'Summary', story_data: { round_date: '2026-09-30', significance_score: 99 },
+    round_id: 'round-1', status: 'shared', permission_status: 'pending',
+    significance_score: 73, created_at: '2026-09-30T12:00:00Z',
+  }
+  try {
+    for (const invalid of [
+      { significance_score: undefined },
+      { significance_score: '73' },
+      { significance_score: Number.NaN },
+      { created_at: undefined },
+      { created_at: 'not a date' },
+    ]) {
+      globalThis.fetch = (async () => Response.json({
+        ok: true, stories: [{ ...baseStory, ...invalid }],
+      })) as typeof fetch
+      await assert.rejects(fetchPermissionedCreatorStories(supabase, 'creator-1'), CreatorStoryApiError)
+    }
   } finally {
     globalThis.fetch = originalFetch
     if (originalApiBase === undefined) delete process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL

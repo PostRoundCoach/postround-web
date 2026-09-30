@@ -603,6 +603,8 @@ export function toCreatorStory(
       'facts',
     ]),
     permissionStatus,
+    significanceScore: record.significance_score,
+    createdAt: record.created_at,
   }
 }
 
@@ -662,7 +664,13 @@ export async function fetchPermissionedCreatorStories(
   }
   return result.stories.map((value) => {
     const record = asObject(value)
-    if (!record || !isStoryPermissionStatus(record.permission_status)) {
+    if (!record || !isStoryPermissionStatus(record.permission_status)
+      || typeof record.significance_score !== 'number'
+      || !Number.isFinite(record.significance_score)
+      || typeof record.created_at !== 'string'
+      || !record.created_at.trim()
+      || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(record.created_at)
+      || !Number.isFinite(Date.parse(record.created_at))) {
       throw new CreatorStoryApiError(500, 'The creator workspace could not be loaded.')
     }
     return toCreatorStory(record as unknown as CreatorStoryRecord, record.permission_status)

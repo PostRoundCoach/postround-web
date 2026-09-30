@@ -361,13 +361,18 @@ test("creator queue reload uses the authoritative active permission store", asyn
           story_data: {},
           round_id: "cccccccc-cccc-cccc-cccc-cccccccccccc",
           status: "shared",
+          significance_score: 73,
+          created_at: "2026-09-09T12:34:56Z",
         },
       }]);
     },
   };
   const queue = await fetchCreatorStoryQueue(context);
   assert.equal(queue.stories[0]?.permission_status, "requested");
+  assert.equal(queue.stories[0]?.significance_score, 73);
+  assert.equal(queue.stories[0]?.created_at, "2026-09-09T12:34:56Z");
   assert.equal(queue.follower_count, 1);
+  assert.ok(paths[2]?.includes("status,significance_score,created_at)"));
   assert.ok(paths[2]?.includes(`creator_id=eq.${base.ownerId}`));
   assert.ok(paths[2]?.includes("permission_granted=eq.true"));
   assert.ok(paths[2]?.includes("revoked_at=is.null"));

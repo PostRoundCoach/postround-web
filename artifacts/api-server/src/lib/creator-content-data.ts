@@ -269,6 +269,8 @@ type CreatorStoryQueueRow = {
     story_data: Record<string, unknown> | null;
     round_id: string;
     status: string;
+    significance_score: number;
+    created_at: string;
   } | Array<{
     id: string;
     story_type: string;
@@ -277,6 +279,8 @@ type CreatorStoryQueueRow = {
     story_data: Record<string, unknown> | null;
     round_id: string;
     status: string;
+    significance_score: number;
+    created_at: string;
   }>;
 };
 
@@ -343,7 +347,7 @@ export async function fetchCreatorStoryQueue(context: SupabaseRequestContext) {
   const follower_count = await countCreatorFollowers(context, creator.id);
   const rows = await rest<CreatorStoryQueueRow[]>(
     context,
-    "story_permissions?select=story_id,approval_requested_at,granted_at,story_candidates!inner(id,story_type,headline,summary,story_data,round_id,status)"
+    "story_permissions?select=story_id,approval_requested_at,granted_at,story_candidates!inner(id,story_type,headline,summary,story_data,round_id,status,significance_score,created_at)"
       + `&creator_id=eq.${encodeURIComponent(creator.id)}&permission_granted=eq.true&revoked_at=is.null`
       + "&story_candidates.status=in.(offered,shared)",
   );

@@ -431,6 +431,52 @@ test('available content refresh is read-only, in place, guarded, and recoverable
   expect(contentRequests.every((request) => request.startsWith('GET '))).toBe(true)
 })
 
+test('queue filters update displayed stories without fetching and survive refresh', async ({ page }) => {
+  let queueRequests = 0
+  await page.route('**/api/content/stories', async (route) => {
+    queueRequests++
+    const response = await route.fetch()
+    const body = await response.json()
+    body.stories[0].significance_score = 73
+    body.stories[0].created_at = new Date().toISOString()
+    body.stories.push({
+      ...body.stories[0],
+      id: secondStoryId,
+      story_id: secondStoryId,
+      headline: 'Older significant story',
+      significance_score: 85,
+      created_at: new Date(Date.now() - 20 * 86400_000).toISOString(),
+    })
+    await route.fulfill({ response, json: body })
+  })
+  await signIn(page)
+  await page.goto('/creator')
+  const slider = page.getByRole('slider', { name: /Minimum significance/ })
+  const dates = page.getByRole('combobox', { name: 'Created within' })
+  await expect(slider).toHaveValue('70')
+  await expect(dates).toHaveValue('7')
+  await expect(page.getByTestId(`card-story-${storyId}`)).toBeVisible()
+  await expect(page.getByTestId(`card-story-${secondStoryId}`)).toHaveCount(0)
+  await slider.fill('80')
+  await expect(page.getByTestId('status-story-queue-filtered-empty')).toBeVisible()
+  await expect(page.getByTestId('status-story-queue-empty')).toHaveCount(0)
+  await dates.selectOption('30')
+  await expect(page.getByTestId(`card-story-${secondStoryId}`)).toBeVisible()
+  await expect(page.getByTestId(`card-story-${storyId}`)).toHaveCount(0)
+  expect(queueRequests).toBe(1)
+  await page.getByTestId('button-refresh-available-content').click()
+  await expect(page.getByTestId('button-refresh-available-content')).toBeEnabled()
+  await expect(slider).toHaveValue('80')
+  await expect(dates).toHaveValue('30')
+  await expect(page.getByTestId(`card-story-${secondStoryId}`)).toBeVisible()
+  expect(queueRequests).toBe(2)
+  await dates.selectOption('today')
+  await expect(page.getByTestId('status-story-queue-filtered-empty')).toBeVisible()
+  await slider.fill('70')
+  await expect(page.getByTestId(`card-story-${storyId}`)).toBeVisible()
+  expect(queueRequests).toBe(2)
+})
+
 test('creator story queue persists candidates, approval, and dismissal state', async ({ page }) => {
   const contentRequests: Array<{ method: string; pathname: string }> = []
   page.on('request', (request) => {

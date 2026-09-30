@@ -31,6 +31,8 @@ export interface CreatorStoryRecord {
   story_data: unknown
   round_id: string
   status: CreatorStoryStatus
+  significance_score: number
+  created_at: string
 }
 
 export interface PermissionedCreatorStoryRecord {
@@ -54,6 +56,8 @@ export interface CreatorStory {
   golferDisplayName: string | null
   supportingFacts: string[]
   permissionStatus: StoryPermissionStatus
+  significanceScore: number
+  createdAt: string
 }
 
 export interface GenerateStoryCandidatesRequest {
