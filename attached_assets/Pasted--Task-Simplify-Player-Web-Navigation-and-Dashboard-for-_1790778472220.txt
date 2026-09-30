@@ -1,0 +1,160 @@
+## Task: Simplify Player Web Navigation and Dashboard for Launch
+
+Update the authenticated **typical player/user web experience** so that only the currently supported areas are exposed in the left navigation and on the Dashboard.
+
+### Goal
+
+For a typical authenticated player, the web experience should currently feel intentionally simple and focused. We are not removing or deleting the underlying functionality for My Rounds, Coaching Reports, Player DNA, or Billing; we are simply removing those areas from the primary player-facing navigation and Dashboard until they are ready.
+
+## 1. Simplify the left navigation
+
+For a typical authenticated player, change the left-side menu to show **only**:
+
+1. **Dashboard**
+2. **Profile**
+3. **Settings**
+
+Remove/hide these items from the player navigation for now:
+
+* My Rounds
+* Coaching Reports
+* Player DNA
+* Billing
+
+### Important
+
+* Do not delete the routes, components, APIs, database functionality, or underlying features associated with the removed items.
+* This is a navigation/visibility change only.
+* Do not change creator/admin navigation or permissions.
+* Do not change the behavior of the Dashboard, Profile, or Settings navigation items.
+* If there are existing route guards or direct URLs for the hidden areas, leave them intact unless they are specifically part of the existing player navigation system.
+
+## 2. Simplify the player Dashboard
+
+Update the authenticated player Dashboard so it only presents the currently relevant tiles.
+
+### Keep/show
+
+#### Player Profile tile
+
+Keep the existing **Player Profile** tile.
+
+It should remain available as the primary profile entry point.
+
+#### Recent Rounds tile
+
+Keep the **Recent Rounds** tile.
+
+However:
+
+* Remove/disable the **"View All"** action/link.
+* The tile should remain display-only for the currently available recent-round information.
+* Do not add a replacement rounds page or new navigation flow.
+
+#### Subscription tile
+
+Keep the existing **Subscription** tile, but update its presentation so it includes the user's current subscription information/status.
+
+Use the existing subscription/access data source rather than creating a new subscription system.
+
+The tile should communicate the user's current subscription state in a clean, simple way and continue to provide whatever existing subscription/upgrade action is already supported.
+
+### Hide/disable
+
+Remove these tiles from the player Dashboard for now:
+
+* **Player DNA**
+* **AI Coaching Reports**
+
+Again, do not delete their underlying functionality. They should simply no longer be rendered in the typical player's Dashboard.
+
+## 3. Dashboard should not expose unfinished areas
+
+After this change, the typical player Dashboard should essentially communicate:
+
+* Who I am / my Player Profile
+* A snapshot of my recent rounds
+* My current subscription
+
+Nothing else should be presented as an available player-dashboard feature.
+
+## 4. Preserve existing functionality
+
+This task is intentionally scoped to **UI exposure and navigation**.
+
+Do NOT:
+
+* Delete database tables
+* Delete APIs
+* Delete existing routes
+* Delete Player DNA functionality
+* Delete Coaching Reports functionality
+* Delete My Rounds functionality
+* Delete Billing functionality
+* Change subscription/entitlement logic
+* Change credit logic
+* Change authentication
+* Change creator/admin experiences
+* Change the underlying round/history data
+* Rebuild existing components unnecessarily
+
+Prefer conditional rendering / navigation configuration changes using the existing architecture.
+
+## 5. Access/role considerations
+
+Make sure this change applies specifically to the **normal authenticated player experience**.
+
+Do not accidentally remove or alter:
+
+* Creator Studio navigation
+* Creator Dashboard navigation
+* Admin navigation
+* Admin-only functionality
+* Creator-specific routes or permissions
+
+Use the existing role/permission architecture.
+
+## 6. Verification
+
+Please verify:
+
+### Navigation
+
+For a normal authenticated player:
+
+* Dashboard is visible
+* Profile is visible
+* Settings is visible
+* My Rounds is not visible
+* Coaching Reports is not visible
+* Player DNA is not visible
+* Billing is not visible
+
+### Dashboard
+
+Confirm that:
+
+* Player Profile tile is visible
+* Recent Rounds tile is visible
+* Recent Rounds does not show "View All"
+* Player DNA tile is not rendered
+* AI Coaching Reports tile is not rendered
+* Subscription tile is visible and displays the existing subscription information/status
+
+### Regression checks
+
+Confirm that:
+
+* Dashboard still loads successfully
+* Profile still loads successfully
+* Settings still loads successfully
+* Existing authentication behavior is unchanged
+* Creator/admin navigation is unchanged
+* No underlying feature/API/database functionality was removed
+* Typecheck/tests pass for the affected web areas
+
+If there are existing tests covering navigation or Dashboard rendering, update them to reflect the new intended player experience rather than removing the tests.
+
+### Scope
+
+Keep this change narrowly focused on the **normal player web navigation and Dashboard presentation**. Do not make unrelated UX, backend, subscription, or data-model changes.
