@@ -1,0 +1,112 @@
+Update the **web Creator Dashboard** to add two basic filters for the available creator story candidates.
+
+### 1. Minimum Significance Score Filter
+
+Add a slider labeled:
+
+**Minimum significance score**
+
+The slider should have these selectable values:
+
+* 60
+* 70
+* 80
+* 90
+
+**Default: 70**
+
+The filter must be driven directly by the `significance_score` field on the story candidate record.
+
+Example candidate:
+
+```json
+{
+  "story_type": "personal_best_stat",
+  "significance_score": 73,
+  "headline": "Clean round — zero penalty strokes"
+}
+```
+
+With the default minimum score of **70**, this candidate should be displayed because `73 >= 70`.
+
+If the creator moves the slider to:
+
+* **60** → show candidates with significance score >= 60
+* **70** → show candidates with significance score >= 70
+* **80** → show candidates with significance score >= 80
+* **90** → show candidates with significance score >= 90
+
+This is a **minimum threshold**, not an exact-match filter.
+
+Display the currently selected value clearly in the UI, e.g.:
+
+**Minimum significance: 70**
+
+---
+
+### 2. Date Filter
+
+Add a date-range selection with these options:
+
+* **Today**
+* **Last 7 days**
+* **Last 30 days**
+
+**Default: Last 7 days**
+
+The date filter should use the candidate's `created_at` timestamp.
+
+Interpret the options as:
+
+* **Today** → candidates created today
+* **Last 7 days** → candidates created within the previous 7 calendar days, including today
+* **Last 30 days** → candidates created within the previous 30 calendar days, including today
+
+---
+
+### Filter Behavior
+
+The two filters should work **together**.
+
+A candidate should only appear when it satisfies **both**:
+
+```text
+significance_score >= selected minimum
+AND
+created_at falls within selected date range
+```
+
+For the default dashboard state:
+
+```text
+Minimum significance score: 70
+Date range: Last 7 days
+```
+
+So the initial candidate list should contain only candidates from the last 7 days with a significance score of **70 or higher**.
+
+### UX Requirements
+
+* Keep the UI simple and unobtrusive.
+* Place both filters prominently above the creator's available story/candidate list.
+* Changing either filter should immediately refresh the displayed candidates.
+* Do not change the existing story qualification logic or significance-score calculation.
+* Do not modify `story_candidates` data or re-score existing candidates.
+* This is strictly a **display/filtering feature** on the Creator Dashboard.
+* Preserve all existing Creator Dashboard functionality.
+
+### Important
+
+Use the existing `story_candidates.significance_score` value as the source of truth. Do **not** substitute another rating, AI score, story type, or derived value.
+
+Before making changes, inspect the existing Creator Dashboard data-loading and filtering architecture and implement this using the project's current patterns rather than introducing a parallel filtering system.
+
+After implementation, verify:
+
+1. Default state is **70 + Last 7 days**.
+2. A candidate with `significance_score: 73` appears at the default 70 threshold.
+3. That same candidate disappears when the threshold is changed to 80.
+4. Today / 7 days / 30 days correctly change the candidate set.
+5. Both filters combine correctly.
+6. Existing Creator Dashboard functionality remains unchanged.
+7. Run the relevant web tests/typecheck/build after the change.

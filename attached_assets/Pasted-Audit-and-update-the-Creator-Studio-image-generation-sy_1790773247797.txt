@@ -1,0 +1,191 @@
+Audit and update the **Creator Studio image generation** system with the following changes.
+
+## 1. Remove Round Date From All Creator Studio Images
+
+For privacy reasons, the **round date must be removed from all three generated Creator Studio image types**:
+
+1. **Scorecard image**
+2. **Round Buddy “In the words of…” image/card**
+3. **Round Highlights image**
+
+The round date must **not appear anywhere within these generated images**.
+
+### Critical distinction — Keep the date in the Story Panel
+
+Do **NOT** remove or alter the round date from the Creator Studio story panel/card UI.
+
+The date should remain visible in the Story Panel exactly as it is today.
+
+Do not modify:
+
+* Story candidate data
+* Round data/database fields
+* Creator Studio Story Panel date display
+* Round History
+* Player-facing scorecards
+* Other existing date displays
+* Underlying round/story metadata
+
+This is strictly an **image presentation change**.
+
+If the image generators share a date-rendering component, make the change at the image-generation/presentation layer rather than removing the date from shared data.
+
+---
+
+# 2. Update the Round Highlights Image
+
+In addition to removing the date, update the **Round Highlights image** layout.
+
+### Highlights information section
+
+The existing highlights information includes:
+
+* Display name
+* Course
+* Tees / Score
+* To Par
+* Putts
+* Birdies
+
+Adjust the typography in this section so that the text is **slightly smaller than the main Round Highlights header**. Right now there is a large gap below the header and above the round informatino, we can use that space
+
+The goal is a clear visual hierarchy:
+
+**Round Highlights header**
+→ largest/prominent typography
+
+**Round information / statistics**
+→ slightly smaller typography
+
+Do not make the information excessively small. It should remain highly readable and visually balanced within the existing design and align correctly below the header.
+
+Preserve the existing overall visual style, spacing, branding, and hierarchy unless a small spacing adjustment is required to accommodate the additional statistics.
+
+### Add Fairways and GIR
+
+Add two additional statistics to the Round Highlights image:
+
+* **Fairways:** `X/X`
+* **GIR:** `X/X`
+
+For example:
+
+* Fairways: `7/9`
+* GIR: `5/9`
+
+Use the actual round data to populate these values.
+
+Do **not** hard-code example values.
+
+The statistics should represent:
+
+* **Fairways:** fairways hit / total applicable fairways
+* **GIR:** greens in regulation / total holes
+
+Use the existing application's authoritative round statistics/calculation logic if these values already exist. Do not create a competing calculation system unless the existing image generator has no access to the required values.
+
+### Layout
+
+Integrate Fairways and GIR naturally into the existing Round Highlights information section.
+
+The final information block should contain:
+
+* Display name
+* Course
+* Tees / Score
+* To Par
+* Putts
+* Birdies
+* Fairways X/X
+* GIR X/X
+
+Keep the design clean and readable. If necessary, adjust spacing or positioning slightly so the additional statistics do not make the section feel crowded.
+
+---
+
+# 3. Do Not Change Unrelated Functionality
+
+Do not modify:
+
+* Story qualification/scoring
+* Story candidate data
+* Round scoring logic
+* Handicap calculations
+* Player Stories
+* Round Buddy capture behavior
+* AI Coaching
+* Creator Story generation
+* Story Panel date display
+* Database schema unless absolutely required (it should not be)
+* Existing creator image generation/download/share behavior
+
+This should be a **targeted presentation/data-display change**.
+
+---
+
+# 4. Audit Before Implementation
+
+Before making changes:
+
+1. Identify the exact generator/component for the Creator Studio Scorecard image.
+2. Identify the exact generator/component for the Round Buddy “In the words of…” image.
+3. Identify the exact generator/component for the Round Highlights image.
+4. Identify where the round date is currently injected into each image.
+5. Identify the existing authoritative sources for:
+
+   * Fairways hit
+   * Fairways applicable/total
+   * GIR
+   * GIR total
+6. Determine whether these image generators share any components/helpers.
+
+Then implement the smallest targeted change necessary.
+
+---
+
+# 5. Verification
+
+After implementation, verify:
+
+### Date privacy
+
+* [ ] Scorecard image contains no round date.
+* [ ] Round Buddy “In the words of…” image contains no round date.
+* [ ] Round Highlights image contains no round date.
+* [ ] Creator Studio Story Panel still displays the round date.
+* [ ] Underlying round/story date data remains unchanged.
+
+### Round Highlights
+
+* [ ] Display name remains present.
+* [ ] Course remains present.
+* [ ] Tees / Score remains present.
+* [ ] To Par remains present.
+* [ ] Putts remains present.
+* [ ] Birdies remains present.
+* [ ] Fairways `X/X` is displayed using actual round data.
+* [ ] GIR `X/X` is displayed using actual round data.
+* [ ] Highlights information text is slightly smaller than the main header.
+* [ ] Typography remains readable.
+* [ ] Layout remains balanced after adding the two statistics.
+
+### Regression
+
+* [ ] Existing image preview works.
+* [ ] Image generation works.
+* [ ] Image download/share functionality works.
+* [ ] Player-facing scorecards are unaffected.
+* [ ] Round History is unaffected.
+* [ ] No database/schema changes were introduced unnecessarily.
+
+Run the relevant tests, typechecks, and lint.
+
+Report back with:
+
+1. Files changed
+2. Image generators/components identified
+3. How the date was removed from each image
+4. Where Fairways and GIR values come from
+5. How the Round Highlights typography/layout was adjusted
+6. Confirmation that the Story Panel date remains unchanged
+7. Test/typecheck/lint results
