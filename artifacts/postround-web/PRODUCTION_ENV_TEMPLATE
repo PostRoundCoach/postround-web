@@ -1,0 +1,63 @@
+# Production environment placeholder template.
+# See PRODUCTION_ENV_CHECKLIST.md, PRODUCTION_WEB_DEPLOYMENT.md and
+# WEB_SQL_DEPLOYMENT_INVENTORY.md in this directory.
+# Replace only placeholders for the named consumer; do not load this entire file
+# as one environment. Set Vercel web variables in Vercel Production before build.
+# Never place a service-role key or Replit platform identity in browser/client settings.
+
+# VERCEL / POST ROUND WEB — production web build and server runtime
+NEXT_PUBLIC_POSTROUND_API_BASE_URL=<authoritative-production-api-https-origin-only-no-path>
+NEXT_PUBLIC_SITE_URL=<canonical-production-web-https-origin>
+NEXT_PUBLIC_SUPABASE_URL=<production-supabase-project-url>
+NEXT_PUBLIC_SUPABASE_ANON_KEY=<public-anon-key-for-that-same-supabase-project>
+SUPABASE_SERVICE_ROLE_KEY=<private-server-only-service-role-secret>
+SUPABASE_CONTENT_FUNCTION_NAME=<optional-deployed-edge-function-name-if-not-source-default>
+ANDROID_STORE_URL=<optional-canonical-android-store-listing-https-url>
+IOS_STORE_URL=<optional-canonical-ios-store-listing-https-url>
+WEB_FALLBACK_PATH=<optional-safe-same-site-path-defaults-to-signup>
+
+# API SERVER — the separate Express API host, not the Vercel Next.js web project
+SUPABASE_ANON_KEY=<public-anon-key-for-the-supabase-project-attached-to-api-connector>
+LOG_LEVEL=<optional-api-log-level-defaults-to-info>
+PORT=<listen-port-assigned-by-the-api-host>
+
+# PLATFORM / BUILD-MANAGED — confirm the hosting platform supplies these; do not
+# manually copy platform credentials into Vercel or a browser environment.
+# NODE_ENV=<framework-or-host-managed>
+# VERCEL_ENV=<vercel-managed>
+# VERCEL_PROJECT_PRODUCTION_URL=<vercel-managed-production-domain>
+# REPLIT_CONNECTORS_HOSTNAME=<optional-replit-managed-connector-host-override>
+# REPLIT_CONNECTORS_AUDIENCE=<optional-replit-managed-audience-override>
+# REPLIT_CLI=<optional-cli-executable-override-default-command-is-used>
+# REPL_IDENTITY=<replit-managed-sensitive-identity-do-not-copy>
+# WEB_REPL_RENEWAL=<replit-managed-sensitive-identity-fallback-do-not-copy>
+# REPL_ID=<replit-managed-identifier>
+# npm_config_user_agent=<pnpm-managed-install-metadata>
+# BASE_URL=<vite-derived-from-base-configuration-do-not-set-manually>
+
+# LOCAL DEVELOPMENT / SHARED DATABASE TOOLING — local nonproduction values only;
+# place secrets in a private local environment, never commit them.
+NEXT_PUBLIC_SUPABASE_URL=<local-or-nonproduction-supabase-project-url>
+NEXT_PUBLIC_SUPABASE_ANON_KEY=<public-anon-key-for-that-local-project>
+NEXT_PUBLIC_POSTROUND_API_BASE_URL=<local-development-api-origin>
+SUPABASE_ANON_KEY=<public-anon-key-for-that-local-project-when-running-api-locally>
+SUPABASE_SERVICE_ROLE_KEY=<optional-private-server-only-key-for-local-admin-feature-work>
+DATABASE_URL=<private-postgresql-url-only-if-using-shared-db-library-or-drizzle-tooling>
+PORT=<local-api-listen-port>
+ANDROID_STORE_URL=<optional-nonproduction-referral-test-listing>
+IOS_STORE_URL=<optional-nonproduction-referral-test-listing>
+WEB_FALLBACK_PATH=<optional-safe-same-site-fallback-path>
+BASE_PATH=<mockup-sandbox-only-vite-base-path>
+REPL_ID=<replit-provided-mockup-development-identifier>
+
+# LOCAL / TEST ONLY — never place these test overrides in Vercel Production.
+NEXT_PUBLIC_POSTROUND_ALLOW_LOCAL_API=<enable-only-for-isolated-local-loopback-e2e>
+NEXT_DIST_DIR=<isolated-nondefault-next-test-output-directory>
+PLAYWRIGHT_CHROMIUM_PATH=<optional-local-playwright-chromium-executable>
+
+# LOCAL PRODUCTION-MODE WEB BUILD/START (owner only): take the WEB block above
+# into an untracked artifacts/postround-web/.env.local and supply PORT for
+# next start. Prefer a staging clone and matching staging API for rehearsal.
+# Set NODE_ENV through the build/start process; leave local API bypass unset.
+# Do not load LOCAL/TEST overrides or platform identity placeholders together.
+# No first-party OpenAI or Stripe variable is implemented in this repository.
