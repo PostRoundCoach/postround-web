@@ -1,0 +1,62 @@
+Update the **web application only** to hide the **Player DNA** section from the public site.
+
+### Objective
+
+The Player DNA functionality should remain fully intact in the codebase and database, but **users should not be able to see or access it through the web UI** for now.
+
+### Required changes
+
+1. **Remove Player DNA from web navigation**
+
+   * Remove the **Player DNA** menu item from the user's sidebar/navigation.
+   * Do not delete the route, page, components, services, database tables, API endpoints, or underlying functionality.
+   * Do not modify unrelated navigation items.
+
+2. **Hide the Player DNA content**
+
+   * The Player DNA page/content should no longer be visible to normal users through the web application.
+   * If there is a dashboard tile, card, widget, link, or CTA that exposes Player DNA, hide/remove that UI element as well.
+   * Do not delete the Player DNA implementation.
+
+3. **Preserve the existing functionality**
+
+   * Do not delete Player DNA files.
+   * Do not remove database structures.
+   * Do not remove API/service logic.
+   * Do not remove calculations or backend functionality.
+   * Do not modify Player DNA behavior beyond making it inaccessible/hidden from the normal user-facing web UI.
+
+4. **Direct URL behavior**
+
+   * Normal users should not be able to reach the Player DNA page through normal navigation.
+   * If the application has an existing access-control or feature-visibility pattern, use that pattern rather than creating a new architecture.
+   * Prefer redirecting or otherwise gracefully handling direct navigation to the Player DNA route rather than displaying the Player DNA content.
+
+### Important scope constraint
+
+This is a **visibility/accessibility change, not a deletion**.
+
+Do **not**:
+
+* Delete Player DNA files
+* Delete Player DNA routes permanently
+* Delete database tables or columns
+* Delete API endpoints
+* Delete services
+* Delete tests
+* Remove the feature from the codebase
+
+The goal is simply:
+
+**Player DNA remains implemented but is hidden from the current web user experience.**
+
+### Validation
+
+After making the changes:
+
+* Verify **Player DNA is absent from the sidebar/navigation**.
+* Verify there are **no visible Player DNA tiles, cards, links, or CTAs** on the normal user dashboard.
+* Verify a normal user does not see the Player DNA content when navigating through the website.
+* Confirm the underlying Player DNA implementation remains intact.
+* Run the relevant focused checks/typecheck for the web application.
+* Report exactly what was changed and what was intentionally preserved.

@@ -1,0 +1,568 @@
+## Task: Assemble Production Web Deployment Package
+
+I am preparing to move the Post Round web project from development/preview infrastructure to production.
+
+I will perform the actual production deployment myself. **Do not connect to, modify, or deploy anything to the production environment.**
+
+Your job is to inspect the entire web project and assemble everything I need to safely configure and deploy the production web application.
+
+### Important context
+
+The web project contains **SQL files that are part of the production deployment**.
+
+Do NOT assume that all database work lives in the separate database project.
+
+You must inspect the web project for SQL files, database migrations, RPCs, functions, triggers, policies, seed data, or other database-related deployment artifacts.
+
+Do not delete, ignore, or move these files without documenting why.
+
+The goal is to produce a clear picture of:
+
+1. What belongs in the production web deployment.
+2. What environment variables/configuration must change.
+3. Which SQL files in the web project must be deployed.
+4. Which existing development/preview references must be replaced.
+5. Exactly how I should perform and verify the production web deployment.
+
+---
+
+# 1. Inventory the web project
+
+Inspect the entire repository.
+
+Identify:
+
+* application source
+* web routes
+* API routes
+* server-side code
+* client-side code
+* authentication configuration
+* Supabase integration
+* OpenAI integration
+* Stripe integration
+* Vercel/deployment configuration
+* environment variable usage
+* redirects
+* callback URLs
+* webhook URLs
+* cron jobs or scheduled tasks
+* public URLs
+* development/preview URLs
+* production URL assumptions
+* SQL files
+* database migrations
+* database functions/RPCs
+* database seed files
+* scripts that modify the database
+* any external service configuration
+
+Search the actual codebase rather than relying only on `.env.example` or documentation.
+
+---
+
+# 2. Inventory ALL SQL files in the web project
+
+This is critical.
+
+Find every `.sql` file in the web project and determine:
+
+* what it does
+* whether it creates schema
+* whether it alters schema
+* whether it creates functions/RPCs
+* whether it creates triggers
+* whether it creates RLS policies
+* whether it inserts reference/seed data
+* whether it contains development/test data
+* whether it is already represented in the separate database migration system
+* whether it is required for the current web application
+* whether it should be run against production
+
+Create:
+
+`WEB_SQL_DEPLOYMENT_INVENTORY.md`
+
+with:
+
+| SQL File | Purpose | Production Required | Execution Order | Notes |
+| -------- | ------- | ------------------- | --------------- | ----- |
+
+Do not assume SQL files are obsolete simply because they are not in the main migration directory.
+
+If the same database object is created by both the web project and the separate database project, flag the duplication clearly so I do not accidentally execute conflicting SQL twice.
+
+Do not modify the SQL files unless absolutely necessary. If changes appear necessary, document them separately rather than silently changing them.
+
+---
+
+# 3. Determine the production deployment boundary
+
+Establish which parts of this web repository are actually deployed to production.
+
+Identify:
+
+* files included in the web deployment
+* build process
+* framework/build command
+* Vercel configuration
+* serverless/API functions
+* static assets
+* runtime configuration
+* server-side environment variables
+* client-side/public environment variables
+
+Document anything that is:
+
+* development-only
+* preview-only
+* test-only
+* obsolete
+* production-required
+
+Do not remove anything.
+
+---
+
+# 4. Environment variable inventory
+
+Search the entire codebase for environment variable references.
+
+Do not rely solely on `.env` files.
+
+Find variables referenced through:
+
+* `process.env`
+* framework-specific environment APIs
+* server configuration
+* client configuration
+* build scripts
+* deployment configuration
+* Supabase configuration
+* Stripe configuration
+* OpenAI configuration
+* authentication configuration
+
+Create:
+
+`PRODUCTION_ENV_CHECKLIST.md`
+
+For every variable/configuration item, document:
+
+| Variable | Used By | Client/Server | Required in Production | Purpose | Source |
+| -------- | ------- | ------------- | ---------------------- | ------- | ------ |
+
+Clearly distinguish:
+
+* public/client-safe values
+* server-only secrets
+* development-only values
+* preview values
+* production values
+
+Do NOT expose or copy actual secrets into the generated documentation.
+
+---
+
+# 5. Production environment template
+
+Create:
+
+`PRODUCTION_ENV_TEMPLATE`
+
+This should contain only variable names and safe placeholders.
+
+For example:
+
+```text
+SUPABASE_URL=<production-supabase-url>
+SUPABASE_ANON_KEY=<production-supabase-anon-key>
+OPENAI_API_KEY=<production-openai-api-key>
+STRIPE_SECRET_KEY=<production-stripe-secret-key>
+```
+
+Use the actual variable names discovered in the repository.
+
+Do not invent variable names.
+
+Do not put real API keys, passwords, tokens, or secrets in this file.
+
+Clearly indicate which values belong in:
+
+* Vercel
+* local production testing
+* server-only configuration
+* public/client configuration
+
+---
+
+# 6. Supabase production configuration
+
+Inspect how the web application connects to Supabase.
+
+Identify:
+
+* Supabase URL variables
+* public/anon/publishable keys
+* service-role/server keys
+* server-side Supabase clients
+* browser Supabase clients
+* auth configuration
+* callback URLs
+* redirect URLs
+* database RPC calls
+
+Identify every place where the web application could still be pointing at:
+
+* development Supabase
+* preview Supabase
+* old Supabase projects
+* hardcoded development URLs
+
+Create a section in:
+
+`PRODUCTION_WEB_DEPLOYMENT.md`
+
+explaining exactly what must be changed for production.
+
+Do not change the credentials yourself.
+
+---
+
+# 7. OpenAI production configuration
+
+Inspect every OpenAI integration in the web project.
+
+Identify:
+
+* API key environment variable
+* server-side OpenAI clients
+* model configuration
+* API routes that call OpenAI
+* any hardcoded development configuration
+* any test/mock OpenAI configuration
+
+The production application should use the designated production OpenAI API key/project.
+
+Do not include the actual key anywhere in the generated files.
+
+Document exactly where the production key must be configured.
+
+---
+
+# 8. Stripe production configuration
+
+Inspect the complete Stripe integration.
+
+Identify:
+
+* Stripe publishable key
+* Stripe secret key
+* webhook secret
+* product/price IDs
+* checkout configuration
+* customer portal configuration
+* subscription handling
+* webhook endpoints
+* development/test Stripe references
+
+Clearly distinguish test-mode Stripe configuration from production Stripe configuration.
+
+Create a Stripe section in:
+
+`PRODUCTION_ENV_CHECKLIST.md`
+
+and:
+
+`PRODUCTION_WEB_DEPLOYMENT.md`
+
+Do not insert fake or test Stripe data into production.
+
+---
+
+# 9. URLs, domains, redirects, and webhooks
+
+Search the project for all URLs and URL-related configuration.
+
+Identify:
+
+* production domain
+* development URLs
+* localhost URLs
+* preview URLs
+* Supabase auth redirect URLs
+* OAuth/callback URLs
+* Stripe webhook URLs
+* application API URLs
+* referral URLs
+* creator URLs
+* deep-link-related URLs
+* Android/iOS URLs where relevant
+
+Flag every location where a development or preview URL could accidentally remain in production.
+
+Do not assume the production domain if it is not explicitly established in the repository. Document it as a value I need to supply.
+
+---
+
+# 10. Vercel / deployment configuration
+
+Inspect:
+
+* `vercel.json`
+* build scripts
+* package scripts
+* framework configuration
+* rewrites
+* redirects
+* serverless functions
+* cron configuration
+* environment configuration
+* deployment commands
+
+Determine exactly what is required for a production Vercel deployment.
+
+Document:
+
+* build command
+* output configuration
+* required environment variables
+* production-specific settings
+* anything that differs from Preview
+
+Do not deploy.
+
+---
+
+# 11. Authentication verification
+
+Inspect the current authentication implementation.
+
+Document what must be verified after production deployment:
+
+* signup
+* login
+* logout
+* password reset
+* email verification if applicable
+* session persistence
+* redirect behavior
+* protected routes
+* account deletion
+
+Identify any Supabase Auth configuration that must be changed manually in the production Supabase project.
+
+---
+
+# 12. Application feature verification
+
+Create a production web smoke-test checklist covering the actual current application.
+
+At minimum include:
+
+### Authentication
+
+* Create real account
+* Login
+* Logout
+* Password reset
+
+### Core application
+
+* Dashboard
+* Profile
+* Settings
+* Round history
+* Core round flow
+
+### Player Stories
+
+* Create/claim story
+* View My Stories
+* Story-related database/API calls
+
+### Round Buddy
+
+* Start/end flow
+* AI processing
+* Story generation where applicable
+
+### AI Coaching
+
+* AI request
+* report generation
+* usage/credit deduction
+
+### Credits / entitlements
+
+* PR Credit balance
+* credit consumption
+* subscription entitlements
+* allowance behavior
+
+### Stripe
+
+* checkout
+* subscription creation
+* webhook processing
+* entitlement update
+* customer portal if applicable
+
+### Creator/referral functionality
+
+* creator pages
+* referral links
+* attribution
+* any production referral behavior currently supported
+
+Only include functionality actually present in the current codebase.
+
+---
+
+# 13. Production deployment document
+
+Create:
+
+`PRODUCTION_WEB_DEPLOYMENT.md`
+
+This is the main document I will follow when deploying.
+
+Structure it approximately as:
+
+## 1. Pre-deployment
+
+* Create/confirm production Supabase
+* Confirm production OpenAI configuration
+* Confirm production Stripe configuration
+* Confirm production domain
+* Confirm required environment variables
+
+## 2. Database SQL from the web project
+
+List every SQL file from `WEB_SQL_DEPLOYMENT_INVENTORY.md` that must be run.
+
+Clearly state:
+
+* execution order
+* whether it should be run before or after the separate database migrations
+* whether it is already included elsewhere
+* whether it should NOT be run separately because it duplicates another migration
+
+This section is extremely important.
+
+## 3. Configure production environment
+
+Explain exactly where each environment variable goes.
+
+## 4. Deploy web application
+
+Give the exact production deployment/build command based on the repository's existing configuration.
+
+## 5. Configure external services
+
+Cover:
+
+* Supabase
+* OpenAI
+* Stripe
+* Vercel
+* domain/auth redirects
+* webhooks
+
+## 6. Production verification
+
+Provide the smoke-test sequence.
+
+## 7. Rollback / troubleshooting
+
+Document obvious failure points and how to identify them.
+
+---
+
+# 14. Final consistency check
+
+Before completing the task, perform a final cross-check of:
+
+### Database
+
+* Supabase references
+* SQL files
+* migrations
+* RPCs
+* functions
+* RLS
+* seed data
+
+### Web
+
+* environment variables
+* API routes
+* server/client configuration
+* authentication
+* Stripe
+* OpenAI
+* URLs
+* Vercel
+
+### Production safety
+
+Confirm that no development/test credentials or data are accidentally identified as production configuration.
+
+Pay special attention to:
+
+* test Stripe keys
+* development Supabase URLs
+* development OpenAI keys
+* localhost URLs
+* preview URLs
+* test webhook endpoints
+* test users
+* test data
+
+---
+
+# 15. Final deliverables
+
+Create these files:
+
+`PRODUCTION_WEB_DEPLOYMENT.md`
+
+`PRODUCTION_ENV_CHECKLIST.md`
+
+`PRODUCTION_ENV_TEMPLATE`
+
+`WEB_SQL_DEPLOYMENT_INVENTORY.md`
+
+If additional documentation is necessary, create it.
+
+At the end, provide a concise summary containing:
+
+### Ready for production
+
+Items that appear correctly configured or fully documented.
+
+### Manual configuration required
+
+Things I must configure myself.
+
+### SQL requiring manual deployment
+
+List the SQL files I need to run.
+
+### Potential conflicts / blockers
+
+Anything that could cause duplicate migrations, conflicting database objects, incorrect environment configuration, or production deployment failure.
+
+### Important
+
+**Do not deploy anything.**
+
+**Do not connect to the production Supabase project.**
+
+**Do not request production credentials.**
+
+**Do not expose or copy secrets.**
+
+**Do not delete or silently modify existing SQL files.**
+
+The objective is to leave me with a clean, documented production deployment package that I can execute manually.
