@@ -11,6 +11,13 @@ test('ordinary players never receive creator navigation', () => {
   ])
 })
 
+test('Player DNA has no player or creator navigation entry point', () => {
+  for (const hasCreatorProfile of [false, true]) {
+    const items = getDashboardNavItems(hasCreatorProfile)
+    assert.equal(items.some(({ href, label }) => /player.?dna/i.test(`${href} ${label}`)), false)
+  }
+})
+
 test('active creators receive only creator-relevant navigation', () => {
   const items = getDashboardNavItems(true)
   assert.deepEqual(

@@ -15,3 +15,4 @@
 - [Round scoring authority](round-scoring-authority.md) — holes are scoring truth; rounds are nullable, scope-aware summaries derived centrally from eligible holes.
 - [Supabase ledger verification](supabase-ledger-verification.md) — the data connector proves public schema behavior but cannot read the private migration ledger.
 - [Player entitlement display provenance](player-entitlement-display-provenance.md) — a checked-in mobile contract is not proof of deployed offers; prefer unavailable to invented balances or prices.
+- [Next page visibility guards](next-page-visibility-guards.md) — layout redirects can still serialize child content; guard hidden pages before constructing their JSX.

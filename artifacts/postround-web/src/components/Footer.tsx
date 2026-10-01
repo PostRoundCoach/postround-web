@@ -19,7 +19,6 @@ export function Footer() {
               <li><Link href="/#round-buddy" className="hover:text-foreground transition-colors">Round Buddy</Link></li>
               <li><Link href="/#how-it-works" className="hover:text-foreground transition-colors">How It Works</Link></li>
               <li><Link href="/#ai-coaching" className="hover:text-foreground transition-colors">AI Coaching</Link></li>
-              <li><Link href="/#player-dna" className="hover:text-foreground transition-colors">Player DNA</Link></li>
               <li><Link href="/#share-your-round" className="hover:text-foreground transition-colors">Share Your Round</Link></li>
               <li><Link href="/#creators" className="hover:text-foreground transition-colors">Creators</Link></li>
             </ul>

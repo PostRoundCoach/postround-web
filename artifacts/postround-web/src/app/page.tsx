@@ -36,7 +36,6 @@ const navigation = [
   ['How It Works', '#how-it-works'],
   ['Round Buddy', '#round-buddy'],
   ['AI Coaching', '#ai-coaching'],
-  ['Player DNA', '#player-dna'],
   ['Share Your Round', '#share-your-round'],
   ['Creators', '#creators'],
   ['Support', '/support'],
@@ -241,7 +240,8 @@ export default function Home() {
                 </StaggerItem>
               ))}
             </StaggerContainer>
-            <div id="player-dna" className="mt-16">
+            {/* Temporarily hidden on web. Keep the section intact for restoration. */}
+            {false && (<div id="player-dna" className="mt-16">
               <FadeIn>
                 <div className="mx-auto max-w-3xl text-center">
                   <p className="text-sm font-semibold uppercase tracking-[0.24em] text-[#D4AF37]">Player DNA</p>
@@ -267,7 +267,7 @@ export default function Home() {
                   )
                 })}
               </StaggerContainer>
-            </div>
+            </div>)}
           </div>
         </section>
 

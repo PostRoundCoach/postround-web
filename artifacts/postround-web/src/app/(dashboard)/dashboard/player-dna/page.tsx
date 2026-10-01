@@ -1,7 +1,10 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Dna } from 'lucide-react'
+import { hidePlayerDNAOnWeb } from './visibility'
 
-export default function PlayerDNAPage() {
+export default async function PlayerDNAPage() {
+  await hidePlayerDNAOnWeb()
+
   return (
     <div className="p-6 lg:p-8 max-w-7xl mx-auto">
       <div className="mb-8">
