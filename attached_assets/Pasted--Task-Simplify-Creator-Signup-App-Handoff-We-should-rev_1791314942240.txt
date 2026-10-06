@@ -1,0 +1,142 @@
+## Task: Simplify Creator Signup → App Handoff
+
+We should revise the current creator referral signup flow.
+
+### Background
+
+The creator referral flow is already working:
+
+1. User visits `/r/{slug}`
+2. Referral click is recorded and `pr_ref` is stored.
+3. User completes web signup using passwordless email-code signup.
+4. Referral attribution is claimed and attached to the newly created user.
+5. The user currently ends up on the web dashboard.
+
+We have **not verified a secure browser-session → native mobile-session handoff**.
+
+The mobile app uses its own Supabase authentication/session, and simply launching:
+
+`golf-coach://...`
+
+does not transfer the authenticated browser session into the native app.
+
+There is also an authentication mismatch worth avoiding: web signup uses passwordless email-code signup, while the current web login flow expects email/password. Therefore, we should **not create a post-signup experience that assumes the user can immediately enter the app without an explicit, verified mobile authentication path.**
+
+### New desired behavior
+
+For now, do **not automatically attempt to launch the native app immediately after successful web signup.**
+
+Instead, make the creator funnel:
+
+**Creator link → Web signup → Referral claimed → Confirmation page**
+
+The confirmation page should clearly communicate that the account was created successfully and that the creator referral was applied.
+
+Then provide two explicit actions:
+
+#### If the app is installed
+
+Show:
+
+**Open Post Round**
+
+This button may launch:
+
+`golf-coach://...`
+
+using the existing deep-link infrastructure.
+
+However, this should be treated as a navigation/deep-link action only. **Do not claim that it logs the user into the app.**
+
+If the native app cannot recognize the same authenticated account, the user should simply be able to use the app's existing authentication flow to sign into the account they just created.
+
+#### If the app is not installed
+
+Show:
+
+**Download Post Round**
+
+This should send the user to the appropriate Google Play listing.
+
+Do not invent or implement a browser-session → native-session authentication transfer.
+
+### Critical attribution requirement
+
+The referral attribution is the important part of this funnel, and it should remain completely independent of the app launch.
+
+Once the web signup successfully claims the referral:
+
+* The attribution must remain attached to the newly created user.
+* The later app installation/login must not be required for the creator to receive attribution.
+* Do not create a second referral event when the user clicks "Open Post Round."
+* Do not re-claim or overwrite an already-successfully-claimed creator attribution.
+* Preserve the existing immutable/unique attribution behavior.
+* Do not alter the existing Android Install Referrer attribution flow for users who install the app before signing up.
+
+### Confirmation page requirements
+
+Create or update the successful signup destination so it is a dedicated confirmation state rather than immediately redirecting the user to `/dashboard`.
+
+It should communicate something similar to:
+
+**Welcome to Post Round**
+
+Your account is ready, and your creator referral has been applied.
+
+Then provide:
+
+**Open Post Round**
+
+and
+
+**Download Post Round**
+
+as appropriate.
+
+The exact visual design can follow the existing Post Round web styling.
+
+### Important constraints
+
+Do NOT:
+
+* implement a new authentication/session-transfer mechanism
+* put Supabase access tokens or session credentials into the deep link
+* assume that the browser's Supabase session is available inside the native app
+* automatically launch `golf-coach://` immediately after signup
+* remove or weaken the existing referral attribution logic
+* change the existing Install Referrer attribution contract
+* create duplicate creator attribution records
+* require the native app to be installed for web referral attribution to succeed
+
+### Detection behavior
+
+If the existing web project already has a reliable, supported way to determine whether the Post Round app is installed, use it only to determine which CTA to present.
+
+If reliable installed-app detection is not already available, do **not** build a complicated detection mechanism for this task.
+
+In that case, provide the appropriate clear CTA(s) without making unsupported assumptions.
+
+### Validation
+
+After implementation, verify:
+
+1. Creator referral link records the referral.
+2. New user completes passwordless email-code signup.
+3. Referral is successfully claimed against the new user.
+4. User lands on the new confirmation page rather than directly on `/dashboard`.
+5. Creator attribution remains intact in the database.
+6. "Open Post Round" uses the existing `golf-coach://` scheme and does not attempt to pass authentication credentials.
+7. "Download Post Round" points to the correct Google Play destination.
+8. Existing referral attribution behavior for Android Install Referrer is unchanged.
+9. Existing signup/login behavior outside the creator funnel is unchanged.
+10. Typecheck/tests pass.
+
+### Goal
+
+The goal is **not** to solve native authentication handoff in this task.
+
+The goal is to create a clean, reliable creator acquisition funnel where:
+
+**the creator gets attribution as soon as the web account is created, and the user gets a clear next step toward using Post Round.**
+
+Keep the implementation narrow and avoid introducing new authentication architecture.
