@@ -1,7 +1,8 @@
 import { defineConfig, devices } from '@playwright/test'
 
 const fixtureUrl = 'http://127.0.0.1:54321'
-const appUrl = 'http://127.0.0.1:3100'
+// Next normalizes a loopback-bound standalone server's redirect host to localhost.
+const appUrl = 'http://localhost:3100'
 
 export default defineConfig({
   testDir: './e2e',
@@ -46,6 +47,8 @@ export default defineConfig({
         NEXT_PUBLIC_SUPABASE_ANON_KEY: 'e2e-anon-key',
         NEXT_PUBLIC_POSTROUND_API_BASE_URL: fixtureUrl,
         NEXT_PUBLIC_POSTROUND_ALLOW_LOCAL_API: 'true',
+        // Never inherit a real listing in the default pending-listing fixture.
+        ANDROID_STORE_URL: process.env.E2E_ANDROID_STORE_URL ?? '',
       },
       timeout: 180_000,
     },

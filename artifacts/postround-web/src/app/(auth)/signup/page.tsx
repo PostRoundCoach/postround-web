@@ -19,6 +19,19 @@ export default function SignUpPage() {
   const [code, setCode] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [creatorReferred, setCreatorReferred] = useState(false)
+
+  const referralContext = async () => {
+    try {
+      const response = await fetch('/referrals/status', { cache: 'no-store', signal: AbortSignal.timeout(5_000) })
+      const context = await response.json()
+      if (context.hasPending === true) {
+        setCreatorReferred(true)
+        return true
+      }
+    } catch { /* Referral availability must not prevent account creation. */ }
+    return creatorReferred
+  }
 
   const supabase = createClient()
 
@@ -39,6 +52,7 @@ export default function SignUpPage() {
     setIsLoading(true)
     setError(null)
 
+    await referralContext()
     const { error: otpError } = await supabase.auth.signInWithOtp({
       email,
       options: {
@@ -62,6 +76,8 @@ export default function SignUpPage() {
     setIsLoading(true)
     setError(null)
 
+    // Preserve the HttpOnly-cookie context before any claim can consume it.
+    const referred = await referralContext()
     const { error: verifyError } = await supabase.auth.verifyOtp({
       email,
       token: code.trim(),
@@ -74,8 +90,24 @@ export default function SignUpPage() {
       return
     }
 
+    if (referred) {
+      setIsLoading(false)
+      router.push('/signup/complete')
+      router.refresh()
+      return
+    }
+
     try {
       const claim = await fetch('/referrals/claim', { method: 'POST' })
+      const outcome = await claim.json()
+      // If a context read failed, the claim endpoint still captures the cookie
+      // before clearing it. Its status is never used as attribution proof here.
+      if (outcome.hasPending === true) {
+        setIsLoading(false)
+        router.push('/signup/complete')
+        router.refresh()
+        return
+      }
       if (!claim.ok) {
         setIsLoading(false)
         router.push('/dashboard?referral=pending')

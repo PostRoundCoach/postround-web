@@ -47,6 +47,10 @@ const publicCreators = {
 const referralEvents = new Map()
 const referralAttributions = new Map()
 let referralCounter = 0
+let failReferralClaim = false
+let failAttributionRead = false
+let claimWithoutAttribution = false
+let referralMetrics = { issues: 0, claims: 0 }
 const story = {
   id: storyId,
   story_id: storyId,
@@ -293,9 +297,48 @@ const server = http.createServer((request, response) => {
       failLogin = Boolean(config.failLogin)
       creatorAllowed = config.creatorAllowed !== false
       failProfile = Boolean(config.failProfile)
+      failReferralClaim = Boolean(config.failReferralClaim)
+      failAttributionRead = Boolean(config.failAttributionRead)
+      claimWithoutAttribution = Boolean(config.claimWithoutAttribution)
+      if (config.resetReferrals) {
+        referralEvents.clear()
+        referralAttributions.clear()
+        referralMetrics = { issues: 0, claims: 0 }
+      }
       send(response, 200, {})
     })
     return
+  }
+
+  if (request.method === 'GET' && url.pathname === '/__test/referrals') {
+    return send(response, 200, { ...referralMetrics, attributions: [...referralAttributions.values()] })
+  }
+
+  if (request.method === 'POST' && url.pathname === '/auth/v1/otp') {
+    return send(response, 200, {})
+  }
+
+  if (request.method === 'POST' && url.pathname === '/auth/v1/verify') {
+    let body = ''
+    request.on('data', (chunk) => { body += chunk })
+    request.on('end', () => {
+      const input = JSON.parse(body || '{}')
+      const user = users[input.email]
+      if (!user || input.token !== '123456') return send(response, 400, { message: 'Invalid OTP' })
+      return send(response, 200, {
+        access_token: tokenFor(user), expires_in: 3600, refresh_token: `refresh-${user.id}`,
+        token_type: 'bearer', user: userResponse(user),
+      })
+    })
+    return
+  }
+
+  if (request.method === 'GET' && url.pathname === '/rest/v1/creator_attributions') {
+    const user = userFromRequest(request)
+    if (!user) return send(response, 401, { message: 'Authentication required' })
+    if (failAttributionRead) return send(response, 503, { message: 'Temporarily unavailable' })
+    const row = referralAttributions.get(user.id)
+    return send(response, 200, row ? [{ creator_id: row.creator_id }] : [])
   }
 
   if (request.method === 'POST' && url.pathname === '/auth/v1/token') {
@@ -361,6 +404,7 @@ const server = http.createServer((request, response) => {
       const input = JSON.parse(body || '{}')
       if (!publicCreators[input.requested_slug]) return send(response, 200, null)
       const id = `90000000-0000-4000-8000-${String(++referralCounter).padStart(12, '0')}`
+      referralMetrics.issues++
       referralEvents.set(id, { slug: input.requested_slug, platform: input.requested_platform })
       return send(response, 200, id)
     })
@@ -373,9 +417,12 @@ const server = http.createServer((request, response) => {
     request.on('end', () => {
       const user = userFromRequest(request)
       if (!user) return send(response, 401, { code: '28000', message: 'Authentication required' })
+      referralMetrics.claims++
+      if (failReferralClaim) return send(response, 503, { code: '08006', message: 'Temporarily unavailable' })
       const input = JSON.parse(body || '{}')
       const event = referralEvents.get(input.evidence_id)
       if (!event) return send(response, 400, { code: '22023', message: 'Invalid referral evidence' })
+      if (claimWithoutAttribution) return send(response, 200, [{ creator_id: event.slug }])
       if (!referralAttributions.has(user.id) &&
           ![...referralAttributions.values()].some((row) => row.event === input.evidence_id)) {
         referralAttributions.set(user.id, { event: input.evidence_id, creator_id: event.slug, attributed_at: new Date().toISOString() })

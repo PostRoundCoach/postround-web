@@ -2,6 +2,43 @@
 
 ## Boundaries
 
+The user has manually verified that the installed Android APK opens with
+`golf-coach://`. The web confirmation uses that exact scheme for user-clicked
+navigation only; it adds no path or credentials and does not transfer a web
+session. This does not verify native authentication or Install Referrer capture.
+
+## Signup confirmation
+
+Creator-referred email-code signup preserves pending-browser context before
+claiming and goes to `/signup/complete`. Ordinary signup and password login keep
+their existing destinations. The confirmation page verifies authentication
+before constructing account-ready content. Signed-out/expired sessions return to
+login; authenticated direct access works even without referral evidence.
+
+The page reads the signed-in user's immutable `creator_attributions` row using
+the authenticated client and own-user RLS. Only this durable read displays
+“applied”; neither query parameters, cookies, nor HTTP claim success do.
+An existing attribution stays authoritative despite a later creator click.
+Pending valid-looking evidence gets one initial claim attempt; transient failures
+retain the cookie and offer at most three explicit retries per visit.
+Malformed/expired/consumed evidence is terminal and cleared. A failed attribution
+read is not proof of absence and is retryable without claiming blindly.
+Refresh/revisit reads persisted attribution even after the cookie is cleared.
+All referral status/claim responses are private, uncached responses.
+
+Open Post Round is a user-clicked `golf-coach://` anchor in a separate browsing
+context; no installed-app detection, auto-opening, attribution mutation or
+session transfer occurs. The page remains available if opening fails. Users may
+need to sign in in the app with the same account; no native sign-in method is
+promised. Continue on web always goes to `/dashboard`.
+
+Download Post Round is disabled with “Google Play listing coming soon” while
+`ANDROID_STORE_URL` is unset/invalid. A verified HTTPS Play details URL configured
+centrally enables the plain download link without referral evidence. No listing
+is derived from a package ID. `/r` still chooses the Android store *before*
+signup when configured and still adds the same Install Referrer `pr_ref` payload.
+An unset listing falls back to web signup as before.
+
 This repository contains the Next.js site, shared API, and Supabase migration files, **not the mobile application**. Expo SDK, React Native version, router, EAS build configuration, Android package name, iOS bundle ID, app scheme, native Install Referrer module, and universal/app link configuration cannot be verified here. No Android or iOS install attribution is live. The current web account creation is Supabase email OTP (`signup/page.tsx`, `verifyOtp`); the login page uses password auth, and the auth callback exchanges PKCE codes. The API owns account deletion; existing subscriptions remain on `profiles` and are not changed by this feature.
 
 `creator_profiles.id` is the canonical creator key, **not** `creator_profiles.user_id` (the optional owner). `profiles.id` is the referred user's authenticated ID. Existing `favorite_creator_id` and subscription fields remain independent of original attribution.

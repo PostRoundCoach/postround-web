@@ -12,7 +12,8 @@ NEXT_PUBLIC_SUPABASE_URL=<production-supabase-project-url>
 NEXT_PUBLIC_SUPABASE_ANON_KEY=<public-anon-key-for-that-same-supabase-project>
 SUPABASE_SERVICE_ROLE_KEY=<private-server-only-service-role-secret>
 SUPABASE_CONTENT_FUNCTION_NAME=<optional-deployed-edge-function-name-if-not-source-default>
-ANDROID_STORE_URL=<optional-canonical-android-store-listing-https-url>
+# Leave unset until the verified listing exists; download stays visibly pending.
+ANDROID_STORE_URL=<optional-verified-https-play.google.com-store-apps-details-url>
 IOS_STORE_URL=<optional-canonical-ios-store-listing-https-url>
 WEB_FALLBACK_PATH=<optional-safe-same-site-path-defaults-to-signup>
 
