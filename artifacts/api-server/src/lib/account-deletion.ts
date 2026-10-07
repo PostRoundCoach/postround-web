@@ -1,5 +1,9 @@
 import { ReplitConnectors } from "@replit/connectors-sdk";
 import {
+  extractAccountDeletionAuthDiagnostic,
+  type AccountDeletionAuthDiagnostic,
+} from "./account-deletion-auth-diagnostic.ts";
+import {
   authenticateSupabaseBearer,
   CreatorContentError,
   type SupabaseRequestContext,
@@ -14,16 +18,19 @@ export type AccountDeletionStage =
 
 export class AccountDeletionError extends CreatorContentError {
   readonly stage: AccountDeletionStage;
+  readonly authDiagnostic?: AccountDeletionAuthDiagnostic;
 
   constructor(
     status: number,
     message: string,
     stage: AccountDeletionStage,
     diagnostic?: string,
+    authDiagnostic?: AccountDeletionAuthDiagnostic,
   ) {
     super(status, message, diagnostic);
     this.name = "AccountDeletionError";
     this.stage = stage;
+    this.authDiagnostic = authDiagnostic;
   }
 }
 
@@ -66,12 +73,16 @@ export async function deleteAuthenticatedAccount(
 ): Promise<{ deleted: true }> {
   const proxy = options.proxy ?? connectedProxy();
   let context: SupabaseRequestContext;
+  let authDiagnostic: AccountDeletionAuthDiagnostic | undefined;
   try {
     context = await authenticateSupabaseBearer(
       authorization,
       proxy,
       options.authFetch,
       options.anonKey,
+      async (response) => {
+        authDiagnostic = await extractAccountDeletionAuthDiagnostic(response);
+      },
     );
   } catch (error) {
     if (error instanceof CreatorContentError) {
@@ -80,6 +91,7 @@ export async function deleteAuthenticatedAccount(
         error.message,
         "authentication",
         error.diagnostic,
+        authDiagnostic,
       );
     }
     throw error;

@@ -18,3 +18,4 @@
 - [Next page visibility guards](next-page-visibility-guards.md) — layout redirects can still serialize child content; guard hidden pages before constructing their JSX.
 - [Creator signup app handoff](creator-signup-handoff.md) — user verified `golf-coach://` navigation only; app launch, native sign-in, and attribution remain separate.
 - [Signup credential proof](signup-credential-proof.md) — verified email and successful signup responses do not alone prove a reusable password; check same-account credentials.
+- [Deletion diagnostic safety](account-deletion-diagnostic-safety.md) — unknown upstream text is omitted; historical 403s without bodies cannot establish a cause.

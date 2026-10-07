@@ -79,6 +79,7 @@ export async function authenticateSupabaseBearer(
   proxy?: SupabaseRequestContext["proxy"],
   authFetch: typeof fetch = fetch,
   anonKey: string | undefined = process.env.SUPABASE_ANON_KEY,
+  onAuthUserRejected?: (response: Response) => Promise<void>,
 ): Promise<SupabaseRequestContext> {
   const token = authorization?.match(/^Bearer\s+(.+)$/i)?.[1]?.trim();
   if (!token) throw new CreatorContentError(401, "A bearer token is required.");
@@ -119,7 +120,16 @@ export async function authenticateSupabaseBearer(
       },
     });
     diagnostic = `auth_user_status_${authResponse.status}`;
-    if (!authResponse.ok) throw new Error("Supabase rejected the session");
+    if (!authResponse.ok) {
+      if (onAuthUserRejected) {
+        try {
+          await onAuthUserRejected(authResponse);
+        } catch {
+          // Diagnostic failures must preserve the same authentication rejection.
+        }
+      }
+      throw new Error("Supabase rejected the session");
+    }
     const authenticatedUser = await authResponse.json() as {
       id?: unknown;
       email?: unknown;

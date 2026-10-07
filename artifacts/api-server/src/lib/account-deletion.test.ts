@@ -19,7 +19,9 @@ function authFetch(): Promise<Response> {
 
 test("deletion derives identity from the bearer session and deletes Auth last", async () => {
   const requests: Array<{ path: string; method: string; body?: string }> = [];
+  let issuerVerified = false;
   const proxy: NonNullable<SupabaseRequestContext["proxy"]> = async (path, init) => {
+    assert.equal(issuerVerified, true, "issuer verification precedes every connector request");
     requests.push({
       path,
       method: init?.method ?? "GET",
@@ -34,11 +36,17 @@ test("deletion derives identity from the bearer session and deletes Auth last", 
   assert.deepEqual(
     await deleteAuthenticatedAccount(`Bearer ${token}`, {
       proxy,
-      authFetch,
+      authFetch: async () => {
+        issuerVerified = true;
+        return authFetch();
+      },
       anonKey: "fixture-key",
     }),
     { deleted: true },
   );
+  assert.equal(requests.length, 3);
+  assert.equal(requests[0]?.path, `/auth/v1/admin/users/${userId}`);
+  assert.equal(requests[0]?.method, "GET");
   assert.equal(requests[1]?.path, "/rest/v1/rpc/delete_own_account_data");
   assert.deepEqual(JSON.parse(requests[1]?.body ?? "{}"), { p_user_id: userId });
   assert.equal(requests[2]?.path, `/auth/v1/admin/users/${userId}`);
