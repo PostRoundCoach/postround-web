@@ -12,19 +12,19 @@ export async function claimPendingWebReferral(): Promise<'none' | 'claimed' | 'i
   const { data: { user }, error: authError } = await supabase.auth.getUser()
   if (authError || !user) throw new Error('Authentication required')
   const { data: existing, error: readError } = await supabase.from('creator_attributions')
-    .select('creator_id').eq('user_id', user.id)
+    .select('creator_id,referral_event_id').eq('user_id', user.id)
     .abortSignal(AbortSignal.timeout(3_000)).retry(false).maybeSingle()
   if (readError) throw new Error('Referral claim is temporarily unavailable')
-  if (existing) {
-    store.delete('pr_ref')
-    return 'claimed'
-  }
-  if (!REFERRAL_UUID.test(evidence)) {
+  // Retry the original claim inside its transaction. The pending cookie is
+  // only a completion trigger; it must never replace persisted evidence.
+  const claimEvidence = existing?.referral_event_id ?? evidence
+  if (!REFERRAL_UUID.test(claimEvidence)) {
+    if (existing) throw new Error('Referral claim is temporarily unavailable')
     store.delete('pr_ref')
     return 'invalid'
   }
   const { data, error } = await supabase.rpc('claim_creator_referral', {
-    evidence_id: evidence,
+    evidence_id: claimEvidence,
     claim_method: 'web_referral',
   })
   if (error) {

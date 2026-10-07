@@ -7,9 +7,10 @@ import { SignupConfirmationView } from './SignupConfirmationView'
 
 const MAX_RETRIES = 3
 
-export function SignupConfirmation({ initialStatus, storeUrl }: {
+export function SignupConfirmation({ initialStatus, storeUrl, hasPending = false }: {
   initialStatus: ReferralStatus
   storeUrl: string | null
+  hasPending?: boolean
 }) {
   const router = useRouter()
   const [status, setStatus] = useState(initialStatus)
@@ -36,7 +37,7 @@ export function SignupConfirmation({ initialStatus, storeUrl }: {
       } else {
         setStatus(body.status)
         // A recovered read can expose preserved evidence. Claim only after that read.
-        if (!claim && (body.status === 'pending' || body.status === 'invalid')) {
+        if (!claim && (body.hasPending === true || body.status === 'pending' || body.status === 'invalid')) {
           locked.current = false
           await check(true)
         }
@@ -52,8 +53,9 @@ export function SignupConfirmation({ initialStatus, storeUrl }: {
   useEffect(() => {
     if (mountedAttempt.current) return
     mountedAttempt.current = true
-    if (initialStatus === 'pending' || initialStatus === 'invalid') void check(true)
-  }, [check, initialStatus])
+    if (initialStatus !== 'unavailable' &&
+        (hasPending || initialStatus === 'pending' || initialStatus === 'invalid')) void check(true)
+  }, [check, initialStatus, hasPending])
 
   const retry = () => {
     if (busy || attempts >= MAX_RETRIES) return

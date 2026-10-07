@@ -15,3 +15,15 @@ account success. Preserve store-first Install Referrer routing. Leave the Google
 Play destination unset until a verified listing exists; no package-derived or
 placeholder listing is acceptable. Web fixtures do not prove actual app launch,
 native sign-in, or native Install Referrer capture.
+
+Keep referral-to-default-favorite persistence on the backend, not in native
+attribution lookup/repair logic. An intentional player favorite must take
+precedence over referral attribution.
+
+**Why:** The user explicitly wants the backend's authoritative referral
+relationship to supply native profile state, without making the native app
+responsible for referral business logic.
+
+**How to apply:** Keep future referral fixes within the server completion
+transaction unless separately authorized. Even verified native source
+consumption does not prove a distributed build or fresh same-account display.

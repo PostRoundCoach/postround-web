@@ -4,6 +4,8 @@ This directory is the source of truth for the external Supabase database used by
 Post Round Coach.
 
 Creator referral schema, handoff, security and deployment details: [creator-referrals.md](creator-referrals.md).
+Web referral null-only favorite amendment and staging/release gates:
+[web-referral-favorite.md](web-referral-favorite.md).
 
 ## Authoritative records
 

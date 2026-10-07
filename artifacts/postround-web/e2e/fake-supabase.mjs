@@ -53,11 +53,13 @@ const publicCreators = {
 }
 const referralEvents = new Map()
 const referralAttributions = new Map()
+// Explicit mock state, not execution of the PostgreSQL migration.
+const favoriteCreators = new Map()
 let referralCounter = 0
 let failReferralClaim = false
 let failAttributionRead = false
 let claimWithoutAttribution = false
-let referralMetrics = { issues: 0, claims: 0 }
+let referralMetrics = { issues: 0, claims: 0, profileWrites: 0 }
 const story = {
   id: storyId,
   story_id: storyId,
@@ -330,7 +332,12 @@ const server = http.createServer((request, response) => {
       if (config.resetReferrals) {
         referralEvents.clear()
         referralAttributions.clear()
-        referralMetrics = { issues: 0, claims: 0 }
+        favoriteCreators.clear()
+        referralMetrics = { issues: 0, claims: 0, profileWrites: 0 }
+      }
+      if (config.favoriteCreator !== undefined) {
+        const player = users['new-player@example.test']
+        if (player) favoriteCreators.set(player.id, config.favoriteCreator)
       }
       send(response, 200, {})
     })
@@ -338,7 +345,8 @@ const server = http.createServer((request, response) => {
   }
 
   if (request.method === 'GET' && url.pathname === '/__test/referrals') {
-    return send(response, 200, { ...referralMetrics, attributions: [...referralAttributions.values()] })
+    return send(response, 200, { ...referralMetrics, attributions: [...referralAttributions.values()],
+      profiles: Object.values(users).map(({ id }) => ({ id, favorite_creator_id: favoriteCreators.get(id) ?? null })) })
   }
 
   if (request.method === 'GET' && url.pathname === '/__test/auth') {
@@ -424,7 +432,7 @@ const server = http.createServer((request, response) => {
     if (!user) return send(response, 401, { message: 'Authentication required' })
     if (failAttributionRead) return send(response, 503, { message: 'Temporarily unavailable' })
     const row = referralAttributions.get(user.id)
-    return send(response, 200, row ? [{ creator_id: row.creator_id }] : [])
+    return send(response, 200, row ? [{ creator_id: row.creator_id, referral_event_id: row.event }] : [])
   }
 
   if (request.method === 'POST' && url.pathname === '/auth/v1/token') {
@@ -519,6 +527,10 @@ const server = http.createServer((request, response) => {
         referralAttributions.set(user.id, { event: input.evidence_id, creator_id: event.slug, attributed_at: new Date().toISOString() })
       }
       const row = referralAttributions.get(user.id)
+      if (row && input.claim_method === 'web_referral' && favoriteCreators.get(user.id) == null) {
+        favoriteCreators.set(user.id, row.creator_id)
+        referralMetrics.profileWrites++
+      }
       send(response, 200, row ? [{ creator_id: row.creator_id, attributed_at: row.attributed_at }] : [])
     })
     return
@@ -587,6 +599,7 @@ const server = http.createServer((request, response) => {
     const user = userFromRequest(request)
     return send(response, 200, {
       display_name: user?.creator ? 'Creator Fixture' : 'Player Fixture',
+      favorite_creator_id: user ? favoriteCreators.get(user.id) ?? null : null,
       avatar_url: null,
       created_at: '2026-01-01T00:00:00.000Z',
     })

@@ -6,6 +6,20 @@ import { referralDestination, referralPlatform } from './config.ts'
 const migration = readFileSync(
   new URL('../../../supabase/migrations/202609250001_creator_referrals.sql', import.meta.url), 'utf8',
 )
+const favoriteMigration = readFileSync(
+  new URL('../../../supabase/migrations/202610070001_web_referral_favorite.sql', import.meta.url), 'utf8',
+)
+
+test('favorite amendment is function-only and guards both web success paths', () => {
+  assert.doesNotMatch(favoriteMigration, /(?:ALTER|CREATE) TABLE|CREATE POLICY|INSERT INTO public\.profiles/)
+  assert.match(favoriteMigration, /CREATE OR REPLACE FUNCTION public\.claim_creator_referral/)
+  assert.match(favoriteMigration, /SECURITY DEFINER SET search_path = ''/)
+  assert.equal((favoriteMigration.match(/IF claim_method = 'web_referral' THEN/g) ?? []).length, 2)
+  assert.equal((favoriteMigration.match(/WHERE p.id = claimant AND a.user_id = claimant\s+AND p.favorite_creator_id IS NULL/g) ?? []).length, 2)
+  assert.equal((favoriteMigration.match(/SET favorite_creator_id = a.creator_id/g) ?? []).length, 2)
+  assert.match(favoriteMigration, /used.referral_event_id = evidence_id AND used.user_id <> claimant/)
+  assert.doesNotMatch(favoriteMigration, /EXCEPTION WHEN|GRANT|REVOKE/)
+})
 
 test('platform destinations are configured centrally and unsafe values fall back', () => {
   const old = { android: process.env.ANDROID_STORE_URL, ios: process.env.IOS_STORE_URL, web: process.env.WEB_FALLBACK_PATH }

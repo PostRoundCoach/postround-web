@@ -29,6 +29,11 @@ test('creator password signup confirms durable attribution; CTAs do not claim or
   expect((await page.context().cookies()).some((c) => c.name === 'pr_ref')).toBe(false)
   const before = await metrics(page)
   expect(before.claims).toBe(1)
+  // Mock profile state proves web wiring only, not SQL/transaction behavior.
+  expect(before.attributions).toHaveLength(1)
+  expect(before.profiles.find((p: { favorite_creator_id: string | null }) =>
+    p.favorite_creator_id === before.attributions[0].creator_id)).toBeTruthy()
+  expect(before.profileWrites).toBe(1)
   const ctaReferralRequests: string[] = []
   page.on('request', (request) => {
     const path = new URL(request.url()).pathname
@@ -68,7 +73,8 @@ test('creator password signup confirms durable attribution; CTAs do not claim or
   await page.goto('/signup/complete')
   await expect(page.getByText(/Your original attribution cannot be replaced/)).toBeVisible()
   expect((await metrics(page)).attributions).toEqual(before.attributions)
-  expect((await metrics(page)).claims).toBe(1)
+  await expect.poll(async () => (await metrics(page)).claims).toBe(2)
+  expect((await metrics(page)).profileWrites).toBe(1)
   await page.getByRole('link', { name: 'Continue on web' }).click()
   await expect(page).toHaveURL(/\/dashboard$/)
 })
@@ -169,6 +175,37 @@ test('creator context survives cookie expiry during email code entry', async ({ 
   await expect(page).toHaveURL(/\/signup\/complete$/)
   await expect(page.getByText(/No creator referral was confirmed/)).toBeVisible()
   expect((await metrics(page)).claims).toBe(0)
+  expect((await metrics(page)).profileWrites).toBe(0)
+})
+
+test('pending established claim fills only a NULL mock favorite from the original event', async ({ page }) => {
+  await page.goto('/r/creator-fixture')
+  await signup(page)
+  await expect(page.getByText(/Your creator referral has been applied/)).toBeVisible()
+  const original = await metrics(page)
+  await configure(page, { favoriteCreator: null })
+  await page.goto('/r/second-creator')
+  await page.goto('/signup/complete')
+  await expect.poll(async () => (await metrics(page)).profileWrites).toBe(2)
+  expect((await metrics(page)).attributions).toEqual(original.attributions)
+  expect((await metrics(page)).profiles).toEqual(original.profiles)
+  // An established attribution must not hide a transaction failure.
+  await configure(page, { favoriteCreator: null, failReferralClaim: true })
+  await page.goto('/r/second-creator')
+  await page.goto('/signup/complete')
+  await expect(page.getByText(/We have not confirmed your creator referral yet/)).toBeVisible()
+  expect((await page.context().cookies()).some((c) => c.name === 'pr_ref')).toBe(true)
+  await configure(page, {})
+  await page.getByRole('button', { name: 'Check again' }).click()
+  await expect(page.getByText(/Your creator referral has been applied/)).toBeVisible()
+  expect((await page.context().cookies()).some((c) => c.name === 'pr_ref')).toBe(false)
+  await configure(page, { favoriteCreator: 'intentional-other-creator' })
+  await page.goto('/r/second-creator')
+  await page.goto('/signup/complete')
+  await expect.poll(async () => (await metrics(page)).claims).toBe(5)
+  expect((await metrics(page)).profileWrites).toBe(3)
+  expect((await metrics(page)).profiles.some((p: { favorite_creator_id: string | null }) =>
+    p.favorite_creator_id === 'intentional-other-creator')).toBe(true)
 })
 
 test('Android routing preserves install-before-signup and opaque Install Referrer contract', async ({ request }) => {
