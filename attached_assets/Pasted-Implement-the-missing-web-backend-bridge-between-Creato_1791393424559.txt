@@ -1,0 +1,395 @@
+Implement the missing web/backend bridge between Creator referral attribution and the player's `profiles.favorite_creator_id`.
+
+## CONTEXT
+
+I just completed a real smoke test of the Creator referral signup flow.
+
+Observed database state for the newly created referred player:
+
+### Player profile
+
+`profiles` contains the new player, but:
+
+`favorite_creator_id = NULL`
+
+### Referral attribution
+
+The same user has a valid `creator_attributions` record containing:
+
+* `user_id` = the new player
+* `creator_id` = the correct referred Creator
+* `attribution_method` = `web_referral`
+* `attribution_source` = `creator_referral`
+
+The referral event and attribution are therefore working correctly.
+
+The bug is the missing bridge:
+
+```text
+creator_attributions.creator_id
+            ↓
+profiles.favorite_creator_id
+```
+
+The native app currently has no Creator to display because the player's profile has no `favorite_creator_id`.
+
+---
+
+# OBJECTIVE
+
+Modify the **web/server-side referred-account completion flow** so that when a new player is successfully attributed to a Creator through the Creator referral flow, the player's:
+
+```text
+profiles.favorite_creator_id
+```
+
+is populated with:
+
+```text
+creator_attributions.creator_id
+```
+
+Do this on the backend/web flow, **not in the native mobile app**.
+
+The referral attribution remains the authoritative source for determining which Creator was referred.
+
+---
+
+# REQUIRED BEHAVIOR
+
+## 1. New referred player
+
+When a new player completes a valid Creator referral signup and a corresponding `creator_attributions` record exists:
+
+```text
+creator_attributions.user_id = player_id
+creator_attributions.creator_id = creator_id
+```
+
+then ensure:
+
+```text
+profiles.favorite_creator_id = creator_id
+```
+
+for that player.
+
+The intended flow is:
+
+```text
+Creator referral slug
+        ↓
+creator_referral_events
+        ↓
+creator_attributions
+        ↓
+profiles.favorite_creator_id
+        ↓
+native app login
+        ↓
+Creator available as player's favorite
+```
+
+---
+
+## 2. NEVER overwrite an existing favorite
+
+This is critical.
+
+If the player already has:
+
+```text
+profiles.favorite_creator_id IS NOT NULL
+```
+
+do **not** replace it with the referred Creator.
+
+A referral should establish the default Creator for a player who does not already have one.
+
+For example:
+
+```text
+favorite_creator_id = NULL
+creator_attributions.creator_id = ABC
+→ set favorite_creator_id = ABC
+```
+
+But:
+
+```text
+favorite_creator_id = XYZ
+creator_attributions.creator_id = ABC
+→ leave favorite_creator_id = XYZ
+```
+
+The player's intentional Creator selection must take precedence over referral attribution.
+
+---
+
+# 3. Do not make the mobile app responsible for referral logic
+
+Do NOT implement logic in the native app such as:
+
+> "If favorite_creator_id is NULL, search creator_attributions and populate it."
+
+That is not the desired architecture.
+
+The backend already knows the authoritative relationship.
+
+The native app should simply receive the resulting player profile/state and see:
+
+```text
+favorite_creator_id = creator_id
+```
+
+Referral/business logic should remain server-side.
+
+---
+
+# 4. Find the existing natural insertion point
+
+Before changing code, inspect the existing Creator referral flow and identify where the `creator_attributions` record is created/finalized.
+
+Look for the existing:
+
+* referral signup completion handler
+* referral claim logic
+* attribution RPC
+* referral finalization endpoint
+* account creation completion handler
+* Creator claim flow
+* relevant database function/RPC
+
+Do NOT create a parallel referral mechanism if an existing attribution/claim path already exists.
+
+Prefer adding the profile update immediately after the existing attribution has been successfully established.
+
+The desired conceptual sequence is:
+
+```text
+validate referral
+      ↓
+create/finalize creator_attributions
+      ↓
+if profiles.favorite_creator_id IS NULL
+      ↓
+set favorite_creator_id = creator_attributions.creator_id
+```
+
+Use the existing transaction/RPC/server-side operation if one already exists so the attribution and profile update cannot silently diverge.
+
+---
+
+# 5. Handle duplicate/repeated referral processing safely
+
+The operation must be idempotent.
+
+If the same referred signup/claim is processed more than once:
+
+* do not create duplicate attribution records
+* do not repeatedly modify the player's favorite
+* do not overwrite an existing favorite
+* do not produce an error simply because `favorite_creator_id` is already populated with the correct Creator
+
+The operation should safely produce the same final state when retried.
+
+---
+
+# 6. Do not alter attribution semantics
+
+Do NOT change:
+
+* Creator attribution rules
+* referral expiration behavior
+* referral slug behavior
+* referral ownership
+* attribution source/method
+* Creator compensation logic
+* subscription attribution
+* referral event creation
+* existing referral claim semantics
+
+The only intended new behavior is:
+
+> A successfully attributed new player with no existing favorite Creator gets that Creator stored in `profiles.favorite_creator_id`.
+
+---
+
+# 7. Existing users
+
+Do not retroactively populate favorites for every existing user.
+
+This change is for the referred-account completion flow.
+
+Do not run a broad database backfill unless explicitly requested separately.
+
+Existing users who already have Creator relationships/favorites must remain unchanged.
+
+---
+
+# 8. Add regression coverage
+
+Add automated coverage for the following cases.
+
+### Case A — referred new player with no favorite
+
+Given:
+
+```text
+creator_attributions.user_id = player
+creator_attributions.creator_id = creator_A
+
+profiles.favorite_creator_id = NULL
+```
+
+After referral completion:
+
+```text
+profiles.favorite_creator_id = creator_A
+```
+
+PASS.
+
+### Case B — referred player already has a favorite
+
+Given:
+
+```text
+creator_attributions.creator_id = creator_A
+
+profiles.favorite_creator_id = creator_B
+```
+
+After referral processing:
+
+```text
+profiles.favorite_creator_id = creator_B
+```
+
+PASS.
+
+Creator A must NOT overwrite Creator B.
+
+### Case C — no Creator attribution
+
+Given:
+
+```text
+creator_attributions = none
+profiles.favorite_creator_id = NULL
+```
+
+After account completion:
+
+```text
+profiles.favorite_creator_id = NULL
+```
+
+PASS.
+
+### Case D — repeated processing
+
+Run the referred-account completion/claim operation twice.
+
+Confirm:
+
+* no duplicate attribution
+* no error
+* favorite remains correct
+* existing favorite is not overwritten
+
+PASS.
+
+### Case E — real referred signup path
+
+If the existing test infrastructure supports the complete web referral signup flow, verify:
+
+```text
+Creator slug
+→ signup
+→ attribution
+→ profile
+```
+
+and assert that the resulting profile has:
+
+```text
+favorite_creator_id = referred creator ID
+```
+
+---
+
+# 9. Verify the exact existing mobile contract
+
+Before assuming the native app needs changes, inspect the existing mobile/backend contract for the player profile.
+
+Determine whether the native app already reads:
+
+```text
+profiles.favorite_creator_id
+```
+
+If it already does, **do not modify the mobile app**.
+
+The expected result should simply be that the backend now supplies a populated field.
+
+If the mobile app does NOT currently consume `favorite_creator_id`, report that separately rather than expanding this task into a mobile implementation unless the existing architecture clearly requires a minimal compatible change.
+
+The primary task is the web/backend persistence fix.
+
+---
+
+# 10. Production safety
+
+Do not modify production data.
+
+Do not run a production migration manually unless the implementation genuinely requires a schema change.
+
+Prefer the smallest possible application/backend change using the existing schema.
+
+If a migration is required, explain why before proceeding and keep it limited to what is strictly necessary.
+
+---
+
+# VALIDATION
+
+After implementation, run the relevant automated tests and TypeScript/type checks.
+
+Then perform a targeted test of the referred signup flow if the environment permits.
+
+The critical acceptance condition is:
+
+```text
+New user enters through Creator referral
+        ↓
+creator_attributions created
+        ↓
+profiles.favorite_creator_id populated
+        ↓
+fresh authenticated native app session
+        ↓
+Creator is available as the player's favorite
+```
+
+Also verify that an existing favorite is never overwritten.
+
+---
+
+# REQUIRED FINAL REPORT
+
+Report:
+
+1. **Where the existing referral attribution is created/finalized**
+2. **Where you added the favorite Creator propagation**
+3. **Exact logic used to avoid overwriting an existing favorite**
+4. **Whether the operation is idempotent**
+5. **Tests added/updated**
+6. **Tests passed**
+7. **Whether any mobile code needed to change**
+8. **Any remaining limitation or follow-up**
+
+Do not broaden the implementation beyond this specific missing bridge.
+
+The desired architectural rule is:
+
+> `creator_attributions.creator_id` establishes the referred Creator; if the player's `favorite_creator_id` is still NULL, the server-side referred-account completion flow should persist that Creator as the player's favorite. An existing favorite must always win.
