@@ -1,0 +1,146 @@
+Actual Product Requirement
+
+A user who creates an account through a creator referral must have a clear, reliable way to authenticate into that same account later.
+
+The current concern is:
+
+Web creator signup appears to create an account without requiring the user to establish a password.
+The native Post Round app expects password-based authentication.
+This can leave a brand-new user in the position of having an account but not knowing the password needed to log back into it.
+Resetting a password immediately after account creation is an unnecessary and confusing experience.
+
+The goal is therefore not to replace password authentication.
+
+The goal is to determine the safest, smallest change that ensures a referred user can reliably authenticate into the same account later.
+
+What You Must Investigate
+
+First, inspect the existing implementation and authentication architecture.
+
+Determine exactly:
+
+How creator/referral signup currently creates the Supabase user.
+Whether a password is currently generated, omitted, or otherwise established during signup.
+What authentication credentials/providers exist on the resulting Supabase user.
+How email verification currently works.
+How the web login flow authenticates users.
+How the Android app authenticates users.
+Whether the web and native flows already have a secure session/deep-link handoff mechanism that could be reused.
+How creator attribution is established and persisted through signup.
+Whether changing the signup flow could affect existing creator attribution.
+How existing password users recover their accounts.
+Whether any existing account-linking, session exchange, magic-link, OTP, or deep-link infrastructure already exists that is relevant.
+Whether the current Stripe/deep-link return flow has any authentication dependencies that must be preserved.
+Evaluate These Options
+
+Evaluate, but do not implement, the following approaches:
+
+Option 1 — Add password creation to creator/web signup
+
+Determine whether the creator signup form can simply require the user to establish a password as part of account creation.
+
+Evaluate:
+
+impact on existing users;
+security implications;
+Supabase Auth implications;
+Android impact;
+creator attribution impact;
+existing web-login impact;
+account-recovery impact;
+implementation complexity;
+production-launch risk.
+Option 2 — Establish password after email verification
+
+Determine whether the signup flow could allow the user to establish a password after successfully verifying their email, before signup is considered complete.
+
+Evaluate the same areas above.
+
+Option 3 — Reuse an existing secure web-to-native authentication/session handoff
+
+Determine whether Post Round already has a secure mechanism for transferring an authenticated web session into the native app.
+
+If one exists, determine whether it can safely be reused without changing the fundamental authentication model.
+
+Evaluate:
+
+security;
+session lifetime;
+token handling;
+account identity preservation;
+Android compatibility;
+deep-link behavior;
+creator attribution;
+production readiness;
+implementation complexity.
+Option 4 — Other minimal solution
+
+If the existing architecture suggests a safer or simpler approach, identify it.
+
+It must preserve the existing password-based authentication model unless there is an exceptionally strong architectural reason otherwise.
+
+Required Recommendation
+
+After investigating the codebase, provide a clear recommendation before making any changes.
+
+Rank the viable approaches from safest/best to least desirable.
+
+The recommendation should prioritize:
+
+Reliability for the user.
+Preservation of the existing authentication model.
+Minimal implementation complexity.
+Minimal production risk.
+Security.
+Compatibility with the existing Android app.
+Preservation of creator attribution.
+Preservation of existing account recovery.
+Preservation of existing Stripe/deep-link behavior.
+
+Specifically answer:
+
+What is the smallest, safest change that ensures a creator-referred user knows how to authenticate into the same Post Round account later?
+
+Important Constraints
+
+The following must remain unchanged unless I explicitly approve a future implementation:
+
+existing password authentication;
+existing password users;
+existing web login;
+existing Android authentication;
+existing Supabase production authentication configuration;
+existing account recovery;
+existing creator attribution;
+existing Stripe/deep-link behavior;
+existing production environment.
+Deliverable
+
+Return an evaluation report only containing:
+
+Current authentication architecture
+Root cause of the creator-signup problem
+What happens today from signup → verification → native login
+Evaluation of Options 1–4
+Security assessment
+Production-risk assessment
+Recommended solution
+Why the recommendation is preferable
+What would need to change if I approve implementation
+Any tests that should be run after implementation
+
+Do not make any changes while performing this investigation.
+
+Do not create a migration.
+
+Do not modify files.
+
+Do not modify Supabase.
+
+Do not modify authentication configuration.
+
+Do not deploy.
+
+Do not mark an implementation task complete.
+
+Stop after delivering the evaluation and recommendation. Wait for explicit approval before implementing anything.
