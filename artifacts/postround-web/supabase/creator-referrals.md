@@ -66,3 +66,11 @@ Evidence is bearer-style and can be shared or self-generated through the anonymo
 Review `migrations/202609250001_creator_referrals.sql` for three new tables, FKs, uniqueness, locks, RLS and the account-erasure amendment. There is no bulk backfill and no hard-coded creator rows; the first active-creator click lazily creates its link. Rollback requires a separate reviewed migration; do **not** drop attribution records as an ad-hoc recovery. On a non-production clone reconciled to the dated baseline, run `supabase migration list`, `supabase db push --dry-run`, apply and exercise both real creator fixtures, bad/inactive slugs, expiry, concurrent claims, direct authenticated DML denial, and account deletion. Only after review should a collaborator link the correct production project, compare the migration ledger, run `supabase db push`, and verify the new ledger entry with `supabase migration list`. The checked-in SQL alone does **not** prove production installation.
 
 Web route tests use a local fake Supabase service; they do not assert database RLS. Native install-to-signup and store behavior remain unverified until the mobile repository, identifiers, destination URLs, and distribution builds exist.
+
+Shared web signup now establishes a user-chosen password with Supabase password signup before email
+confirmation. Only verified matching identity and successful same-user password authentication can
+complete this funnel. Pending referral evidence remains in its HttpOnly cookie; a tab-scoped referral
+UI hint preserves the referred completion destination during refresh but never proves attribution.
+Signup confirmation/resend use `type: 'signup'`; no referral schema or claim contract changed.
+See [password signup acceptance and release gates](password-signup-acceptance.md) for the unchanged
+configuration prerequisite, real-email and Android same-account checklist, and unverified release evidence.

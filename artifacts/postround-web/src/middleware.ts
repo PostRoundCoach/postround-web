@@ -41,7 +41,9 @@ export async function middleware(request: NextRequest) {
   }
 
   // Redirect authenticated users away from auth pages
-  if (user && (pathname === '/login' || pathname === '/signup' || pathname === '/forgot-password' || pathname === '/reset-password')) {
+  // Signup owns its verification/credential checks and referred destination.
+  // Do not bypass those on refresh after a verification response was interrupted.
+  if (user && (pathname === '/login' || pathname === '/forgot-password' || pathname === '/reset-password')) {
     const url = request.nextUrl.clone()
     url.pathname = '/dashboard'
     return NextResponse.redirect(url)

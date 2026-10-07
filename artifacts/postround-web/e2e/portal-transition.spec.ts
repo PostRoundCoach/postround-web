@@ -60,7 +60,8 @@ test('sidebar, tile, mobile, and return link show feedback without waiting for s
   // Both clicks happen in the same tick, before React can render the overlay.
   await sidebar.evaluate((link: HTMLAnchorElement) => { link.click(); link.click() })
   await expect(page.getByRole('heading', { name: 'Creator Dashboard' })).toBeVisible()
-  await expect(page.getByTestId('portal-transition-loading')).toBeVisible()
+  // Next's route fallback and the explicit transition overlay can coexist.
+  await expect(page.locator('[data-testid="portal-transition-loading"]:not(.portal-loading-delay)')).toBeVisible()
   await expect(page.locator('[data-portal-snapshot]')).toContainText('Creator Dashboard')
   await expect(page.getByTestId('link-back-dashboard')).toBeVisible()
   await expect(page.getByTestId('portal-transition-loading')).toHaveCount(0)

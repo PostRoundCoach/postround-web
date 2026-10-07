@@ -46,7 +46,7 @@ See the [main production web deployment runbook](./PRODUCTION_WEB_DEPLOYMENT.md)
 
 ## Configuration beyond environment variables
 
-Supabase Auth Site URL/redirect allowlist, email/OTP delivery and templates, database RLS/grants, Vercel project/root/output/branch/domain settings, API connector authorization, canonical DNS/TLS and optional mobile app identities are manual platform configuration, not invented env names. Their consumers, evidence and release gates are in runbook sections 1, 3–5. Historic upload `${EXPO_PUBLIC_DOMAIN}` is an unresolved mobile API template, not an active first-party env read; no native app is present. Actual local env values are deliberately not audited.
+Supabase Auth Site URL/redirect allowlist, email/OTP delivery and templates, database RLS/grants, Vercel project/root/output/branch/domain settings, API connector authorization, canonical DNS/TLS and optional mobile app identities are manual platform configuration, not invented env names. Their consumers, evidence and release gates are in runbook sections 1, 3–5. Password signup additionally requires email confirmation enabled and the **Confirm sign up** template delivering six-digit signup tokens; see [acceptance and approval gates](supabase/password-signup-acceptance.md). No Auth/template/environment changes were made for that feature. Historic upload `${EXPO_PUBLIC_DOMAIN}` is an unresolved mobile API template, not an active first-party env read; no native app is present. Actual local env values are deliberately not audited.
 
 ## OpenAI production configuration
 

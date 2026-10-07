@@ -88,7 +88,8 @@ export function SignupConfirmationView({
         </a>
         <p className="text-xs text-muted-foreground">
           The app may not open on this device. This page stays available either
-          way. You may need to sign in again in the app, using the same account.
+          way. Opening it does not sign you in. Sign into the app with your email
+          and the password you chose during signup, then follow its normal verification step.
         </p>
 
         {storeUrl ? (

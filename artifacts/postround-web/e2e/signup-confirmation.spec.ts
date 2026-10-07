@@ -6,19 +6,21 @@ async function configure(page: Page, data: Record<string, unknown>) {
 }
 async function signup(page: Page) {
   await page.getByLabel('Display Name').fill('Fixture Golfer')
-  await page.getByLabel('Email address').fill('player@example.test')
-  await page.getByRole('button', { name: 'Send Verification Code' }).click()
+  await page.getByLabel('Email address').fill('new-player@example.test')
+  await page.getByLabel('Password', { exact: true }).fill('ChosenPassword9')
+  await page.getByLabel('Confirm password', { exact: true }).fill('ChosenPassword9')
+  await page.getByRole('button', { name: 'Create account', exact: true }).click()
   await page.getByLabel('6-digit code').fill('123456')
-  await page.getByRole('button', { name: 'Create Account' }).click()
+  await page.getByRole('button', { name: 'Verify email', exact: true }).click()
 }
 async function metrics(page: Page) {
   return (await page.request.get(`${fixture}/__test/referrals`)).json()
 }
 test.beforeEach(async ({ page }) => {
-  await configure(page, { resetReferrals: true })
+  await configure(page, { resetReferrals: true, resetAuth: true })
 })
 
-test('creator OTP signup confirms durable attribution; CTAs do not claim or issue events', async ({ page }, testInfo) => {
+test('creator password signup confirms durable attribution; CTAs do not claim or issue events', async ({ page }, testInfo) => {
   await page.goto('/r/creator-fixture')
   await signup(page)
   await expect(page).toHaveURL(/\/signup\/complete$/)
@@ -126,7 +128,7 @@ for (const evidence of ['malformed', '90000000-0000-4000-8000-999999999999']) {
   })
 }
 
-test('ordinary OTP signup still reaches dashboard; no-evidence direct access is truthful; expired session guarded', async ({ page, request }) => {
+test('ordinary password signup still reaches dashboard; no-evidence direct access is truthful; expired session guarded', async ({ page, request }) => {
   const signedOut = await request.get('/signup/complete', { maxRedirects: 0 })
   expect(signedOut.status()).toBe(307)
   expect(await signedOut.text()).not.toContain('Your account is ready')
@@ -156,12 +158,14 @@ test('attribution read failure never claims blindly and retry recovers preserved
 test('creator context survives cookie expiry during email code entry', async ({ page }) => {
   await page.goto('/r/creator-fixture')
   await page.getByLabel('Display Name').fill('Fixture Golfer')
-  await page.getByLabel('Email address').fill('player@example.test')
-  await page.getByRole('button', { name: 'Send Verification Code' }).click()
+  await page.getByLabel('Email address').fill('new-player@example.test')
+  await page.getByLabel('Password', { exact: true }).fill('ChosenPassword9')
+  await page.getByLabel('Confirm password', { exact: true }).fill('ChosenPassword9')
+  await page.getByRole('button', { name: 'Create account', exact: true }).click()
   await expect(page.getByLabel('6-digit code')).toBeVisible()
   await page.context().clearCookies({ name: 'pr_ref' })
   await page.getByLabel('6-digit code').fill('123456')
-  await page.getByRole('button', { name: 'Create Account' }).click()
+  await page.getByRole('button', { name: 'Verify email', exact: true }).click()
   await expect(page).toHaveURL(/\/signup\/complete$/)
   await expect(page.getByText(/No creator referral was confirmed/)).toBeVisible()
   expect((await metrics(page)).claims).toBe(0)

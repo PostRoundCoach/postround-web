@@ -22,6 +22,9 @@ export default defineConfig({
       name: 'chromium',
       use: {
         ...devices['Desktop Chrome'],
+        // Use Chromium's current headless mode, not the legacy headless shell:
+        // the latter can stall animation-frame based actionability on this runner.
+        channel: process.env.PLAYWRIGHT_CHROMIUM_PATH ? undefined : 'chromium',
         launchOptions: process.env.PLAYWRIGHT_CHROMIUM_PATH
           ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_PATH }
           : undefined,
@@ -50,7 +53,9 @@ export default defineConfig({
         // Never inherit a real listing in the default pending-listing fixture.
         ANDROID_STORE_URL: process.env.E2E_ANDROID_STORE_URL ?? '',
       },
-      timeout: 180_000,
+      // A cold isolated production build can exceed five minutes on a busy runner.
+      // Focused fixture-only reruns can explicitly reuse a validated completed build.
+      timeout: 600_000,
     },
   ],
 })

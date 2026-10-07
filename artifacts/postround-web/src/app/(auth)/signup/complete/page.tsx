@@ -11,7 +11,7 @@ export default async function SignupCompletePage() {
   const supabase = await createClient()
   const { data: { user }, error } = await supabase.auth.getUser()
   // Guard in the page itself: a layout redirect alone can serialize child content.
-  if (error || !user) redirect('/login')
+  if (error || !user || !user.email_confirmed_at) redirect('/login')
   const status = await readReferralStatus(user.id)
   return <SignupConfirmation initialStatus={status} storeUrl={androidStoreUrl()} />
 }

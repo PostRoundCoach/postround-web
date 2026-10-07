@@ -22,3 +22,22 @@ loopback in the HTTP fixture.
 **How to apply:** Bind only the isolated fixture to `127.0.0.1` and use `localhost`
 as the fixture browser origin (Next normalizes loopback binds); do not weaken
 production cookie security or origin validation to accommodate the test runner.
+
+Finish slow isolated builds independently of the browser server-start deadline, then use an explicitly
+validated, completed build for focused fixture reruns.
+
+**Why:** Aborting a nearly finished production build at repeated startup deadlines can waste several
+minutes per retry without testing anything. Fixture-only or locator-only changes do not require another
+application build.
+
+**How to apply:** Keep normal runs building by default; only reuse a completed isolated build whose
+application source and configuration have not changed. Never reuse the managed preview's development output.
+
+Treat browser actionability failures separately from authentication failures.
+
+**Why:** The legacy Chromium headless shell stalled on animation-frame based clicks even when fields
+could be filled and no Auth request was sent. After workspace recovery, current Chromium headless mode
+completed the same assertions; an Auth-flow workaround would have addressed the wrong problem.
+
+**How to apply:** Inspect whether a failed click actually sent a request, and check browser mode and
+workspace health before altering authentication code or bypassing normal actionability checks.

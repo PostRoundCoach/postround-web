@@ -5,17 +5,24 @@ const users = {
     id: '00000000-0000-4000-8000-000000000001',
     email: 'player@example.test',
     creator: false,
+    password: 'fixture-password',
+    confirmed: true,
   },
   'creator@example.test': {
     id: '00000000-0000-4000-8000-000000000002',
     email: 'creator@example.test',
     creator: true,
+    password: 'fixture-password',
+    confirmed: true,
   },
 }
 let delays = { login: 0, profile: 0, stories: 0 }
 let failLogin = false
 let creatorAllowed = true
 let failProfile = false
+let authConfig = {}
+let authMetrics = { signups: 0, verifies: 0, resends: 0, passwordLogins: 0, recovery: 0 }
+const pendingCodes = new Map()
 
 const storyId = '20000000-0000-4000-8000-000000000001'
 const creatorId = '10000000-0000-4000-8000-000000000002'
@@ -254,7 +261,9 @@ function userResponse(user) {
     role: 'authenticated',
     email: user.email,
     app_metadata: { provider: 'email', providers: ['email'] },
-    user_metadata: {},
+    user_metadata: user.metadata ?? {},
+    email_confirmed_at: user.confirmed ? '2026-01-01T00:00:00.000Z' : undefined,
+    identities: [{ id: user.id, provider: 'email' }],
     created_at: '2026-01-01T00:00:00.000Z',
   }
 }
@@ -276,6 +285,8 @@ function send(response, status, body) {
     'Access-Control-Allow-Headers': 'authorization, apikey, content-type, x-client-info, x-supabase-api-version',
     'Access-Control-Allow-Methods': 'GET, POST, PATCH, OPTIONS',
     'Access-Control-Allow-Origin': '*',
+    'Access-Control-Expose-Headers': 'X-Supabase-Api-Version',
+    'X-Supabase-Api-Version': '2024-01-01',
     'Content-Type': 'application/json',
   })
   response.end(JSON.stringify(body))
@@ -300,6 +311,22 @@ const server = http.createServer((request, response) => {
       failReferralClaim = Boolean(config.failReferralClaim)
       failAttributionRead = Boolean(config.failAttributionRead)
       claimWithoutAttribution = Boolean(config.claimWithoutAttribution)
+      authConfig = config.auth ?? {}
+      if (config.resetAuth) {
+        for (const email of Object.keys(users)) {
+          if (!['player@example.test', 'creator@example.test'].includes(email)) delete users[email]
+        }
+        users['passwordless@example.test'] = {
+          id: '00000000-0000-4000-8000-000000000003',
+          email: 'passwordless@example.test', creator: false, confirmed: true, password: null,
+        }
+        users['unconfirmed@example.test'] = {
+          id: '00000000-0000-4000-8000-000000000004',
+          email: 'unconfirmed@example.test', creator: false, confirmed: false, password: 'OriginalPassword9',
+        }
+        pendingCodes.clear()
+        authMetrics = { signups: 0, verifies: 0, resends: 0, passwordLogins: 0, recovery: 0 }
+      }
       if (config.resetReferrals) {
         referralEvents.clear()
         referralAttributions.clear()
@@ -314,8 +341,62 @@ const server = http.createServer((request, response) => {
     return send(response, 200, { ...referralMetrics, attributions: [...referralAttributions.values()] })
   }
 
-  if (request.method === 'POST' && url.pathname === '/auth/v1/otp') {
+  if (request.method === 'GET' && url.pathname === '/__test/auth') {
+    // Never expose submitted passwords in test diagnostics.
+    return send(response, 200, { ...authMetrics, users: Object.values(users).map(({ id, email, confirmed, metadata }) =>
+      ({ id, email, confirmed, metadata })) })
+  }
+  if (request.method === 'POST' && url.pathname === '/auth/v1/signup') {
+    let body = ''
+    request.on('data', (chunk) => { body += chunk })
+    request.on('end', () => {
+      const input = JSON.parse(body || '{}')
+      authMetrics.signups++
+      if (authConfig.failSignup) return send(response, 503, { message: 'Unavailable' })
+      if (authConfig.weakPassword || !input.password || input.password.length < 8) {
+        return send(response, 422, { code: 'weak_password', message: 'Weak password' })
+      }
+      const existing = users[input.email]
+      if (existing?.confirmed) {
+        if (authConfig.explicitDuplicate) return send(response, 422, { code: 'user_already_exists', message: 'Already registered' })
+        return send(response, 200, { ...userResponse(existing), id: 'masked-user', identities: [], email_confirmed_at: undefined })
+      }
+      const user = existing ?? {
+        id: '00000000-0000-4000-8000-' + String(Object.keys(users).length + 1).padStart(12, '0'),
+        email: input.email, password: input.password, metadata: input.data, creator: false,
+        confirmed: Boolean(authConfig.autoConfirm),
+      }
+      // Supabase does not replace credentials on existing unconfirmed accounts.
+      users[input.email] = user
+      pendingCodes.set(input.email, '123456')
+      const result = user.confirmed ? {
+        access_token: tokenFor(user), expires_in: 3600, refresh_token: `refresh-${user.id}`,
+        token_type: 'bearer', user: userResponse(user),
+      } : userResponse(user)
+      setTimeout(() => send(response, 200, result), authConfig.signupDelay ?? 0)
+    })
+    return
+  }
+  if (request.method === 'POST' && url.pathname === '/auth/v1/resend') {
+    let body = ''
+    request.on('data', (chunk) => { body += chunk })
+    request.on('end', () => {
+      const input = JSON.parse(body || '{}')
+      authMetrics.resends++
+      if (input.type !== 'signup') return send(response, 400, { message: 'Wrong resend type' })
+      if (authConfig.throttleResend) return send(response, 429, { code: 'over_email_send_rate_limit', message: 'Rate limited' })
+      if (authConfig.failResend) return send(response, 503, { message: 'Unavailable' })
+      if (users[input.email] && !users[input.email].confirmed) pendingCodes.set(input.email, '123456')
+      return send(response, 200, {})
+    })
+    return
+  }
+  if (request.method === 'POST' && url.pathname === '/auth/v1/recover') {
+    authMetrics.recovery++
     return send(response, 200, {})
+  }
+  if (request.method === 'POST' && url.pathname === '/auth/v1/otp') {
+    return send(response, 400, { message: 'Passwordless signup is not supported by this fixture' })
   }
 
   if (request.method === 'POST' && url.pathname === '/auth/v1/verify') {
@@ -324,7 +405,12 @@ const server = http.createServer((request, response) => {
     request.on('end', () => {
       const input = JSON.parse(body || '{}')
       const user = users[input.email]
-      if (!user || input.token !== '123456') return send(response, 400, { message: 'Invalid OTP' })
+      authMetrics.verifies++
+      if (authConfig.failVerify) return send(response, 503, { message: 'Unavailable' })
+      if (!user || input.type !== 'signup' || authConfig.expiredCode ||
+          input.token !== pendingCodes.get(input.email)) return send(response, 403, { code: 'otp_expired', message: 'Invalid OTP' })
+      pendingCodes.delete(input.email)
+      user.confirmed = true
       return send(response, 200, {
         access_token: tokenFor(user), expires_in: 3600, refresh_token: `refresh-${user.id}`,
         token_type: 'bearer', user: userResponse(user),
@@ -357,6 +443,11 @@ const server = http.createServer((request, response) => {
         ? Object.values(users).find(({ id }) => credentials.refresh_token === `refresh-${id}`)
         : users[credentials.email]
       if (!user) return send(response, 400, { message: 'Invalid login credentials' })
+      if (grantType === 'password') {
+        authMetrics.passwordLogins++
+        if (!user.password || credentials.password !== user.password) return send(response, 400, { message: 'Invalid login credentials' })
+        if (!user.confirmed) return send(response, 400, { code: 'email_not_confirmed', message: 'Email not confirmed' })
+      }
       if (failLogin) return setTimeout(() => send(response, 503, { message: 'Sign in temporarily unavailable' }), delays.login)
 
       setTimeout(() => send(response, 200, {
