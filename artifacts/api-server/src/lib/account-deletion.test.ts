@@ -48,6 +48,7 @@ test("deletion derives identity from the bearer session and deletes Auth last", 
   assert.equal(requests[0]?.path, `/auth/v1/admin/users/${userId}`);
   assert.equal(requests[0]?.method, "GET");
   assert.equal(requests[1]?.path, "/rest/v1/rpc/delete_own_account_data");
+  assert.equal(requests[1]?.method, "POST");
   assert.deepEqual(JSON.parse(requests[1]?.body ?? "{}"), { p_user_id: userId });
   assert.equal(requests[2]?.path, `/auth/v1/admin/users/${userId}`);
   assert.equal(requests[2]?.method, "DELETE");

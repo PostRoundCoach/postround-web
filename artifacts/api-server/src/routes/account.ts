@@ -30,19 +30,14 @@ export function createAccountRouter(
       res.json({ ok: true, deleted: true });
     } catch (error) {
       if (error instanceof AccountDeletionError) {
-        try {
-          req.log.warn(
-            {
-              stage: error.stage,
-              status: error.status,
-              diagnostic: error.diagnostic,
-              ...(error.authDiagnostic ? { auth_diagnostic: error.authDiagnostic } : {}),
-            },
-            "Authenticated account deletion did not complete",
-          );
-        } catch {
-          // A failed diagnostic logger must not change the rejection response.
-        }
+        req.log.warn(
+          {
+            stage: error.stage,
+            status: error.status,
+            diagnostic: error.diagnostic,
+          },
+          "Authenticated account deletion did not complete",
+        );
         res.status(error.status).json({
           error: error.message,
           stage: error.stage,
