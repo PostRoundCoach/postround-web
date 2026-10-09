@@ -1,0 +1,193 @@
+# Read-Only Audit: Post Round Web Production Configuration
+
+## Objective
+
+Perform a comprehensive, evidence-based, **read-only source audit** of the GitHub repository `PostRoundCoach/postround-web` before triggering another Vercel deployment.
+
+We have recently configured Vercel environment variables for Development, Preview, and Production. Before redeploying, we need to establish which variables the web application actually requires, how it initializes Supabase, how it constructs API URLs, and whether the current configuration is sufficient for a safe production deployment.
+
+**This is investigation only. Do not modify files, environment variables, secrets, Git branches, GitHub settings, Vercel settings, deployment configuration, or databases. Do not deploy anything.**
+
+## 1. Confirm the repository and project structure
+
+Identify the source repository and confirm that the inspected files belong to `PostRoundCoach/postround-web`.
+
+Report:
+
+* The repository's local path and current Git branch, if available.
+* The current commit SHA, if available.
+* The web framework and relevant build tooling.
+* Whether this repository contains the web frontend, API server, or both.
+* Whether the Vercel project `post-round-web-api-server` appears consistent with the repository's actual purpose.
+
+Do not assume the repository's name accurately describes its contents.
+
+If the local Replit workspace is not the same repository or commit as GitHub, explicitly identify that limitation. Do not clone, pull, fetch, or change branches as part of this investigation.
+
+## 2. Audit every relevant environment variable
+
+Search the entire repository, including application source, configuration, scripts, tests, documentation, and deployment files.
+
+Search for at least:
+
+* `NEXT_PUBLIC_POSTROUND_API_BASE_URL`
+* `NEXT_PUBLIC_SUPABASE_URL`
+* `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+* `NEXT_PUBLIC_API_URL`
+* `NEXT_PUBLIC_API_BASE`
+* `SUPABASE_URL`
+* `SUPABASE_ANON_KEY`
+* `SUPABASE_SERVICE_ROLE_KEY`
+* `DATABASE_URL`
+* All other environment-variable references associated with Supabase, authentication, API routing, billing, Stripe, email, storage, or server-side functionality.
+
+For each relevant variable, report:
+
+* Exact variable name.
+* File path and line numbers where it is read.
+* Whether it is browser-side, server-side, build-time, or runtime configuration.
+* Whether it is required, optional, or has a fallback.
+* What breaks if it is absent or invalid.
+* Whether its value must differ between Development, Preview, and Production.
+* Whether it is appropriate to configure in Vercel.
+
+**Security requirement:** Never print secret values, API keys, access tokens, database credentials, or service-role keys. Variable names, presence checks, and redacted values are sufficient. Do not dump entire environment files.
+
+## 3. Investigate Supabase initialization
+
+Trace every Supabase client initialization from the environment-variable access through to its use.
+
+Determine:
+
+* Whether the browser directly initializes a Supabase client.
+* Whether server-side code initializes a separate Supabase client.
+* Whether the application actually references `NEXT_PUBLIC_SUPABASE_URL`.
+* If that variable is not referenced, how the Supabase project URL is obtained instead.
+* Whether the URL is imported from another module, hardcoded, read from another variable, or supplied by an API response.
+* Whether the application can successfully initialize with the currently configured variables.
+* Whether authentication, session restoration, password resets, and other relevant browser-side flows depend on the Supabase URL.
+* Whether the anonymous/publishable key and URL must belong to the same Supabase project.
+
+The user reports that `NEXT_PUBLIC_SUPABASE_URL` has appeared blank in Vercel since July. Do not conclude this is harmless or broken based on the variable name alone. Establish what the actual source code does.
+
+If there is insufficient evidence to determine the URL source or runtime behavior, explicitly state what remains unverified.
+
+## 4. Trace API URL construction
+
+Trace `NEXT_PUBLIC_POSTROUND_API_BASE_URL` from its environment-variable access through the HTTP request.
+
+Report:
+
+* Every API client/helper that reads it.
+* Whether the value expects a hostname or complete URL.
+* Whether code adds `https://`, `/api`, or any other prefix.
+* Whether endpoint paths can cause duplicate `/api/api/...` segments.
+* Whether trailing slashes are normalized.
+* Whether there are alternative variables, hardcoded URLs, or fallbacks.
+* Whether any fallback could silently route production requests to a development server.
+* The exact URL pattern produced for a representative API request.
+
+The intended production API origin is:
+
+`https://api.postroundcoach.com`
+
+Use this as a reference for the audit, not as permission to change any configuration.
+
+## 5. Audit Vercel and Git deployment assumptions
+
+Inspect repository-controlled deployment configuration, including:
+
+* `vercel.json`, if present.
+* `package.json` and build scripts.
+* Next.js or other framework configuration.
+* `.gitignore` and relevant environment-file naming conventions.
+* Any CI/CD workflow that affects production builds.
+* Any references to `VERCEL_ENV`, branch names, deployment environments, or production URLs.
+
+Determine:
+
+* Whether the project is intended to deploy on Vercel.
+* The expected production build command and output.
+* Whether environment variables are read at build time, runtime, or both.
+* Whether changes to public variables require a new build/deployment.
+* Whether Preview deployments have any special configuration or behavior.
+* Whether source code expects `NEXT_PUBLIC_SUPABASE_URL` even though it is absent from the displayed Vercel variable list.
+
+Do not claim to have inspected Vercel dashboard settings unless you actually have access to and have verified them. Distinguish repository evidence from user-reported dashboard configuration.
+
+## 6. Check secret boundaries
+
+Identify any evidence that:
+
+* Server-only credentials are imported into browser bundles.
+* A service-role key or other privileged credential is referenced by client-side code.
+* Private secrets are incorrectly prefixed with `NEXT_PUBLIC_`.
+* The browser is making direct database calls when the intended design requires API-server calls.
+* Authentication or authorization depends on a public environment variable being treated as secret.
+
+Do not reproduce sensitive values. Report findings with file paths and line numbers.
+
+## 7. Required final report
+
+Return a structured report with these sections:
+
+### A. Executive verdict
+
+Choose one:
+
+* `READY TO DEPLOY`
+* `NOT READY TO DEPLOY`
+* `INCONCLUSIVE — ADDITIONAL EVIDENCE REQUIRED`
+
+Explain the verdict in plain language.
+
+### B. Repository identity
+
+Provide the verified repository, branch, commit SHA, framework, and application role. Mark anything unavailable as unverified.
+
+### C. Environment-variable inventory
+
+Provide a table with variable name, source file/line, purpose, client/server scope, required status, fallback behavior, and deployment implications.
+
+### D. Supabase initialization findings
+
+Explain exactly how the project URL and public key are obtained and used. Explicitly resolve whether the missing `NEXT_PUBLIC_SUPABASE_URL` is a real problem, harmless, or still unknown.
+
+### E. API routing findings
+
+Show the URL-construction chain and the exact resulting URL pattern for production.
+
+### F. Vercel deployment findings
+
+Explain the expected build behavior and what can and cannot be established from repository inspection alone.
+
+### G. Security findings
+
+List any client/server secret-boundary problems, or state that none were found in the inspected code. Specify the scope of the inspection.
+
+### H. Exact actions required before deployment
+
+List only evidence-supported corrections or verification steps. Separate:
+
+1. Confirmed required changes.
+2. Recommended checks.
+3. Unknowns that need further investigation.
+
+If no changes are needed, explicitly say so.
+
+## Non-negotiable constraints
+
+* Read-only investigation only.
+* Do not edit, create, delete, format, or regenerate files.
+* Do not install dependencies or run commands that modify the repository.
+* Do not change environment variables, secrets, branches, Git remotes, GitHub, Vercel, Supabase, or Stripe.
+* Do not run deployments or production migrations.
+* Do not expose secret values.
+* Do not infer that a variable is unnecessary merely because it has been blank for months.
+* Do not infer that a variable is required merely because its name is conventional.
+* Cite actual source paths and line numbers for every material conclusion.
+* Clearly distinguish verified facts, reasonable inferences, and unresolved questions.
+
+Finish with a concise answer to this question:
+
+**Can we safely trigger a new Vercel production deployment with the currently reported environment-variable configuration, or must we verify or correct something first?**
