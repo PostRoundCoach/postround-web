@@ -9,13 +9,28 @@ test('public desktop, mobile and footer hide Player DNA but retain adjacent feat
     await expect(page.locator('nav').getByRole('link', { name: label, exact: true })).toBeVisible()
   }
   await expect(page.locator('footer').getByRole('link', { name: 'AI Coaching' })).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Join the Launch Waitlist' }).first()).toBeVisible()
+  await expect(page.getByRole('button', { name: /waitlist/i, includeHidden: true })).toHaveCount(0)
+  await expect(page.getByRole('link', { name: /waitlist/i, includeHidden: true })).toHaveCount(0)
+  await expect(page.getByRole('dialog', { includeHidden: true })).toHaveCount(0)
+  await expect(page.locator('nav').getByRole('link', { name: 'Log In', exact: true })).toBeVisible()
   await page.setViewportSize({ width: 390, height: 844 })
+  await expect(page.getByRole('button', { name: /waitlist/i, includeHidden: true })).toHaveCount(0)
+  await expect(page.getByRole('link', { name: /waitlist/i, includeHidden: true })).toHaveCount(0)
+  await expect(page.locator('nav').getByRole('link', { name: 'Log In', exact: true })).toBeVisible()
   await page.getByRole('button', { name: 'Open navigation', exact: true }).click()
   for (const label of ['AI Coaching', 'Share Your Round', 'Creators', 'Support']) {
     await expect(page.locator('nav').getByRole('link', { name: label, exact: true }).last()).toBeVisible()
   }
   await expect(page.locator('a[href*="player-dna"]')).toHaveCount(0)
+  await expect(page.getByRole('button', { name: /waitlist/i, includeHidden: true })).toHaveCount(0)
+  await expect(page.getByRole('link', { name: /waitlist/i, includeHidden: true })).toHaveCount(0)
+  await expect(page.getByRole('dialog', { includeHidden: true })).toHaveCount(0)
+  await page.locator('nav').getByRole('link', { name: 'Round Buddy', exact: true }).last().click()
+  await expect(page).toHaveURL(/\/#round-buddy$/)
+  await expect(page.getByRole('button', { name: 'Open navigation', exact: true })).toHaveAttribute('aria-expanded', 'false')
+  await page.locator('nav').getByRole('link', { name: 'Log In', exact: true }).click()
+  await expect(page).toHaveURL(/\/login$/)
+  await expect(page.getByLabel('Email address')).toBeVisible()
 })
 
 test('players see no dashboard entry points and direct requests and refreshes redirect', async ({ page }) => {
