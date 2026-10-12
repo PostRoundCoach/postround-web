@@ -1,13 +1,46 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import {
   authenticateSupabaseBearer, authorizeCreatorStory, CreatorContentError, fetchPersistedCandidates,
-  dismissCreatorStory, fetchCreatorStoryQueue, fetchCreatorLandingSummary, fetchPersistedCandidate, loadRoundEvidence, persistCandidates, requestStoryApproval,
+  dismissCreatorStory, fetchPersistedCandidate, loadRoundEvidence, persistCandidates, requestStoryApproval,
   fetchRoundWebContract, buildCreatorIdeasResponse,
 } from "../lib/creator-content-data.ts";
 import { generateStoryCandidates, generateStoryDraft, STORY_DRAFT_FORMATS, type StoryDraftFormat } from "../lib/story-engine.ts";
+import {
+  CreatorAuthError, fetchCreatorStoryQueue, fetchCreatorLandingSummary,
+} from "../lib/creator-studio-reads.ts";
 
+export function createContentRouter(
+  reads = { fetchCreatorStoryQueue, fetchCreatorLandingSummary },
+  verifySession = (authorization: string | undefined) =>
+    authenticateSupabaseBearer(authorization, undefined, fetch, process.env.SUPABASE_ANON_KEY, true),
+): IRouter {
 const router: IRouter = Router();
+const readContexts = new WeakMap<Request, Awaited<ReturnType<typeof verifySession>>>();
+const neighboringGets = /^\/(?:ideas\/?|round\/[^/]+\/?)$/i;
+router.use("/content", async (req, res, next) => {
+  // Preserve neighboring GET/action validation, authentication and error envelopes.
+  if ((req.method !== "GET" && req.method !== "HEAD") || neighboringGets.test(req.path)) { next(); return; }
+  try {
+    readContexts.set(req, await verifySession(req.header("authorization")));
+    next();
+  } catch (error) {
+    res.status(401).json({
+      error: error instanceof CreatorContentError && error.status === 401
+        ? error.message : "Could not verify session",
+    });
+  }
+});
 const storyId = (value: unknown): string | null => typeof value === "string" && /^[0-9a-f-]{36}$/i.test(value) ? value : null;
+
+function readFailure(req: Request, res: Response, error: unknown, summary: boolean): void {
+  // Never log upstream errors: they can contain credentials or private records.
+  req.log.error({ diagnostic: summary ? "GET_CREATOR_SUMMARY_FAILED" : "GET_CREATOR_STORIES_FAILED" },
+    "Creator Studio read failed");
+  res.status(error instanceof CreatorAuthError ? 403 : 500).json({
+    error: error instanceof CreatorAuthError ? error.message
+      : summary ? "Failed to fetch creator summary" : "Failed to fetch creator stories",
+  });
+}
 
 function failure(req: Request, res: Response, error: unknown, stage: string): void {
   if (error instanceof CreatorContentError) {
@@ -31,18 +64,16 @@ async function authorized(req: Request, id: string) {
 
 router.get("/content/stories", async (req, res): Promise<void> => {
   try {
-    const context = await authenticateSupabaseBearer(req.header("authorization"));
-    const queue = await fetchCreatorStoryQueue(context);
+    const queue = await reads.fetchCreatorStoryQueue(readContexts.get(req)!);
     res.json({ ok: true, ...queue });
-  } catch (error) { failure(req, res, error, "story_queue"); }
+  } catch (error) { readFailure(req, res, error, false); }
 });
 
 router.get("/content/creator-summary", async (req, res): Promise<void> => {
   try {
-    const context = await authenticateSupabaseBearer(req.header("authorization"));
-    const summary = await fetchCreatorLandingSummary(context);
+    const summary = await reads.fetchCreatorLandingSummary(readContexts.get(req)!);
     res.json({ ok: true, ...summary });
-  } catch (error) { failure(req, res, error, "creator_summary"); }
+  } catch (error) { readFailure(req, res, error, true); }
 });
 
 router.post("/content/generate", async (req, res): Promise<void> => {
@@ -191,4 +222,7 @@ router.patch("/content/stories/:storyId/dismissal", async (req, res): Promise<vo
   } catch (error) { failure(req, res, error, stage); }
 });
 
-export default router;
+return router;
+}
+
+export default createContentRouter();
