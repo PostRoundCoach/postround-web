@@ -1,0 +1,100 @@
+## Complete the Creator Studio API Fix — Verify, Implement, Test, and Report
+
+The previous investigation (Task #154) identified a likely API route mismatch, but marked the task complete without validation. No code changes or deployments were made.
+
+**This task is not complete until the actual implementation has been verified and the acceptance criteria below are satisfied.**
+
+### Context
+
+The Vercel Preview website uses:
+
+`NEXT_PUBLIC_POSTROUND_API_BASE_URL=https://api.postroundcoach.com`
+
+The website expects these authenticated API endpoints:
+
+- `GET /api/content/stories`
+- `GET /api/content/creator-summary`
+- `GET /api/content/ideas`
+
+The previous investigation found that the workspace API contains the stories and creator-summary handlers, while the separate `PostRoundCoach/postroundcoach` repository at commit `26389f9f447f084b2aa43b9bdf4f35817593c269` did not contain these two GET handlers.
+
+The exact deployed commit serving `api.postroundcoach.com` was not established. Unauthenticated requests returned generic 401 responses, which did not prove whether the routes existed.
+
+### Phase 1 — Identify the actual production API
+
+1. Establish which repository, Replit project, deployment, build command, and runtime entry point actually serve `https://api.postroundcoach.com`.
+2. Verify this through available deployment/domain configuration or deployment logs. Do not infer deployment identity solely from HTTP responses.
+3. Record the current deployed commit or source version if available.
+4. Identify the intended production Supabase project without displaying credentials or secret values.
+
+**Do not proceed by editing a repository unless you have established that it is the repository serving the custom API domain.** If this cannot be established, stop and report exactly what evidence is missing.
+
+### Phase 2 — Inspect and implement the smallest safe fix
+
+In the confirmed target API, inspect the existing content router, authentication middleware, data-access functions, and relevant workspace handlers.
+
+If the two handlers are missing, port or adapt their complete existing implementations:
+
+- `router.get("/stories", ...)`
+- `router.get("/creator-summary", ...)`
+
+The existing mounts already provide `/api/content`. Do not add another `/api` prefix or change the website's API base URL.
+
+Requirements:
+
+1. Preserve existing authentication and the established error/response formats.
+2. Enforce creator ownership and authorization server-side.
+3. Preserve story permission and revocation checks. Do not expose stories without valid permission.
+4. Ensure the stories endpoint returns the fields and data shape the website expects.
+5. Ensure creator-summary returns all required fields, including the correct follower count.
+6. Reuse appropriate existing data-access logic rather than introducing a parallel implementation or hardcoded data.
+7. Keep `GET /api/content/ideas` and all existing mobile API endpoints working as before.
+8. Do not change Supabase URLs, credentials, secrets, database contents, or unrelated routes.
+9. Do not replace the entire API or make broad authentication/router changes.
+
+If an existing handler cannot be safely ported because of incompatible schema, auth, or response contracts, stop and explain the blocker instead of guessing.
+
+### Phase 3 — Build and test before deployment
+
+Run the relevant automated tests and build for the target API. Add focused tests where needed.
+
+Use approved authenticated creator test access to verify:
+
+- `GET /api/content/stories` returns the expected authorized Creator Story.
+- A creator cannot retrieve another creator's unauthorized content.
+- Revoked or absent story permissions are enforced.
+- `GET /api/content/creator-summary` returns the expected creator identity and correct follower count.
+- `GET /api/content/ideas` continues to work.
+- Existing mobile content-generation, permission-update, and round-related endpoints retain their behavior.
+- Unauthenticated requests remain protected.
+
+Do not expose bearer tokens, cookies, credentials, or other secrets in logs or the final report.
+
+### Phase 4 — Deployment and live verification
+
+First report the target repository, exact files changed, implementation summary, build/test results, and deployment target.
+
+If deployment authorization is available and the tests pass, deploy only the necessary API change to the confirmed intended production deployment. Do not change the Vercel API URL, Supabase configuration, or unrelated deployment settings.
+
+After deployment, use approved authenticated creator access against `https://api.postroundcoach.com` to verify both GET endpoints and their response payloads. Also verify `/api/content/ideas` and representative existing mobile endpoints.
+
+Do not claim a live test passed unless it was actually performed against the custom domain after deployment.
+
+### Required final report
+
+Report each item as **PASS**, **FAIL**, or **NOT VERIFIED**:
+
+1. Production deployment identity confirmed.
+2. Correct repository and deployed source version confirmed.
+3. Stories handler implemented and registered.
+4. Creator-summary handler implemented and registered.
+5. Authentication, ownership, permissions, and revocation checks verified.
+6. Response schemas and follower count verified.
+7. Build and automated tests passed.
+8. Existing mobile endpoints remain functional.
+9. Live authenticated tests against `api.postroundcoach.com` passed.
+10. Creator Studio displays the expected story and follower count.
+
+Include the exact changed files, commit identifier if one exists, deployment identifier if available, and concise sanitized test evidence.
+
+**Do not mark this task complete merely because the code was inspected, a task was created, a build succeeded, or unauthenticated requests returned 401. The final status must accurately distinguish implementation, deployment, and live verification.**

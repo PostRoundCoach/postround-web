@@ -1,0 +1,87 @@
+# Production API Investigation: Creator Story Missing + Studio Follower Count Stale
+
+Investigate two issues in the live Post Round web application after changing Vercel environment variables and rebuilding the Preview deployment.
+
+**Live API base URL:** `https://api.postroundcoach.com`  
+**Production website:** `https://www.postroundcoach.com`  
+**Goal:** Identify the exact cause of each issue and propose a minimal fix. Investigation only; do not implement or deploy changes.
+
+## Observed issues
+
+1. The Creator Studio dashboard does not display an eligible Creator Story.
+2. The Creator Studio modal does not display the current follower count.
+3. Updating Vercel environment variables and rebuilding Preview did not resolve either issue.
+4. Production database checks confirm that Creator Story content exists and the corresponding creator permission is granted.
+
+### Confirmed Creator Story record
+
+- Content idea ID: `c79aa9be-9385-460e-b5a7-fc5ac84718c1`
+- Candidate/story ID: `0625876b-2b62-49db-ac4b-7461604ca327`
+- Round ID: `71424def-5ee4-4804-9922-7a14aa857341`
+- Content type: `creator_story`
+- Content status: `draft`
+- Creator ID: `32b1133c-ea48-4769-9574-dd8b6102ea9e`
+- Permission granted: `true`
+- Permission revoked: `false` (`revoked_at` is null)
+
+## Investigation A: Verify API routing
+
+1. Search the web project for every reference to:
+   - `NEXT_PUBLIC_POSTROUND_API_BASE_URL`
+   - `NEXT_PUBLIC_SITE_URL`
+   - `NEXT_PUBLIC_SUPABASE_URL`
+2. Identify the exact value each variable controls and every place it is used.
+3. Trace the actual HTTP requests made by the Creator Studio page and modal.
+4. Identify the full endpoint paths, HTTP methods, request parameters, and expected response shapes.
+5. Determine whether requests go to `https://api.postroundcoach.com`, a Replit web hostname, Supabase directly, or another service.
+6. Inspect the deployed Preview build's configuration and request behavior. Do not assume the current environment-variable settings prove what was embedded in the browser bundle.
+
+## Investigation B: Trace Creator Story retrieval
+
+Follow the exact content idea ID above through the full execution path:
+
+1. Locate the creator dashboard's API endpoint and backend handler.
+2. Identify the Supabase project used by the production API, without exposing credentials.
+3. Inspect the query, joins, creator ownership filters, permissions, status filters, and row-level security.
+4. Establish whether the handler queries `content_ideas` or a different creator-facing output table.
+5. Determine whether `draft` content is intentionally hidden or accidentally excluded.
+6. Follow the API response into the frontend and identify any additional filtering or rendering conditions.
+7. Establish the precise point where this eligible record is lost.
+
+## Investigation C: Trace the Studio follower count
+
+1. Find the component responsible for displaying the follower count.
+2. Identify the endpoint or Supabase query that supplies the count.
+3. Trace the request to the API handler or database query.
+4. Establish how the creator ID is determined and how the count is calculated.
+5. Check for stale client state, caching, incorrect response-field mapping, incorrect creator association, authorization filters, and errors silently swallowed by the frontend.
+6. Compare the actual response with the count stored in the production database.
+
+Do not assume the follower count and Creator Story failures share a cause. Establish whether their requests use the same API service, configuration, or failing dependency.
+
+## Investigation D: Verify the live API
+
+Use safe, read-only requests where possible.
+
+- Check the live API health endpoint.
+- Identify the actual endpoints used by the website and inspect their responses.
+- Compare Preview browser requests with Production browser requests.
+- Inspect relevant server logs and HTTP status codes.
+- Distinguish DNS/routing failures, authentication failures, server errors, empty query results, and frontend display issues.
+- Do not expose access tokens, API keys, passwords, or other secrets in the report.
+
+Do not invent endpoints or assume a successful health check proves the affected endpoints work.
+
+## Required deliverable
+
+Return an evidence-based report with:
+
+1. The actual endpoint and request path for each feature.
+2. The API base URL each deployment is using.
+3. Relevant frontend files, API routes, functions, and query conditions.
+4. The observed response or error for each failing feature.
+5. The precise root cause of each issue, or the evidence still needed to establish it.
+6. The smallest proposed code/configuration fix for each issue.
+7. Regression tests to verify both features and ensure creator authorization remains enforced.
+
+**Execution boundary:** Read-only investigation and proposed fixes only. Do not modify code, environment variables, database records, permissions, schema, or deployment settings. Do not trigger content generation. Wait for approval before implementing any fix.

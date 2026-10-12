@@ -47,7 +47,7 @@ export interface SupabaseRequestContext {
   ) => Promise<Response>;
 }
 
-async function rest<T>(
+export async function rest<T>(
   context: SupabaseRequestContext,
   path: string,
   init: { method?: string; body?: unknown; headers?: Record<string, string> } = {},
@@ -79,26 +79,32 @@ export async function authenticateSupabaseBearer(
   proxy?: SupabaseRequestContext["proxy"],
   authFetch: typeof fetch = fetch,
   anonKey: string | undefined = process.env.SUPABASE_ANON_KEY,
+  readContract = false,
 ): Promise<SupabaseRequestContext> {
-  const token = authorization?.match(/^Bearer\s+(.+)$/i)?.[1]?.trim();
-  if (!token) throw new CreatorContentError(401, "A bearer token is required.");
+  const token = readContract
+    ? (authorization?.startsWith("Bearer ") ? authorization.slice(7).trim() : undefined)
+    : authorization?.match(/^Bearer\s+(.+)$/i)?.[1]?.trim();
+  if (!token) throw new CreatorContentError(401, readContract ? "Authentication required" : "A bearer token is required.");
   if (!anonKey) {
     throw new CreatorContentError(
-      500,
-      "Supabase session verification is not configured.",
+      readContract ? 401 : 500,
+      readContract ? "Could not verify session" : "Supabase session verification is not configured.",
     );
   }
   let diagnostic = "unexpected_verification_error";
+  const invalidSession = new Error("Invalid session");
+  const invalid = (): never => { throw invalidSession; };
   try {
     const parts = token.split(".");
     diagnostic = "malformed_jwt";
-    if (parts.length !== 3) throw new Error("Malformed JWT");
-    const claims = JSON.parse(Buffer.from(parts[1]!, "base64url").toString("utf8")) as {
+    if (parts.length !== 3) invalid();
+    const claims = (() => { try { return JSON.parse(Buffer.from(parts[1]!, "base64url").toString("utf8")); }
+      catch { return invalid(); } })() as {
       iss?: unknown;
     };
     diagnostic = "invalid_issuer";
-    if (typeof claims.iss !== "string") throw new Error("Missing issuer");
-    const issuer = new URL(claims.iss);
+    if (!claims || typeof claims.iss !== "string") return invalid();
+    const issuer = (() => { try { return new URL(claims.iss as string); } catch { return invalid(); } })();
     if (
       issuer.protocol !== "https:"
       || issuer.port
@@ -109,7 +115,7 @@ export async function authenticateSupabaseBearer(
       || !/^[a-z0-9-]+\.supabase\.co$/i.test(issuer.hostname)
       || issuer.pathname.replace(/\/$/, "") !== "/auth/v1"
     ) {
-      throw new Error("Invalid issuer");
+      return invalid();
     }
 
     const authResponse = await authFetch(`${issuer.origin}/auth/v1/user`, {
@@ -119,14 +125,14 @@ export async function authenticateSupabaseBearer(
       },
     });
     diagnostic = `auth_user_status_${authResponse.status}`;
-    if (!authResponse.ok) throw new Error("Supabase rejected the session");
+    if (!authResponse.ok) invalid();
     const authenticatedUser = await authResponse.json() as {
       id?: unknown;
       email?: unknown;
     };
     diagnostic = "auth_user_missing_identity";
-    if (typeof authenticatedUser.id !== "string") {
-      throw new Error("Supabase returned no user identity");
+    if (!authenticatedUser || typeof authenticatedUser.id !== "string" || !authenticatedUser.id) {
+      return invalid();
     }
 
     const authProxy = proxy ?? ((path, init) => {
@@ -137,30 +143,32 @@ export async function authenticateSupabaseBearer(
       `/auth/v1/admin/users/${encodeURIComponent(authenticatedUser.id)}`,
     );
     diagnostic = `connected_project_user_status_${projectResponse.status}`;
-    if (!projectResponse.ok) throw new Error("User is not in the connected project");
+    if (!projectResponse.ok) invalid();
     const projectUser = await projectResponse.json() as {
       id?: unknown;
       email?: unknown;
     };
     diagnostic = "connected_project_user_mismatch";
     if (
-      projectUser.id !== authenticatedUser.id
+      !projectUser || projectUser.id !== authenticatedUser.id
       || (
         typeof authenticatedUser.email === "string"
         && projectUser.email !== authenticatedUser.email
       )
     ) {
-      throw new Error("User does not match the connected project");
+      invalid();
     }
 
     return {
       userId: authenticatedUser.id,
       ...(proxy ? { proxy } : {}),
     };
-  } catch {
+  } catch (error) {
     throw new CreatorContentError(
       401,
-      "The bearer token is invalid or expired.",
+      readContract
+        ? (error === invalidSession ? "Invalid or expired session" : "Could not verify session")
+        : "The bearer token is invalid or expired.",
       diagnostic,
     );
   }
@@ -257,34 +265,7 @@ export async function authorizeCreatorStory(
   };
 }
 
-type CreatorStoryQueueRow = {
-  story_id: string;
-  approval_requested_at: string | null;
-  granted_at: string | null;
-  story_candidates: {
-    id: string;
-    story_type: string;
-    headline: string;
-    summary: string;
-    story_data: Record<string, unknown> | null;
-    round_id: string;
-    status: string;
-    significance_score: number;
-    created_at: string;
-  } | Array<{
-    id: string;
-    story_type: string;
-    headline: string;
-    summary: string;
-    story_data: Record<string, unknown> | null;
-    round_id: string;
-    status: string;
-    significance_score: number;
-    created_at: string;
-  }>;
-};
-
-async function exactCount(
+export async function exactCount(
   context: SupabaseRequestContext,
   path: string,
 ): Promise<number> {
@@ -306,63 +287,6 @@ async function exactCount(
     throw new CreatorContentError(502, "The creator count could not be loaded.");
   }
   return count;
-}
-
-async function countCreatorFollowers(context: SupabaseRequestContext, creatorId: string): Promise<number> {
-  // The connector can count cross-profile favorites without returning identities.
-  return exactCount(context, `profiles?select=id&favorite_creator_id=eq.${encodeURIComponent(creatorId)}`);
-}
-
-export async function fetchCreatorLandingSummary(context: SupabaseRequestContext) {
-  const profiles = await rest<CreatorRow[]>(
-    context,
-    `creator_profiles?select=id&user_id=eq.${encodeURIComponent(context.userId)}&status=eq.active&limit=1`,
-  );
-  const creator = profiles[0];
-  if (!creator) throw new CreatorContentError(403, "This account does not control an active creator profile.");
-
-  // Independent counts: one unavailable aggregate must not erase the other.
-  const [followers, stories] = await Promise.allSettled([
-    countCreatorFollowers(context, creator.id),
-    exactCount(
-      context,
-      "story_permissions?select=story_id,story_candidates!inner(id)"
-        + `&creator_id=eq.${encodeURIComponent(creator.id)}&permission_granted=eq.true&revoked_at=is.null`
-        + "&story_candidates.status=in.(offered,shared)",
-    ),
-  ]);
-  return {
-    follower_count: followers.status === "fulfilled" ? followers.value : null,
-    available_story_count: stories.status === "fulfilled" ? stories.value : null,
-  };
-}
-
-export async function fetchCreatorStoryQueue(context: SupabaseRequestContext) {
-  const profiles = await rest<CreatorRow[]>(
-    context,
-    `creator_profiles?select=id&user_id=eq.${encodeURIComponent(context.userId)}&status=eq.active&limit=1`,
-  );
-  const creator = profiles[0];
-  if (!creator) throw new CreatorContentError(403, "This account does not control an active creator profile.");
-  const follower_count = await countCreatorFollowers(context, creator.id);
-  const rows = await rest<CreatorStoryQueueRow[]>(
-    context,
-    "story_permissions?select=story_id,approval_requested_at,granted_at,story_candidates!inner(id,story_type,headline,summary,story_data,round_id,status,significance_score,created_at)"
-      + `&creator_id=eq.${encodeURIComponent(creator.id)}&permission_granted=eq.true&revoked_at=is.null`
-      + "&story_candidates.status=in.(offered,shared)",
-  );
-  const stories = rows.flatMap((permission) => {
-    const stories = Array.isArray(permission.story_candidates)
-      ? permission.story_candidates
-      : [permission.story_candidates];
-    const permissionStatus: StoryPermissionStatus = permission.granted_at
-      ? "approved"
-      : permission.approval_requested_at
-        ? "requested"
-        : "pending";
-    return stories.map((story) => ({ ...story, permission_status: permissionStatus }));
-  });
-  return { stories, follower_count };
 }
 
 type RoundContractRow = {

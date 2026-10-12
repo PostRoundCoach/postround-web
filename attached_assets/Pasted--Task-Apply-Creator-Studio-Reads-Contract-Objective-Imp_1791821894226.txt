@@ -1,0 +1,66 @@
+# Task: Apply Creator Studio Reads Contract
+
+## Objective
+
+Implement the verified `creator-studio-reads-contract` for the Creator Studio API reads, using the existing investigation, contract documentation, and test results.
+
+The local verification already passed 224 tests across eight files, plus API typechecking. The contract documents the expected response envelopes, status codes, and error behavior.
+
+This task is to apply the contract to the appropriate source implementation, not repeat the investigation or redesign the API.
+
+## Required behavior
+
+Implement the documented response contract exactly, including:
+
+- Successful response envelopes and data shapes.
+- Authentication and authorization boundaries.
+- Helper lookup failures returning HTTP 403.
+- Initial lookup errors returning HTTP 500.
+- Ambiguous active creator profiles returning HTTP 500.
+- Consistent JSON error responses.
+- Appropriate handling of missing, invalid, or unauthorized creator context, as specified by the existing contract.
+
+Use the existing contract and tests as the source of truth. Do not invent new response shapes or silently change documented status codes.
+
+## Implementation steps
+
+1. Locate the existing `creator-studio-reads-contract` documentation, implementation, and tests.
+2. Identify the intended source repository and target branch. Confirm that the work is being applied to the correct project rather than an older or duplicate API implementation.
+3. Inspect the existing GET handlers and determine which changes are necessary to bring them into compliance.
+4. Implement only the missing or incorrect behavior. Reuse existing services, authorization helpers, and response utilities where appropriate.
+5. Preserve existing route names, HTTP methods, query parameters, and successful response shapes unless the contract explicitly requires a change.
+6. Add or update regression tests for successful reads, authorization, lookup failures, ambiguous creator profiles, and unexpected errors.
+7. Run the complete relevant test suite and API typechecking. Confirm the previously passing 224 tests remain green, accounting for any intentional additions or changes.
+8. Review the final diff for unrelated modifications, duplicate handlers, accidental changes to other API contracts, and environment-specific configuration.
+
+## Deployment and environment safeguards
+
+- Do not deploy to Production.
+- Do not restart Production services.
+- Do not change Production secrets, environment variables, database settings, or schema.
+- Do not run migrations or modify Production data.
+- Do not weaken authentication to make live checks pass.
+- Do not use an unauthenticated 401 response as evidence that authenticated Creator Studio reads work.
+- Do not invent or assume the serving deployment's commit identity.
+- Do not modify the separate web client or API deployment configuration unless the contract demonstrably requires a source change there. If a deployment mismatch blocks verification, report it separately.
+
+## Validation requirements
+
+After implementation, report:
+
+1. The repository, branch, and commit used.
+2. The files changed and the purpose of each change.
+3. The exact GET endpoints covered by the contract.
+4. Test results, including the total number of tests passed, failed, or skipped.
+5. API typechecking results.
+6. Any contract discrepancies or unresolved failures.
+7. Whether the implementation is ready for Preview testing.
+8. Any remaining deployment or authentication prerequisites for end-to-end verification.
+
+Clearly distinguish local verification from live authenticated verification.
+
+## Acceptance criteria
+
+The task is complete when the documented Creator Studio reads contract is implemented in the correct source repository, all relevant regression tests and typechecking pass, the diff contains only necessary changes, and the implementation is ready for controlled Preview verification.
+
+**Stop after implementation and local verification. Do not deploy.**
