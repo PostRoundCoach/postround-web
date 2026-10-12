@@ -1,18 +1,12 @@
 "use client"
 
 import { useState } from 'react'
-import dynamic from 'next/dynamic'
 import Image from 'next/image'
 import Link from 'next/link'
-import { ArrowRight, BookOpen, Brain, Flag, Menu, MessageSquareText, Share2, Sparkles, Target, TrendingUp, X } from 'lucide-react'
+import { BookOpen, Brain, Flag, Menu, MessageSquareText, Share2, Sparkles, Target, TrendingUp, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Footer } from '@/components/Footer'
 import { FadeIn, StaggerContainer, StaggerItem } from '@/components/motion/FadeIn'
-
-const EmailCaptureModal = dynamic(
-  () => import('@/components/EmailCaptureModal').then((module) => module.EmailCaptureModal),
-  { ssr: false },
-)
 
 const steps = [
   {
@@ -42,7 +36,6 @@ const navigation = [
 ]
 
 export default function Home() {
-  const [modalOpen, setModalOpen] = useState(false)
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
 
   return (
@@ -63,9 +56,6 @@ export default function Home() {
             <Link href="/login">
               <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground">Log In</Button>
             </Link>
-            <Button variant="gold" size="sm" onClick={() => setModalOpen(true)} className="hidden sm:inline-flex">
-              Join the Launch Waitlist
-            </Button>
             <Button
               variant="ghost"
               size="icon"
@@ -112,11 +102,6 @@ export default function Home() {
                   It&apos;s the shot you flushed, the decision you questioned, the bounce you didn&apos;t expect, the birdie you fought for, and the moment you finally settled into your game.
                 </p>
                 <p className="mt-4 max-w-2xl text-lg font-semibold leading-relaxed text-foreground md:text-xl">Post Round captures your round while you play, helps you understand it afterward, and turns the moments that mattered into stories worth sharing.</p>
-              </FadeIn>
-              <FadeIn delay={0.35}>
-                <Button variant="gold" size="xl" onClick={() => setModalOpen(true)} className="mt-9 shadow-xl shadow-black/20">
-                  Join the Launch Waitlist <ArrowRight className="ml-2 h-5 w-5" />
-                </Button>
               </FadeIn>
             </div>
           </div>
@@ -376,16 +361,12 @@ export default function Home() {
                <h2 className="mt-4 font-serif text-5xl font-bold md:text-7xl">Your game. Your story. Your people.</h2>
                 <p className="mx-auto mt-6 max-w-2xl text-lg text-foreground/75">Golf is more than the number on the card.</p>
                 <p className="mx-auto mt-4 max-w-2xl text-lg font-semibold text-foreground">Play your round. Learn from what happened. Share the moments that made it yours.</p>
-              <Button variant="gold" size="xl" onClick={() => setModalOpen(true)} className="mt-9">
-                Join the Launch Waitlist <ArrowRight className="ml-2 h-5 w-5" />
-              </Button>
             </FadeIn>
           </div>
         </section>
 
         <Footer />
       </main>
-      <EmailCaptureModal open={modalOpen} onOpenChange={setModalOpen} />
     </>
   )
 }
