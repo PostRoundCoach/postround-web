@@ -1,0 +1,85 @@
+Investigate the live Creator Studio API routing failure. **READ-ONLY ONLY.** Do not modify code, environment variables, databases, branches, or deployments.
+
+## Confirmed live failure
+
+Production API hostname: `https://api.postroundcoach.com`
+
+Request from the authenticated Creator Studio session:
+
+- Method: `GET`
+- Request URL: `https://api.postroundcoach.com/api/content/stories`
+- Status: `404 Not Found`
+- Remote address: `34.111.179.208:443`
+
+**Exact response body returned by the server:**
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Error</title>
+</head>
+<body>
+<pre>Cannot GET /api/content/stories</pre>
+<script src="https://i.replit.com/script.js" async="" data-website-id="80188856-a2e5-48f7-a388-71253ce1be2c"></script></body>
+</html>
+```
+
+This is the actual response from the live API, not a locally generated error message. Investigate why the running server returns `Cannot GET /api/content/stories`.
+
+The web client also requires:
+- `GET /api/content/creator-summary`
+- `GET /api/content/round/:round_id`
+
+The checked-out API source previously inspected mounts the content router under `/api/content` and applies `requireAuth`, but does not register GET handlers for `/stories` or `/creator-summary`.
+
+The web frontend source is unchanged between the October 7 baseline commit `e0c43ba6aa166b6aa6991b8ba8bce1b77ace007f` and the current Preview revision `9f827cd93aa46ceccd45060071c89d66dc07934c`.
+
+**Do not assume the live Production API deployment is running the currently checked-out source.**
+
+## Investigation tasks
+
+Investigate the Production API project that owns `api.postroundcoach.com`.
+
+1. **Identify the live deployment.** Establish the source repository, branch, commit/revision, deployment identity, and build artifact currently serving `api.postroundcoach.com`, using available Replit deployment metadata and logs. Clearly identify anything you cannot verify.
+
+2. **Inspect the actual deployed implementation.** Determine whether the live deployed artifact contains handlers for:
+   - `GET /api/content/stories`
+   - `GET /api/content/creator-summary`
+   - `GET /api/content/round/:round_id`
+
+   Do not infer deployed route availability solely from the current checkout.
+
+3. **Compare revisions.** Compare the live deployed revision or artifact against the current Production API checkout and the DEV API project's source. Search Git history for previous implementations, removals, or renames of these routes. Include relevant commit IDs and dates where available.
+
+4. **Diagnose the 404.** Determine whether the evidence supports:
+   - missing API route implementations;
+   - a Production deployment/revision mismatch;
+   - a build or startup configuration issue;
+   - a routing or mount-prefix issue; or
+   - another explanation.
+
+   Explain how the exact `Cannot GET /api/content/stories` response supports or rules out each possibility. Separate confirmed facts from hypotheses.
+
+5. **Identify the smallest safe corrective action.** Recommend what should be fixed first, but do not implement the fix, modify configuration, change data, or deploy.
+
+## Safety and compatibility constraints
+
+- Preserve existing mobile API endpoints and behavior.
+- Preserve authentication and Creator ownership/permission checks.
+- Do not expose secret values, access tokens, or credentials.
+- Do not start, modify, merge, or deploy the separate Task #155, Complete Creator Studio API fix.
+- Do not make changes as part of this investigation.
+
+## Required report
+
+Return findings directly in your response, not as a new report file. Include:
+- verified deployment identity and source revision;
+- route availability evidence;
+- relevant source and Git-history comparisons;
+- the most evidence-supported root cause;
+- the smallest safe proposed fix;
+- remaining unknowns and the evidence needed to resolve them.
+
+If the exact running artifact or revision cannot be inspected, state that limitation explicitly rather than presenting checkout findings as proof of the live implementation.
