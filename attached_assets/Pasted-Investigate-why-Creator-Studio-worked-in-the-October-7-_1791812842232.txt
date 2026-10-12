@@ -1,0 +1,27 @@
+Investigate why Creator Studio worked in the October 7 Vercel Production deployment but fails in the current Vercel Preview deployment. This is a READ-ONLY investigation. Do not modify code, environment variables, databases, branches, or deployments.
+
+**Known working baseline**
+- Vercel project: `postround-web-api-server`
+- Deployment created October 7, 2026
+- Git branch: `main`
+- Commit: `e0c43ba6aa166b6aa6991b8ba8bce1b77ace007f`
+- Working deployment URL: `https://postround-web-api-server-git-main-pr-coach.vercel.app/`
+- It displayed Creator Studio content backed by the DEV Supabase database.
+- Example displayed `content_ideas` row: ID `108e1cd7-920d-4f7a-8d81-0856962dcba3`, title `Impeccable Precision: A Bogey-Free Masterclass`.
+
+**Current failing baseline**
+- Vercel Preview deployment: `https://post-round-web-api-server-69u7jlnbk-pr-coach.vercel.app`
+- Its Creator Studio request to `GET https://api.postroundcoach.com/api/content/stories` returns `404 Cannot GET /api/content/stories`.
+- The current Creator Studio client also requests `/api/content/creator-summary`.
+
+**Investigate and report:**
+
+1. Inspect commit `e0c43ba` and the current Preview source. Identify the exact Creator Studio client files, API paths, response schemas, and API-base-URL resolution in each version.
+2. Determine whether the working October 7 deployment called the same `/api/content/stories` endpoint. If not, identify the exact endpoint or data-access method it used.
+3. Compare Git history between `e0c43ba` and the current Preview source. Identify changes to Creator Studio data fetching, API URL selection, authentication, and Supabase access. Report commit IDs and dates.
+4. Determine whether the working version fetched Creator Studio data directly from Supabase or through a backend API. Identify the actual code evidence.
+5. Inspect the Vercel configuration and relevant environment-variable references in source. Explain which settings could cause the working Production deployment and current Preview deployment to use different data paths or API hosts. Do not reveal secret values.
+6. If the web repository contains a lockfile or build configuration relevant to this difference, inspect it only as needed.
+7. Finish with the most evidence-supported explanation for why the October 7 deployment worked and the current Preview fails, separating confirmed facts from hypotheses.
+
+Do not assume the DEV database was the cause of the current failure. Do not implement a fix. Include file paths and relevant line numbers or commit references for the findings.
