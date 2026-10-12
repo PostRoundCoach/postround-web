@@ -28,7 +28,7 @@ packages = ["glib", "nss", "nspr", "atk", "at-spi2-atk", "cups", "dbus", "expat"
 [userenv.production]
 NEXT_PUBLIC_POSTROUND_API_BASE_URL = "https://api.postroundcoach.com"
 NEXT_PUBLIC_SITE_URL = "https://www.postroundcoach.com"
-NEXT_PUBLIC_SUPABASE_URL = "https://pcyhnijyfzmgyghrzlyp.supabase.co"
+NEXT_PUBLIC_SUPABASE_URL = "https://kdumquoyqldqphkysmto.supabase.co"
 
 [userenv.development]
-NEXT_PUBLIC_SUPABASE_URL = "https://pcyhnijyfzmgyghrzlyp.supabase.co"
+NEXT_PUBLIC_SUPABASE_URL = "https://kdumquoyqldqphkysmto.supabase.co"
