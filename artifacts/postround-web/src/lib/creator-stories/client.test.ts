@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { permissionStatusFromDetail } from './approval-state.ts'
+import { creatorRoundDetailFixture } from '../../../test-fixtures/creator-round-detail.ts'
 import {
   CreatorStoryApiError,
   CreatorStoryConfigurationError,
@@ -250,7 +251,7 @@ test('rejects malformed transcripts without fabricating text; nullable attributi
     return { data: { session: { access_token: 'round-token' } }, error: null }
   } } } as unknown as SupabaseClient
   try {
-    for (const transcript of [undefined, 42, { content: 'assistant text' }]) {
+    for (const transcript of [42, { content: 'assistant text' }]) {
       globalThis.fetch = (async () => Response.json({
         ok: true, contract: { ...roundContract, scorecard: [
           { ...roundContract.scorecard[0], voice_transcript: transcript },
@@ -266,6 +267,80 @@ test('rejects malformed transcripts without fabricating text; nullable attributi
       } },
     })) as typeof fetch
     assert.equal((await fetchRoundContract(supabase, 'round-1')).contract.round.player_display_name, null)
+  } finally {
+    globalThis.fetch = originalFetch
+    if (originalApiBase === undefined) delete process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL
+    else process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL = originalApiBase
+  }
+})
+
+test('detail compatibility normalizes only the two absent nullable presentation fields', async () => {
+  const originalFetch = globalThis.fetch
+  const originalApiBase = process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL
+  process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL = 'https://api.example.test'
+  const supabase = { auth: { getSession: async () => ({
+    data: { session: { access_token: 'synthetic-token' } }, error: null,
+  }) } } as unknown as SupabaseClient
+  try {
+    for (const [omitScoreToPar, omitVoiceTranscript] of [
+      [true, false], [false, true], [true, true], [false, false],
+    ]) {
+      const payload = creatorRoundDetailFixture({ omitScoreToPar, omitVoiceTranscript })
+      const before = structuredClone(payload)
+      globalThis.fetch = (async () => {
+        const response = Response.json(payload)
+        assert.equal(response.status, 200) // transport success is not client validation success
+        return response
+      }) as typeof fetch
+      const { contract } = await fetchRoundContract(supabase, 'synthetic-round')
+      assert.equal(contract.roundHighlights.score_to_par, omitScoreToPar ? null : 1)
+      assert.equal(contract.scorecard[0].voice_transcript, omitVoiceTranscript ? null : 'Synthetic player words.')
+      assert.equal(contract.scorecard[0].player_note, 'Synthetic saved hole note.')
+      assert.deepEqual(contract.coachingReflection, payload.contract.coachingReflection)
+      assert.deepEqual(contract.creatorContentStory, payload.contract.creatorContentStory)
+      if (contract.creatorContentStory.available) {
+        assert.equal(permissionStatusFromDetail(contract.creatorContentStory.permission), 'approved')
+      }
+      assert.deepEqual(payload, before)
+    }
+    const payload = creatorRoundDetailFixture()
+    const raw = payload.contract as unknown as {
+      roundHighlights: Record<string, unknown>
+      scorecard: Record<string, unknown>[]
+      creatorContentStory: { permission: Record<string, unknown> }
+    }
+    raw.roundHighlights.score_to_par = null
+    raw.scorecard[0].voice_transcript = null
+    globalThis.fetch = (async () => Response.json(payload)) as typeof fetch
+    const { contract } = await fetchRoundContract(supabase, 'synthetic-round')
+    assert.equal(contract.roundHighlights.score_to_par, null)
+    assert.equal(contract.scorecard[0].voice_transcript, null)
+
+    for (const mutate of [
+      (c: typeof raw) => { c.roundHighlights.score_to_par = '1' },
+      (c: typeof raw) => { c.roundHighlights.score_to_par = 1.5 },
+      (c: typeof raw) => { c.roundHighlights.score_to_par = false },
+      (c: typeof raw) => { c.scorecard[0].voice_transcript = 42 },
+      (c: typeof raw) => { c.scorecard[0].voice_transcript = {} },
+      (c: typeof raw) => { delete c.roundHighlights.total_score },
+      (c: typeof raw) => { delete c.scorecard[0].player_note },
+      (c: typeof raw) => { delete c.creatorContentStory.permission.approval_requested_at },
+      (c: typeof raw) => { c.creatorContentStory.permission.granted_at = 'invalid' },
+      (c: typeof raw) => { c.creatorContentStory.permission.revoked_at = false },
+    ]) {
+      const invalid = creatorRoundDetailFixture({ omitScoreToPar: true, omitVoiceTranscript: true })
+      mutate(invalid.contract as unknown as typeof raw)
+      globalThis.fetch = (async () => Response.json(invalid)) as typeof fetch
+      await assert.rejects(fetchRoundContract(supabase, 'synthetic-round'),
+        (error: unknown) => error instanceof CreatorStoryApiError && error.status === 500
+          && !error.message.includes('Saved story'))
+    }
+    for (const status of [401, 403]) {
+      globalThis.fetch = (async () => Response.json({ error: 'PRIVATE detail body' }, { status })) as typeof fetch
+      await assert.rejects(fetchRoundContract(supabase, 'synthetic-round'),
+        (error: unknown) => error instanceof CreatorStoryApiError && error.status === status
+          && !error.message.includes('PRIVATE'))
+    }
   } finally {
     globalThis.fetch = originalFetch
     if (originalApiBase === undefined) delete process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL

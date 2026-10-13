@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
+import { creatorRoundDetailFixture } from '../test-fixtures/creator-round-detail'
 
 const fixture = 'http://127.0.0.1:54321'
 const storyId = '20000000-0000-4000-8000-000000000001'
@@ -19,6 +20,100 @@ async function login(page: Page, email = 'creator@example.test') {
 test.beforeEach(async ({ request }) => {
   await request.post(`${fixture}/__test/config`, { data: {} })
 })
+
+test('omitted nullable detail fields preserve saved presentation after expansion and retry', async ({ page }) => {
+  const requests: string[] = []
+  let attempts = 0
+  page.on('request', (r) => {
+    if (r.url().includes('/api/content/')) requests.push(`${r.method()} ${new URL(r.url()).pathname}`)
+  })
+  await page.route('**/api/content/stories', (route) =>
+    route.fulfill({ json: { ok: true, creator, stories: [story] } }))
+  await page.route(`**/api/content/round/${roundId}`, (route) => {
+    attempts++
+    const payload = creatorRoundDetailFixture({ omitScoreToPar: true, omitVoiceTranscript: true })
+    // Give the synthetic player an anonymous display label to ensure absence of
+    // Player Note exports is due to missing transcripts, not missing attribution.
+    payload.contract.round.player_display_name = 'Fixture Player'
+    if (attempts === 1) {
+      return route.fulfill({ json: { ...payload, contract: {
+        ...payload.contract, roundHighlights: { ...payload.contract.roundHighlights, score_to_par: 'invalid' },
+      } } })
+    }
+    return route.fulfill({ json: payload })
+  })
+  await login(page)
+  await page.goto('/creator')
+  const card = page.getByTestId(`card-story-${storyId}`)
+  await expect(card.getByRole('button', { name: 'Expand story' })).toHaveAttribute('aria-expanded', 'false')
+  expect(attempts).toBe(0)
+  await card.getByRole('button', { name: 'Expand story' }).click()
+  await expect(card.getByTestId(`status-ideas-error-${storyId}`)).toBeVisible()
+  await expect(card.getByTestId(`section-story-candidates-${storyId}`)).toHaveCount(0)
+  await card.getByTestId(`button-retry-ideas-${storyId}`).click()
+  await expect(card.getByTestId(`status-ideas-error-${storyId}`)).toHaveCount(0)
+  await expect(card.getByTestId('text-story-candidate-title-fixture-idea')).toHaveText('Saved story title')
+  await expect(card.getByText('A synthetic story angle', { exact: true })).toBeVisible()
+  const script = card.getByText('Saved story first paragraph.\n\nSaved story second paragraph.', { exact: true })
+  await expect(script).toBeVisible()
+  await expect(script).toHaveCSS('white-space', 'pre-wrap')
+  const reflection = card.getByTestId(`section-coaching-reflection-${storyId}`)
+  await expect(reflection.getByRole('heading', { name: 'Saved reflection title' })).toBeVisible()
+  await expect(reflection.getByText('Saved reflection hook', { exact: true })).toBeVisible()
+  const reflectionText = reflection.getByText('Saved reflection first paragraph.\n\nSaved reflection second paragraph.', { exact: true })
+  await expect(reflectionText).toBeVisible()
+  await expect(reflectionText).toHaveCSS('white-space', 'pre-wrap')
+  await expect(card.getByTestId('scorecard-total-score')).toHaveText('5')
+  await expect(card.getByTestId('scorecard-score-to-par')).toHaveText('—')
+  await card.getByTestId('scorecard-full-details').getByText('View full round details').click()
+  await expect(card.getByTestId('scorecard-hole-1')).toBeVisible()
+  await expect(card.getByTestId('scorecard-hole-note-1')).toContainText('Synthetic saved hole note.')
+  await expect(card.getByTestId(`preview-share-scorecard-${storyId}`)).toBeVisible()
+  await expect(card.getByTestId(`preview-share-scorecard-${storyId}`)).toHaveAttribute('viewBox', '0 0 1080 1350')
+  await expect(card.getByText('Approved by player', { exact: true })).toBeVisible()
+  await expect(card.getByTestId(`button-request-approval-${storyId}`)).toHaveCount(0)
+  await expect(card.getByTestId(`button-download-scorecard-${storyId}`)).toBeEnabled()
+  await expect(card.getByTestId(`button-download-highlights-${storyId}`)).toBeEnabled()
+  await expect(card.getByRole('button', { name: /Download Player Note/ })).toHaveCount(0)
+  await card.getByRole('button', { name: 'Collapse story' }).click()
+  await card.getByRole('button', { name: 'Expand story' }).click()
+  await expect(script).toBeVisible()
+  expect(attempts).toBe(2)
+  expect(requests.every((r) => r.startsWith('GET '))).toBe(true)
+  expect(requests.some((r) => /generate|approval-request/.test(r))).toBe(false)
+})
+
+for (const failure of ['revoked', 'candidate-mismatch', 'unavailable', 'unauthorized'] as const) {
+  test(`omitted nullable fields do not bypass ${failure} detail safeguards`, async ({ page }) => {
+    await page.route('**/api/content/stories', (route) =>
+      route.fulfill({ json: { ok: true, creator, stories: [story] } }))
+    await page.route(`**/api/content/round/${roundId}`, (route) => {
+      const payload = creatorRoundDetailFixture({ omitScoreToPar: true, omitVoiceTranscript: true })
+      if (failure === 'unauthorized') return route.fulfill({ status: 401, json: { error: 'PRIVATE detail body' } })
+      if (failure === 'candidate-mismatch') payload.contract.creatorContentStory.candidate.id = 'different-fixture-story'
+      if (failure === 'revoked') {
+        return route.fulfill({ json: { ...payload, contract: { ...payload.contract,
+          creatorContentStory: { ...payload.contract.creatorContentStory, permission: {
+            ...payload.contract.creatorContentStory.permission, revoked_at: '2026-10-02T12:00:00Z',
+          } },
+        } } })
+      }
+      if (failure === 'unavailable') payload.contract.creatorContentStory.available = false
+      return route.fulfill({ json: payload })
+    })
+    await login(page)
+    await page.goto('/creator')
+    const card = page.getByTestId(`card-story-${storyId}`)
+    await card.getByRole('button', { name: 'Expand story' }).click()
+    await expect(card.getByTestId(`status-ideas-error-${storyId}`)).toBeVisible()
+    await expect(card.getByTestId(`text-story-headline-${storyId}`)).toHaveText(story.headline)
+    await expect(card.getByTestId(`section-story-candidates-${storyId}`)).toHaveCount(0)
+    await expect(card.getByTestId(`button-download-scorecard-${storyId}`)).toHaveCount(0)
+    await expect(card.getByTestId(`button-request-approval-${storyId}`)).toHaveCount(0)
+    await expect(card.getByTestId(`button-dismiss-story-${storyId}`)).toBeDisabled()
+    await expect(card.getByText('PRIVATE detail body')).toHaveCount(0)
+  })
+}
 
 test('minimal Shared candidate stays independent of generated draft and unknown approval', async ({ page }) => {
   let details = 0
