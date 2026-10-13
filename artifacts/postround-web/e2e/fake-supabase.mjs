@@ -19,6 +19,7 @@ const users = {
 let delays = { login: 0, profile: 0, stories: 0 }
 let failLogin = false
 let creatorAllowed = true
+let summaryFixture = null
 let failProfile = false
 let authConfig = {}
 let authMetrics = { signups: 0, verifies: 0, resends: 0, passwordLogins: 0, recovery: 0 }
@@ -26,6 +27,7 @@ const pendingCodes = new Map()
 
 const storyId = '20000000-0000-4000-8000-000000000001'
 const creatorId = '10000000-0000-4000-8000-000000000002'
+const studioCreator = { id: creatorId, name: 'Creator Fixture', capabilities: { advancedCreator: false, creatorVoice: false } }
 const publicCreators = {
   'creator-fixture': {
     display_name: 'Creator Fixture',
@@ -307,6 +309,7 @@ const server = http.createServer((request, response) => {
     request.on('end', () => {
       const config = JSON.parse(body || '{}')
       delays = { login: 0, profile: 0, stories: 0, ...config.delays }
+      summaryFixture = config.summaryFixture ?? null
       failLogin = Boolean(config.failLogin)
       creatorAllowed = config.creatorAllowed !== false
       failProfile = Boolean(config.failProfile)
@@ -536,14 +539,27 @@ const server = http.createServer((request, response) => {
     return
   }
 
+  if (url.pathname.startsWith('/api/content/')) {
+    const user = userFromRequest(request)
+    if (!user) return send(response, 401, { error: 'Authentication required' })
+    if (!user.creator || !creatorAllowed) return send(response, 403, { error: 'Creator profile not found or inactive' })
+  }
+
   if (request.method === 'GET' && url.pathname === '/api/content/stories') {
     return setTimeout(() => send(response, 200, {
       ok: true,
+      creator: studioCreator,
       stories: dismissed ? [] : [{
-        ...story,
-        permission_status: approved ? 'approved' : approvalRequested ? 'requested' : 'pending',
+        id: story.id, round_id: story.round_id, story_type: story.story_type,
+        headline: story.headline, summary: story.summary, status: story.status, created_at: story.created_at,
+        significance_score: story.significance_score,
       }],
     }), delays.stories)
+  }
+
+  if (request.method === 'GET' && url.pathname === '/api/content/creator-summary') {
+    if (summaryFixture) return send(response, summaryFixture.status ?? 200, summaryFixture.body)
+    return send(response, 200, { ok: true, creator: studioCreator, summary: { storyCount: dismissed ? 0 : 1 } })
   }
 
   if (request.method === 'GET' && url.pathname === `/api/content/round/${story.round_id}`) {

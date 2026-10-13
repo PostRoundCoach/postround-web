@@ -5,13 +5,14 @@ import { Calendar, ChevronDown, CircleCheck, Clock3, Loader2, MapPin, RefreshCw,
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { createClient } from '@/lib/supabase/client'
-import type { CreatorContentIdea, CreatorStory, RoundWebContract } from '@/lib/creator-stories/contracts'
-import { fetchRoundContract, dismissCreatorStory, requestStoryApproval } from '@/lib/creator-stories/client'
+import type { CreatorContentIdea, CreatorStory, RoundWebContract, StoryPermissionStatus } from '@/lib/creator-stories/contracts'
+import { CreatorStoryApiError, creatorReadFailure, fetchRoundContract, dismissCreatorStory, requestStoryApproval } from '@/lib/creator-stories/client'
 import { StoryCandidateCard } from './StoryCandidateCard'
 import { CreatorRoundScorecard } from './CreatorRoundScorecard'
 import { ShareableScorecardGraphic } from './ShareableScorecardGraphic'
 import { ShareableAssets } from './ShareableAssets'
 import { CreatorCopyButton, creatorCopyText } from './CreatorCopyButton'
+import { permissionStatusFromDetail } from '@/lib/creator-stories/approval-state'
 
 export function StoryCard({
   story,
@@ -24,18 +25,19 @@ export function StoryCard({
   const [candidates, setCandidates] = useState<CreatorContentIdea[] | null>(null)
   const [roundContract, setRoundContract] = useState<RoundWebContract | null>(null)
   const [retrievalFailed, setRetrievalFailed] = useState(false)
+  const [detailError, setDetailError] = useState<string | null>(null)
+  const [accessDenied, setAccessDenied] = useState(false)
   const [isDismissing, setIsDismissing] = useState(false)
   const [dismissalFailed, setDismissalFailed] = useState(false)
-  const [permissionStatus, setPermissionStatus] = useState(story.permissionStatus)
+  const [permissionStatus, setPermissionStatus] = useState<StoryPermissionStatus | 'unknown'>('unknown')
   const [isRequestingApproval, setIsRequestingApproval] = useState(false)
   const [approvalRequestFailed, setApprovalRequestFailed] = useState(false)
-  const [isExpanded, setIsExpanded] = useState(() => story.permissionStatus === 'pending')
+  const [isExpanded, setIsExpanded] = useState(false)
   const requestSequence = useRef(0)
   const activeRequest = useRef<AbortController | null>(null)
 
   const loadCandidates = useCallback(async (
     supabase: NonNullable<ReturnType<typeof createClient>>,
-    trigger: 'initial' | 'retry',
   ) => {
     const sequence = ++requestSequence.current
     activeRequest.current?.abort()
@@ -43,12 +45,20 @@ export function StoryCard({
     activeRequest.current = controller
     setIsFetchingIdeas(true)
     setRetrievalFailed(false)
+    setRoundContract(null)
+    setCandidates(null)
+    setPermissionStatus('unknown')
+    setAccessDenied(false)
 
     try {
       const result = await fetchRoundContract(supabase, story.roundId, {
         signal: controller.signal,
       })
       if (sequence !== requestSequence.current) return
+      const content = result.contract.creatorContentStory
+      if (!content.available || content.candidate.id !== story.id || content.permission.revoked_at !== null) {
+        throw new CreatorStoryApiError(403)
+      }
       setRoundContract(result.contract)
       const idea = result.contract.creatorContentStory.available
         ? result.contract.creatorContentStory.contentIdea
@@ -64,23 +74,15 @@ export function StoryCard({
         created_at: idea.created_at,
         round: null,
       }] : [])
-      const permission = result.contract.creatorContentStory.available
-        ? result.contract.creatorContentStory.permission
-        : null
-      setPermissionStatus(permission?.granted_at
-        ? 'approved'
-        : permission?.approval_requested_at
-          ? 'requested'
-          : 'pending')
+      const trustedStatus = permissionStatusFromDetail(content.permission)
+      setPermissionStatus(trustedStatus)
     } catch (error) {
       if (controller.signal.aborted || sequence !== requestSequence.current) return
-      console.warn('[Creator ideas] Retrieval failed', {
-        storyId: story.id,
-        trigger,
-        status: error instanceof Error && 'status' in error ? error.status : null,
-        stage: error instanceof Error && 'stage' in error ? error.stage : null,
-        message: error instanceof Error ? error.message : 'Unknown retrieval failure',
-      })
+      setRoundContract(null)
+      setCandidates(null)
+      setPermissionStatus('unknown')
+      setAccessDenied(error instanceof CreatorStoryApiError && [401, 403].includes(error.status))
+      setDetailError(creatorReadFailure(error))
       setRetrievalFailed(true)
     } finally {
       if (sequence !== requestSequence.current) return
@@ -91,14 +93,13 @@ export function StoryCard({
 
   useEffect(() => {
     const supabase = createClient()
-    if (!supabase) return
-    void loadCandidates(supabase, 'initial')
+    if (supabase && isExpanded && candidates === null && !retrievalFailed) void loadCandidates(supabase)
     return () => {
       requestSequence.current += 1
       activeRequest.current?.abort()
       activeRequest.current = null
     }
-  }, [loadCandidates])
+  }, [loadCandidates, isExpanded])
 
   const handleRetryIdeas = async () => {
     if (isFetchingIdeas) return
@@ -109,11 +110,22 @@ export function StoryCard({
       return
     }
 
-    await loadCandidates(supabase, 'retry')
+    await loadCandidates(supabase)
+  }
+
+  const clearDeniedDetail = (error: unknown) => {
+    if (!(error instanceof CreatorStoryApiError) || ![401, 403].includes(error.status)) return
+    setRoundContract(null)
+    setCandidates(null)
+    setPermissionStatus('unknown')
+    setAccessDenied(true)
+    setDetailError(creatorReadFailure(error))
+    setRetrievalFailed(true)
   }
 
   const handleDismiss = async () => {
-    if (isDismissing || isFetchingIdeas) return
+    if (isDismissing || isFetchingIdeas || accessDenied) return
+    const sequence = requestSequence.current
 
     const supabase = createClient()
     if (!supabase) {
@@ -126,8 +138,11 @@ export function StoryCard({
 
     try {
       await dismissCreatorStory(supabase, story.id)
+      if (sequence !== requestSequence.current) return
       onDismissed(story.id)
-    } catch {
+    } catch (error) {
+      if (sequence !== requestSequence.current) return
+      clearDeniedDetail(error)
       setDismissalFailed(true)
     } finally {
       setIsDismissing(false)
@@ -135,18 +150,22 @@ export function StoryCard({
   }
 
   const handleRequestApproval = async () => {
-    if (isRequestingApproval || permissionStatus === 'approved') return
+    if (isRequestingApproval || permissionStatus === 'approved' || permissionStatus === 'unknown' || accessDenied) return
     const supabase = createClient()
     if (!supabase) {
       setApprovalRequestFailed(true)
       return
     }
     setIsRequestingApproval(true)
+    const sequence = requestSequence.current
     setApprovalRequestFailed(false)
     try {
       const result = await requestStoryApproval(supabase, story.id)
+      if (sequence !== requestSequence.current) return
       setPermissionStatus(result.permission_status)
-    } catch {
+    } catch (error) {
+      if (sequence !== requestSequence.current) return
+      clearDeniedDetail(error)
       setApprovalRequestFailed(true)
     } finally {
       setIsRequestingApproval(false)
@@ -161,7 +180,7 @@ export function StoryCard({
       <div className="p-6 sm:p-8">
         <div className="mb-3 flex items-start justify-between gap-4">
           <span className="inline-flex items-center rounded-md bg-primary/10 px-2.5 py-0.5 text-xs font-semibold text-primary">
-            Post Round follower story
+            {story.status === 'shared' ? 'Shared' : 'Offered'}
           </span>
           <button
             type="button"
@@ -179,49 +198,34 @@ export function StoryCard({
           {story.headline}
         </h2>
         <p className="mt-3 text-base leading-normal text-muted-foreground">{story.summary}</p>
+        {story.significanceScore !== undefined && <p className="mt-2 text-xs text-muted-foreground">
+          Relevance score: {story.significanceScore}
+        </p>}
       </div>
 
       <div id={`story-details-${story.id}`} hidden={!isExpanded} className={isExpanded ? undefined : 'hidden'}>
         <div className="grid lg:grid-cols-[minmax(0,1fr)_22rem]">
         <div className="space-y-6 px-6 pb-6 sm:px-8 sm:pb-8">
 
-          {story.supportingFacts.length > 0 && (
-            <div className="rounded-xl border border-border/70 bg-muted/20 p-5">
-              <p className="mb-3 text-xs font-bold uppercase tracking-widest">
-                Supporting details
-              </p>
-              <ul className="space-y-2.5">
-                {story.supportingFacts.map((fact, index) => (
-                  <li
-                    key={`${fact}-${index}`}
-                    className="flex gap-3 text-sm text-muted-foreground"
-                  >
-                    <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
-                    <span>{fact}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
 
-          {(story.roundDate || story.course || story.golferDisplayName) && (
+          {roundContract && (
             <div className="flex flex-wrap gap-x-6 gap-y-3 text-sm text-muted-foreground">
-              {story.roundDate && (
+              {roundContract.round.played_at && (
                 <span className="flex items-center gap-2">
                   <Calendar className="h-4 w-4" />
-                  {story.roundDate}
+                  {roundContract.round.played_at}
                 </span>
               )}
-              {story.course && (
+              {roundContract.round.course_name && (
                 <span className="flex items-center gap-2">
                   <MapPin className="h-4 w-4" />
-                  {story.course}
+                  {roundContract.round.course_name}
                 </span>
               )}
-              {story.golferDisplayName && (
+              {roundContract.round.player_display_name && (
                 <span className="flex items-center gap-2">
                   <User className="h-4 w-4" />
-                  {story.golferDisplayName}
+                  {roundContract.round.player_display_name}
                 </span>
               )}
             </div>
@@ -243,7 +247,7 @@ export function StoryCard({
               variant="ghost"
               className="mt-2 w-full text-muted-foreground hover:text-destructive"
               onClick={() => void handleDismiss()}
-              disabled={isDismissing || isFetchingIdeas}
+              disabled={isDismissing || isFetchingIdeas || accessDenied}
               data-testid={`button-dismiss-story-${story.id}`}
             >
               {isDismissing ? (
@@ -306,9 +310,9 @@ export function StoryCard({
                 <AlertTitle>Ideas couldn’t be loaded</AlertTitle>
                 <AlertDescription>
                   <p>
-                     Existing content for this Story’s round could not be retrieved.
-                     The Story remains available.
+                     {detailError} The candidate story remains in your queue.
                   </p>
+                  {accessDenied && <a href="/login" className="block underline">Sign in again or check creator access</a>}
                   <Button
                     type="button"
                     variant="outline"
@@ -358,7 +362,7 @@ export function StoryCard({
                   type="button"
                   variant="outline"
                   onClick={() => void handleRequestApproval()}
-                  disabled={isRequestingApproval || permissionStatus === 'requested'}
+                  disabled={isRequestingApproval || permissionStatus === 'requested' || permissionStatus === 'unknown' || accessDenied}
                   data-testid={`button-request-approval-${story.id}`}
                 >
                   {isRequestingApproval ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}

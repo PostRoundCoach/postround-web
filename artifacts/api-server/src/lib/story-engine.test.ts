@@ -995,6 +995,25 @@ test("an approved permission stays approved without a duplicate request mutation
   assert.deepEqual(methods, ["GET"]);
 });
 
+test("Share with Creator grants without a request timestamp remain approved without another mutation", async () => {
+  const permission = {
+    id: "99999999-9999-4999-8999-999999999999", story_id: base.storyId,
+    user_id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd", permission_granted: true, approval_requested_at: null,
+    granted_at: "2026-09-08T20:00:00Z", revoked_at: null,
+  };
+  const methods: string[] = [];
+  const context: SupabaseRequestContext = {
+    ...requestContext,
+    proxy: async (_path, init) => {
+      methods.push(init?.method ?? "GET");
+      return Response.json([permission]);
+    },
+  };
+  assert.equal(await requestStoryApproval(context, base.ownerId, base.storyId), "approved");
+  assert.equal(permission.approval_requested_at, null);
+  assert.deepEqual(methods, ["GET"]);
+});
+
 test("dismissal updates only the resolved creator permission row", async () => {
   const permissionId = "99999999-9999-4999-8999-999999999999";
   let requestedPath = "";

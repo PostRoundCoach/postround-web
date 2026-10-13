@@ -53,10 +53,10 @@ async function readCreator(context: SupabaseRequestContext) {
 }
 
 export const ELIGIBLE_CREATOR_READ_STATUSES = ["offered", "shared"] as const;
-const storyFields = "id,round_id,story_type,headline,summary,status,created_at";
+const storyFields = "id,round_id,story_type,headline,summary,status,created_at,significance_score";
 type CreatorStory = {
   id: string; round_id: string; story_type: string; headline: string;
-  summary: string; status: string; created_at: string;
+  summary: string; status: string; created_at: string; significance_score?: number;
 };
 
 function candidateQuery(creatorId: string, fields: string) {
@@ -75,8 +75,13 @@ export async function fetchCreatorStoryQueue(context: SupabaseRequestContext) {
       candidateQuery(creator.id, storyFields) + `&order=created_at.desc,id.desc&offset=${offset}&limit=100`);
     for (const row of page) {
       // Explicit projection prevents embedded permissions or future columns leaking.
-      const { id, round_id, story_type, headline, summary, status, created_at } = row;
-      stories.push({ id, round_id, story_type, headline, summary, status, created_at });
+      const { id, round_id, story_type, headline, summary, status, created_at, significance_score } = row;
+      if (significance_score !== undefined
+        && (!Number.isInteger(significance_score) || significance_score < 0 || significance_score > 100)) {
+        throw new Error("Invalid candidate relevance score");
+      }
+      stories.push({ id, round_id, story_type, headline, summary, status, created_at,
+        ...(significance_score === undefined ? {} : { significance_score }) });
     }
     if (page.length < 100) break;
   }

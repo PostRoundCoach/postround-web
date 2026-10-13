@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { permissionStatusFromDetail } from './approval-state.ts'
 import {
   CreatorStoryApiError,
   CreatorStoryConfigurationError,
@@ -82,6 +83,18 @@ const contentIdea = {
   }
 }
 
+const studioCreator = {
+  id: '10000000-0000-4000-8000-000000000002', name: 'Fixture Creator',
+  capabilities: { advancedCreator: false, creatorVoice: false },
+}
+const minimalStory = {
+  id: '20000000-0000-4000-8000-000000000001',
+  round_id: '30000000-0000-4000-8000-000000000001',
+  story_type: 'future_open_type', headline: 'Hit every fairway — 6 of 6',
+  summary: 'Synthetic summary', status: 'shared' as const,
+  created_at: '2020-01-01T00:00:00Z',
+}
+
 const roundContract = {
   round: {
     played_at: '2026-09-01',
@@ -127,6 +140,39 @@ const roundContract = {
     },
   },
 }
+
+test('Share with Creator approval response and granted detail agree without a second request timestamp', async () => {
+  const originalFetch = globalThis.fetch
+  const requests: string[] = []
+  const supabase = { auth: { getSession: async () => ({
+    data: { session: { access_token: 'synthetic-token' } },
+  }) } } as unknown as SupabaseClient
+  const oldOrigin = process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL
+  process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL = 'https://api.example.test'
+  try {
+    globalThis.fetch = (async (url) => {
+      requests.push(String(url))
+      if (String(url).endsWith('/approval-request')) return Response.json({
+        ok: true, story_id: 'story-1', permission_status: 'approved',
+      })
+      return Response.json({ ok: true, contract: {
+        ...roundContract,
+        creatorContentStory: { ...roundContract.creatorContentStory, permission: {
+          granted_at: '2026-01-01T00:00:00Z', approval_requested_at: null, revoked_at: null,
+        } },
+      } })
+    }) as typeof fetch
+    assert.equal((await requestStoryApproval(supabase, 'story-1')).permission_status, 'approved')
+    const detail = (await fetchRoundContract(supabase, 'round-1')).contract.creatorContentStory
+    assert.equal(detail.available, true)
+    if (detail.available) assert.equal(permissionStatusFromDetail(detail.permission), 'approved')
+    assert.equal(requests.length, 2)
+  } finally {
+    globalThis.fetch = originalFetch
+    if (oldOrigin === undefined) delete process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL
+    else process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL = oldOrigin
+  }
+})
 
 test('loads and strictly parses the authenticated round contract', async () => {
   const originalFetch = globalThis.fetch
@@ -227,7 +273,7 @@ test('rejects malformed transcripts without fabricating text; nullable attributi
   }
 })
 
-test('projects only approved story fields and safely parses optional story data', () => {
+test('projects minimal candidate fields without fabricating consent or metadata', () => {
   const story = toCreatorStory({
     id: 'story-1',
     story_type: 'personal_best',
@@ -235,15 +281,7 @@ test('projects only approved story fields and safely parses optional story data'
     summary: 'The approved summary',
     round_id: 'round-private',
     status: 'shared',
-    significance_score: 73,
     created_at: '2026-09-04T12:00:00Z',
-    story_data: {
-      round_date: '2026-09-04',
-      course_name: 'Waskesiu Golf Course',
-      golfer_display_name: 'Aaron',
-      supporting_facts: ['6/6 fairways', 42, '', null],
-      private_notes: 'must not leave the integration boundary',
-    },
   })
 
   assert.deepEqual(story, {
@@ -253,12 +291,6 @@ test('projects only approved story fields and safely parses optional story data'
     headline: 'A new personal best',
     summary: 'The approved summary',
     status: 'shared',
-    roundDate: '2026-09-04',
-    course: 'Waskesiu Golf Course',
-    golferDisplayName: 'Aaron',
-    supportingFacts: ['6/6 fairways'],
-    permissionStatus: 'pending',
-    significanceScore: 73,
     createdAt: '2026-09-04T12:00:00Z',
   })
   assert.equal(story.roundId, 'round-private')
@@ -309,7 +341,7 @@ test('resolves the active creator profile from the authenticated user identity',
   ])
 })
 
-test('landing summary uses the bearer identity, validates nullable counts, and never loads the queue', async () => {
+test('landing summary uses bearer identity and exact nested counts including zero', async () => {
   const originalFetch = globalThis.fetch
   const originalApiBase = process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL
   process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL = 'https://api.postround.test'
@@ -320,16 +352,20 @@ test('landing summary uses the bearer identity, validates nullable counts, and n
   try {
     globalThis.fetch = (async (url, init) => {
       request = { url: String(url), headers: new Headers(init?.headers), cache: init?.cache }
-      return Response.json({ ok: true, follower_count: 0, available_story_count: null })
+      return Response.json({ ok: true, creator: studioCreator, summary: { storyCount: 0 } })
     }) as typeof fetch
     assert.deepEqual(await fetchCreatorLandingSummary(supabase), {
-      follower_count: 0, available_story_count: null,
+      creator: studioCreator, summary: { storyCount: 0 },
     })
     assert.equal(request?.url, 'https://api.postround.test/api/content/creator-summary')
     assert.equal(request?.headers.get('Authorization'), 'Bearer summary-token')
     assert.equal(request?.cache, 'no-store')
-    globalThis.fetch = (async () => Response.json({ ok: true, follower_count: '4', available_story_count: 1 })) as typeof fetch
-    await assert.rejects(fetchCreatorLandingSummary(supabase), CreatorStoryApiError)
+    for (const count of [null, undefined, -1, 1.5, '4', Number.MAX_SAFE_INTEGER + 1]) {
+      globalThis.fetch = (async () => Response.json({ ok: true, creator: studioCreator, summary: { storyCount: count } })) as typeof fetch
+      await assert.rejects(fetchCreatorLandingSummary(supabase), CreatorStoryApiError)
+    }
+    globalThis.fetch = (async () => Response.json({ ok: true, creator: studioCreator, summary: { storyCount: 12 } })) as typeof fetch
+    assert.equal((await fetchCreatorLandingSummary(supabase)).summary.storyCount, 12)
   } finally {
     globalThis.fetch = originalFetch
     if (originalApiBase === undefined) delete process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL
@@ -337,27 +373,29 @@ test('landing summary uses the bearer identity, validates nullable counts, and n
   }
 })
 
-test('loads the creator queue from the authoritative API and hydrates request state', async () => {
+test('accepts canonical seven-field stories and authoritative creator without extra metadata', async () => {
   const originalFetch = globalThis.fetch
   const originalApiBase = process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL
   process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL = 'https://api.postround.test'
   globalThis.fetch = (async () => Response.json({
     ok: true,
-    stories: [{
-      id: 'shared-story', story_type: 'personal_best', headline: 'Shared headline',
-      summary: 'Shared summary', story_data: {}, round_id: 'shared-round',
-      status: 'shared', permission_status: 'requested',
-      significance_score: 73, created_at: '2026-09-10T12:00:00Z',
-    }],
+    creator: studioCreator,
+    stories: [minimalStory],
   })) as typeof fetch
   const supabase = { auth: { async getSession() {
     return { data: { session: { access_token: 'test-access-token' } }, error: null }
   } } } as unknown as SupabaseClient
   try {
-    const stories = await fetchPermissionedCreatorStories(supabase, 'creator-1')
-    assert.equal(stories[0]?.permissionStatus, 'requested')
-    assert.equal(stories[0]?.significanceScore, 73)
-    assert.equal(stories[0]?.createdAt, '2026-09-10T12:00:00Z')
+    const { stories, creator } = await fetchPermissionedCreatorStories(supabase)
+    assert.deepEqual(creator, studioCreator)
+    assert.equal(stories[0]?.headline, 'Hit every fairway — 6 of 6')
+    assert.equal(stories[0]?.createdAt, '2020-01-01T00:00:00Z')
+    assert.equal('permissionStatus' in stories[0], false)
+    assert.equal('significanceScore' in stories[0], false)
+    globalThis.fetch = (async () => Response.json({
+      ok: true, creator: studioCreator, stories: [{ ...minimalStory, significance_score: 78 }],
+    })) as typeof fetch
+    assert.equal((await fetchPermissionedCreatorStories(supabase)).stories[0].significanceScore, 78)
   } finally {
     globalThis.fetch = originalFetch
     if (originalApiBase === undefined) delete process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL
@@ -365,32 +403,79 @@ test('loads the creator queue from the authoritative API and hydrates request st
   }
 })
 
-test('rejects missing or malformed candidate filtering metadata rather than guessing from story data', async () => {
+test('rejects invalid required candidate fields without guessing', async () => {
   const originalFetch = globalThis.fetch
   const originalApiBase = process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL
   process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL = 'https://api.postround.test'
   const supabase = { auth: { async getSession() {
     return { data: { session: { access_token: 'test-access-token' } }, error: null }
   } } } as unknown as SupabaseClient
-  const baseStory = {
-    id: 'story-1', story_type: 'round_recap', headline: 'Story',
-    summary: 'Summary', story_data: { round_date: '2026-09-30', significance_score: 99 },
-    round_id: 'round-1', status: 'shared', permission_status: 'pending',
-    significance_score: 73, created_at: '2026-09-30T12:00:00Z',
-  }
+  const baseStory = minimalStory
   try {
     for (const invalid of [
-      { significance_score: undefined },
-      { significance_score: '73' },
-      { significance_score: Number.NaN },
+      { headline: undefined },
+      { round_id: 'not-a-uuid' },
+      { summary: null },
+      { status: 'draft' },
+      { significance_score: null },
+      { significance_score: '78' },
+      { significance_score: -1 },
+      { significance_score: 101 },
+      { significance_score: 78.5 },
       { created_at: undefined },
       { created_at: 'not a date' },
     ]) {
       globalThis.fetch = (async () => Response.json({
-        ok: true, stories: [{ ...baseStory, ...invalid }],
+        ok: true, creator: studioCreator, stories: [{ ...baseStory, ...invalid }],
       })) as typeof fetch
-      await assert.rejects(fetchPermissionedCreatorStories(supabase, 'creator-1'), CreatorStoryApiError)
+      await assert.rejects(fetchPermissionedCreatorStories(supabase), CreatorStoryApiError)
     }
+  } finally {
+    globalThis.fetch = originalFetch
+    if (originalApiBase === undefined) delete process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL
+    else process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL = originalApiBase
+  }
+})
+
+test('validated empty is the only empty list; errors and private responses never become empty', async () => {
+  const originalFetch = globalThis.fetch
+  const originalApiBase = process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL
+  process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL = 'https://api.postround.test'
+  const supabase = { auth: { async getSession() {
+    return { data: { session: { access_token: 'synthetic-token' } }, error: null }
+  } } } as unknown as SupabaseClient
+  try {
+    globalThis.fetch = (async () => Response.json({ ok: true, creator: studioCreator, stories: [] })) as typeof fetch
+    assert.deepEqual((await fetchPermissionedCreatorStories(supabase)).stories, [])
+    for (const payload of [
+      {}, { ok: true, stories: [] }, { ok: false, creator: studioCreator, stories: [] },
+      { ok: true, creator: { ...studioCreator, capabilities: {} }, stories: [] },
+      { ok: true, creator: studioCreator, stories: null },
+    ]) {
+      globalThis.fetch = (async () => Response.json(payload)) as typeof fetch
+      await assert.rejects(fetchPermissionedCreatorStories(supabase), CreatorStoryApiError)
+      await assert.rejects(fetchCreatorLandingSummary(supabase), CreatorStoryApiError)
+    }
+    for (const status of [401, 403, 404, 500]) {
+      globalThis.fetch = (async () => Response.json({ error: 'PRIVATE credential diagnostic' }, { status })) as typeof fetch
+      await assert.rejects(fetchPermissionedCreatorStories(supabase), (e: unknown) =>
+        e instanceof CreatorStoryApiError && e.status === status && !e.message.includes('PRIVATE'))
+    }
+    for (const response of [
+      new Response('<html>routing</html>', { headers: { 'Content-Type': 'text/html' } }),
+      new Response('{', { headers: { 'Content-Type': 'application/json' } }),
+      Response.json({ ok: true, creator: studioCreator, stories: [] }, { status: 201 }),
+    ]) {
+      globalThis.fetch = (async () => response.clone()) as typeof fetch
+      await assert.rejects(fetchPermissionedCreatorStories(supabase), CreatorStoryApiError)
+      await assert.rejects(fetchCreatorLandingSummary(supabase), CreatorStoryApiError)
+    }
+    globalThis.fetch = (async () => { throw new TypeError('Network unavailable') }) as typeof fetch
+    await assert.rejects(fetchPermissionedCreatorStories(supabase))
+    const abort = new AbortController()
+    abort.abort()
+    await assert.rejects(fetchPermissionedCreatorStories(supabase, { signal: abort.signal }),
+      (e: unknown) => e instanceof Error && e.name === 'AbortError')
   } finally {
     globalThis.fetch = originalFetch
     if (originalApiBase === undefined) delete process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL
@@ -546,7 +631,7 @@ test('a failed generation can be retried without mutating the source story', asy
   }
 })
 
-test('preserves the safe backend stage on generation failures', async () => {
+test('retains failure status without echoing private backend diagnostics', async () => {
   const originalFetch = globalThis.fetch
   const originalApiBase = process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL
   process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL = 'https://api.postround.test'
@@ -570,7 +655,8 @@ test('preserves the safe backend stage on generation failures', async () => {
       generateStoryCandidates(supabase, { story_id: 'story-1', creator_id: 'creator-1' }),
       (error: unknown) => error instanceof CreatorStoryApiError
         && error.status === 502
-        && error.stage === 'round_scorecard_lookup',
+        && error.stage === null
+        && error.message === 'Content generation could not be completed.',
     )
   } finally {
     globalThis.fetch = originalFetch
@@ -789,8 +875,8 @@ test('concurrent story retrieval stays isolated and an aborted stale request can
       failed,
       (error: unknown) => error instanceof CreatorStoryApiError
         && error.status === 403
-        && error.stage === 'authorization'
-        && error.message === 'Story access changed.',
+        && error.stage === null
+        && error.message === 'Generated content could not be loaded.',
     )
     assert.equal((await successful).story_id, 'story-success')
     assert.deepEqual(requestedStories.sort(), ['story-failed', 'story-success'])

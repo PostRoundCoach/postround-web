@@ -1,10 +1,11 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type {
   CreatorProfile,
+  StudioCreator,
+  CreatorStoriesResponse,
   CreatorStory,
   CreatorStoryRecord,
   CreatorContentIdea,
-  PermissionedCreatorStoryRecord,
   GenerateStoryCandidatesRequest,
   GenerateStoryCandidatesResponse,
   GenerateStoryDraftRequest,
@@ -35,16 +36,6 @@ const CREATOR_PROFILE_SELECT = `
     handle,
     profile_url
   )
-`
-
-const CREATOR_STORY_SELECT = `
-  id,
-  story_type,
-  headline,
-  summary,
-  story_data,
-  round_id,
-  status
 `
 
 export class CreatorStoryIntegrationError extends Error {
@@ -168,31 +159,28 @@ function creatorStoriesUrl(): string {
 }
 
 export interface CreatorLandingSummary {
-  follower_count: number | null
-  available_story_count: number | null
+  creator: StudioCreator
+  summary: { storyCount: number }
 }
 
 export async function fetchCreatorLandingSummary(
   supabase: SupabaseClient,
+  options: { signal?: AbortSignal } = {},
 ): Promise<CreatorLandingSummary> {
-  const accessToken = await authenticatedAccessToken(supabase)
+  const accessToken = await authenticatedAccessToken(supabase, options)
   const response = await fetch(`${contentApiBase()}/api/content/creator-summary`, {
     headers: { Authorization: `Bearer ${accessToken}` },
     cache: 'no-store',
+    signal: options.signal,
   })
-  if (!response.ok) throw await apiFailure(response, 'The creator summary could not be loaded.')
-  const result = asObject(await response.json())
-  const validCount = (value: unknown) =>
-    value === null || (typeof value === 'number' && Number.isSafeInteger(value) && value >= 0)
-  if (result?.ok !== true || !validCount(result.follower_count)
-    || !validCount(result.available_story_count)
-    || result.follower_count === undefined || result.available_story_count === undefined) {
+  const result = await readStudioResponse(response)
+  const creator = parseStudioCreator(result.creator)
+  const summary = asObject(result.summary)
+  if (!creator || typeof summary?.storyCount !== 'number'
+    || !Number.isSafeInteger(summary.storyCount) || summary.storyCount < 0) {
     throw new CreatorStoryApiError(500, 'The creator summary could not be loaded.')
   }
-  return {
-    follower_count: result.follower_count as number | null,
-    available_story_count: result.available_story_count as number | null,
-  }
+  return { creator, summary: { storyCount: summary.storyCount } }
 }
 
 function storyDraftUrl(): string {
@@ -217,40 +205,8 @@ function asObject(value: unknown): Record<string, unknown> | null {
     : null
 }
 
-function isStoryPermissionStatus(value: unknown): value is CreatorStory['permissionStatus'] {
+function isStoryPermissionStatus(value: unknown): value is import('./contracts').StoryPermissionStatus {
   return value === 'pending' || value === 'requested' || value === 'approved'
-}
-
-function firstString(
-  data: Record<string, unknown> | null,
-  keys: string[],
-): string | null {
-  if (!data) return null
-
-  for (const key of keys) {
-    const value = data[key]
-    if (typeof value === 'string' && value.trim()) return value.trim()
-  }
-
-  return null
-}
-
-function stringList(
-  data: Record<string, unknown> | null,
-  keys: string[],
-): string[] {
-  if (!data) return []
-
-  for (const key of keys) {
-    const value = data[key]
-    if (Array.isArray(value)) {
-      return value.filter(
-        (item): item is string => typeof item === 'string' && item.trim().length > 0,
-      )
-    }
-  }
-
-  return []
 }
 
 function isIntOrNull(v: unknown): v is number | null {
@@ -334,8 +290,8 @@ function parseRoundContract(value: unknown): RoundWebContract | null {
     const permission = asObject(creator.permission)
     const candidate = asObject(creator.candidate)
     if (creator.permissionState !== 'granted' || !permission || !candidate
-      || !isStringOrNull(permission.granted_at) || !isStringOrNull(permission.revoked_at)
-      || !isStringOrNull(permission.approval_requested_at)
+      || !isTimestampOrNull(permission.granted_at) || !isTimestampOrNull(permission.revoked_at)
+      || !isTimestampOrNull(permission.approval_requested_at)
       || typeof candidate.id !== 'string' || typeof candidate.story_type !== 'string'
       || typeof candidate.headline !== 'string' || typeof candidate.summary !== 'string'
       || (candidate.status !== 'offered' && candidate.status !== 'shared')) return null
@@ -524,6 +480,7 @@ async function authenticatedAccessToken(
 ): Promise<string> {
   const { data: { session }, error: sessionError } = await supabase.auth.getSession()
   const accessToken = session?.access_token
+  if (options.signal?.aborted) throw abortError()
 
   if (sessionError) {
     throw new CreatorStoryApiError(401)
@@ -564,24 +521,57 @@ async function authenticatedAccessToken(
 }
 
 async function apiFailure(response: Response, fallback: string): Promise<CreatorStoryApiError> {
-  let message = fallback
-  let stage: string | null = null
-  try {
-    const payload: unknown = await response.json()
-    const value = asObject(payload)
-    if (typeof value?.error === 'string' && value.error.trim()) message = value.error
-    if (typeof value?.stage === 'string' && value.stage.trim()) stage = value.stage
-  } catch {
-    // A non-JSON upstream failure still retains its HTTP status and safe fallback.
+  // Never echo upstream bodies: they may contain private diagnostics or credentials.
+  return new CreatorStoryApiError(response.status, fallback)
+}
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+function isTimestamp(value: unknown): value is string {
+  return typeof value === 'string'
+    && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(value)
+    && Number.isFinite(Date.parse(value))
+}
+function isTimestampOrNull(value: unknown): value is string | null {
+  return value === null || isTimestamp(value)
+}
+function parseStudioCreator(value: unknown): StudioCreator | null {
+  const creator = asObject(value)
+  const capabilities = asObject(creator?.capabilities)
+  if (!creator || typeof creator.id !== 'string' || !UUID.test(creator.id)
+    || typeof creator.name !== 'string'
+    || typeof capabilities?.advancedCreator !== 'boolean'
+    || typeof capabilities.creatorVoice !== 'boolean') return null
+  return { id: creator.id, name: creator.name, capabilities: {
+    advancedCreator: capabilities.advancedCreator, creatorVoice: capabilities.creatorVoice,
+  } }
+}
+
+async function readStudioResponse(response: Response): Promise<Record<string, unknown>> {
+  if (response.status !== 200) throw await apiFailure(response, 'Creator data could not be loaded.')
+  if (!response.headers.get('content-type')?.includes('application/json')) {
+    throw new CreatorStoryApiError(404, 'The API returned an unexpected page. Check API origin and routing.')
   }
-  return new CreatorStoryApiError(response.status, message, stage)
+  let result: Record<string, unknown> | null
+  try { result = asObject(await response.json()) } catch {
+    throw new CreatorStoryApiError(500, 'The API returned invalid JSON.')
+  }
+  if (result?.ok !== true) throw new CreatorStoryApiError(500, 'The API returned an invalid creator response.')
+  return result
+}
+
+export function creatorReadFailure(error: unknown): string {
+  if (error instanceof CreatorStoryApiError) {
+    if (error.status === 401) return 'Your session has expired. Sign in again to continue.'
+    if (error.status === 403) return 'Creator access is unavailable or has been revoked for this account.'
+    if (error.status === 404) return 'The creator API route is unavailable. Check the configured API origin and routing.'
+  }
+  if (error instanceof CreatorStoryConfigurationError) return 'The creator API origin is not configured correctly.'
+  return 'Creator data could not be loaded. Please try again.'
 }
 
 export function toCreatorStory(
   record: CreatorStoryRecord,
-  permissionStatus: CreatorStory['permissionStatus'] = 'pending',
 ): CreatorStory {
-  const storyData = asObject(record.story_data)
 
   return {
     id: record.id,
@@ -590,21 +580,8 @@ export function toCreatorStory(
     headline: record.headline,
     summary: record.summary,
     status: record.status,
-    roundDate: firstString(storyData, ['round_date', 'roundDate', 'played_at', 'date']),
-    course: firstString(storyData, ['course_name', 'courseName', 'course']),
-    golferDisplayName: firstString(storyData, [
-      'golfer_display_name',
-      'golferDisplayName',
-      'display_name',
-    ]),
-    supportingFacts: stringList(storyData, [
-      'supporting_facts',
-      'supportingFacts',
-      'facts',
-    ]),
-    permissionStatus,
-    significanceScore: record.significance_score,
     createdAt: record.created_at,
+    ...(record.significance_score === undefined ? {} : { significanceScore: record.significance_score }),
   }
 }
 
@@ -618,10 +595,9 @@ export async function fetchRoundContract(
     method: 'GET',
     headers: { Authorization: `Bearer ${accessToken}` },
     signal: options.signal,
+    cache: 'no-store',
   })
-  if (!response.ok) throw await apiFailure(response, 'The round could not be loaded.')
-  const payload: unknown = await response.json()
-  const result = asObject(payload)
+  const result = await readStudioResponse(response)
   const contract = parseRoundContract(result?.contract)
   if (result?.ok !== true || !contract) {
     throw new CreatorStoryApiError(500, 'The round could not be loaded.')
@@ -650,31 +626,32 @@ export async function fetchOwnedActiveCreatorProfile(
 
 export async function fetchPermissionedCreatorStories(
   supabase: SupabaseClient,
-  _creatorId: string,
-): Promise<CreatorStory[]> {
-  const accessToken = await authenticatedAccessToken(supabase)
+  options: { signal?: AbortSignal } = {},
+): Promise<CreatorStoriesResponse> {
+  const accessToken = await authenticatedAccessToken(supabase, options)
   const response = await fetch(creatorStoriesUrl(), {
     headers: { Authorization: `Bearer ${accessToken}` },
+    signal: options.signal,
+    cache: 'no-store',
   })
-  if (!response.ok) throw await apiFailure(response, 'The creator workspace could not be loaded.')
-  const payload: unknown = await response.json()
-  const result = asObject(payload)
-  if (result?.ok !== true || !Array.isArray(result.stories)) {
+  const result = await readStudioResponse(response)
+  const creator = parseStudioCreator(result.creator)
+  if (!creator || !Array.isArray(result.stories)) {
     throw new CreatorStoryApiError(500, 'The creator workspace could not be loaded.')
   }
-  return result.stories.map((value) => {
+  const stories = result.stories.map((value) => {
     const record = asObject(value)
-    if (!record || !isStoryPermissionStatus(record.permission_status)
-      || typeof record.significance_score !== 'number'
-      || !Number.isFinite(record.significance_score)
-      || typeof record.created_at !== 'string'
-      || !record.created_at.trim()
-      || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(record.created_at)
-      || !Number.isFinite(Date.parse(record.created_at))) {
+    if (!record || ['id', 'round_id', 'story_type', 'headline', 'summary'].some((key) => typeof record[key] !== 'string')
+      || !UUID.test(record.id as string) || !UUID.test(record.round_id as string)
+      || (record.status !== 'offered' && record.status !== 'shared')
+      || (record.significance_score !== undefined && (typeof record.significance_score !== 'number'
+        || !Number.isInteger(record.significance_score) || record.significance_score < 0 || record.significance_score > 100))
+      || !isTimestamp(record.created_at)) {
       throw new CreatorStoryApiError(500, 'The creator workspace could not be loaded.')
     }
-    return toCreatorStory(record as unknown as CreatorStoryRecord, record.permission_status)
+    return toCreatorStory(record as unknown as CreatorStoryRecord)
   })
+  return { ok: true, creator, stories }
 }
 
 export async function generateStoryCandidates(
