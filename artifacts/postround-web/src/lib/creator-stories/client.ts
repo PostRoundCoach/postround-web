@@ -229,16 +229,20 @@ function parseRoundScorecard(value: unknown): RoundScorecardEntry[] | null {
     const hole = asObject(item)
     if (!hole || typeof hole.hole !== 'number' || !Number.isInteger(hole.hole) || hole.hole <= previous) return null
     previous = hole.hole
+    // Older authorized detail responses omit this nullable presentation field.
+    // Only absence is compatible; a supplied malformed value must still fail.
+    const voiceTranscript = Object.prototype.hasOwnProperty.call(hole, 'voice_transcript')
+      ? hole.voice_transcript : null
     if (!isIntOrNull(hole.par) || !isIntOrNull(hole.score) || !isIntOrNull(hole.putts)
       || !isIntOrNull(hole.chips) || !isIntOrNull(hole.penalties)
       || !isFairway(hole.fairway) || !isGir(hole.gir)
       || !isBooleanOrNull(hole.bunker) || !isBooleanOrNull(hole.sand_save)
-      || !isStringOrNull(hole.player_note) || !isStringOrNull(hole.voice_transcript)) return null
+      || !isStringOrNull(hole.player_note) || !isStringOrNull(voiceTranscript)) return null
     result.push({
       hole: hole.hole, par: hole.par, score: hole.score, fairway: hole.fairway,
       gir: hole.gir, putts: hole.putts, chips: hole.chips, bunker: hole.bunker,
       sand_save: hole.sand_save, penalties: hole.penalties, player_note: hole.player_note,
-      voice_transcript: hole.voice_transcript,
+      voice_transcript: voiceTranscript,
     })
   }
   return result
@@ -254,8 +258,12 @@ const ROUND_HIGHLIGHT_KEYS = [
 
 function parseRoundHighlights(value: unknown): RoundHighlights | null {
   const object = asObject(value)
-  if (!object || ROUND_HIGHLIGHT_KEYS.some((key) => !isIntOrNull(object[key]))) return null
-  return Object.fromEntries(ROUND_HIGHLIGHT_KEYS.map((key) => [key, object[key]])) as unknown as RoundHighlights
+  if (!object) return null
+  // Do not derive a substitute or relax any other required highlight.
+  const normalized = Object.prototype.hasOwnProperty.call(object, 'score_to_par')
+    ? object : { ...object, score_to_par: null }
+  if (ROUND_HIGHLIGHT_KEYS.some((key) => !isIntOrNull(normalized[key]))) return null
+  return Object.fromEntries(ROUND_HIGHLIGHT_KEYS.map((key) => [key, normalized[key]])) as unknown as RoundHighlights
 }
 
 function parseRoundContentIdea(value: unknown): RoundContentIdea | null {
