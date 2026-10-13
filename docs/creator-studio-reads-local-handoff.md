@@ -1,5 +1,10 @@
 # Creator Studio reads — local implementation handoff
 
+> Subsequent consumer work, approved optional relevance-score extension, and
+> current source/release limitations are documented in
+> [creator-studio-consumer-handoff.md](creator-studio-consumer-handoff.md).
+> This original handoff's seven-field response describes its earlier scope.
+
 ## Source and integration
 
 - Repository: `https://github.com/PostRoundCoach/postround-web.git`.

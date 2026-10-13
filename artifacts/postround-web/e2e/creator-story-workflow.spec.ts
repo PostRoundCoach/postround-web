@@ -6,6 +6,7 @@ test.setTimeout(90_000)
 const storyId = '20000000-0000-4000-8000-000000000001'
 const secondStoryId = '20000000-0000-4000-8000-000000000002'
 const roundId = '30000000-0000-4000-8000-000000000001'
+const secondRoundId = '30000000-0000-4000-8000-000000000002'
 const candidateId = '40000000-0000-4000-8000-000000000001'
 const candidate = {
   id: candidateId, story_id: storyId, category: 'Round Analysis',
@@ -14,6 +15,12 @@ const candidate = {
 }
 
 async function signIn(page: import('@playwright/test').Page) {
+  await page.route(`**/api/content/round/${secondRoundId}`, async (route) => {
+    const response = await page.request.get(`http://127.0.0.1:54321/api/content/round/${roundId}`, { headers: route.request().headers() })
+    const body = await response.json()
+    body.contract.creatorContentStory.candidate.id = secondStoryId
+    await route.fulfill({ json: body })
+  })
   await page.goto('/login')
   await page.getByLabel('Email address').fill('creator@example.test')
   await page.getByLabel('Password', { exact: true }).fill('fixture-password')
@@ -27,7 +34,7 @@ async function signOut(page: import('@playwright/test').Page) {
   await expect(page).toHaveURL(/\/login$/)
 }
 
-test('content loads automatically, shows retrieval failure, then retries', async ({ page }) => {
+test('content loads on demand, shows retrieval failure, then retries', async ({ page }) => {
   let attempts = 0
   await page.route(`**/api/content/round/${roundId}`, async (route) => {
     attempts += 1
@@ -40,6 +47,7 @@ test('content loads automatically, shows retrieval failure, then retries', async
   })
   await signIn(page)
   await page.goto('/creator')
+  await page.getByTestId(`button-toggle-story-${storyId}`).click()
   await expect(page.getByTestId(`status-ideas-loading-${storyId}`)).toBeVisible()
   await expect(page.getByTestId(`status-ideas-error-${storyId}`)).toBeVisible()
   expect(attempts).toBe(1)
@@ -48,10 +56,10 @@ test('content loads automatically, shows retrieval failure, then retries', async
   expect(attempts).toBe(2)
 })
 
-test('stories and their angles are visible on load and refresh without extra retrievals', async ({ page }) => {
+test('candidate cards render before on-demand round details and survive reload', async ({ page }) => {
   let roundRequests = 0
   page.on('request', (request) => {
-    if (new URL(request.url()).pathname === `/api/content/round/${roundId}`) roundRequests += 1
+    if (new URL(request.url()).pathname.startsWith('/api/content/round/')) roundRequests += 1
   })
   await page.route('**/api/content/stories', async (route) => {
     const response = await route.fetch()
@@ -59,6 +67,7 @@ test('stories and their angles are visible on load and refresh without extra ret
     body.stories.push({
       ...body.stories[0],
       id: secondStoryId,
+      round_id: secondRoundId,
       story_id: secondStoryId,
       headline: 'Another shared round',
       summary: 'A second fixture story.',
@@ -71,7 +80,9 @@ test('stories and their angles are visible on load and refresh without extra ret
   const second = page.getByTestId(`card-story-${secondStoryId}`)
   await expect(first.getByTestId(`text-story-headline-${storyId}`)).toBeVisible()
   await expect(second.getByTestId(`text-story-headline-${secondStoryId}`)).toBeVisible()
-  await expect(first.getByText('Supporting details')).toBeVisible()
+  expect(roundRequests).toBe(0)
+  await first.getByRole('button', { name: 'Expand story' }).click()
+  await second.getByRole('button', { name: 'Expand story' }).click()
   await expect(first.getByTestId(`card-story-candidate-${candidateId}`)).toBeVisible()
   await expect(second.getByTestId(`card-story-candidate-${candidateId}`)).toBeVisible()
   await expect(first.getByTestId(`badge-story-candidate-archetype-${candidateId}`)).toHaveText('Round Analysis')
@@ -88,6 +99,8 @@ test('stories and their angles are visible on load and refresh without extra ret
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true)
   }
   await page.reload()
+  await first.getByRole('button', { name: 'Expand story' }).click()
+  await second.getByRole('button', { name: 'Expand story' }).click()
   await expect(first.getByTestId(`card-story-candidate-${candidateId}`)).toBeVisible()
   await expect(second.getByTestId(`card-story-candidate-${candidateId}`)).toBeVisible()
   await expect.poll(() => roundRequests).toBe(4)
@@ -97,15 +110,15 @@ for (const status of ['requested', 'approved'] as const) {
   test(`${status} stories toggle independently and retain their loaded content`, async ({ page }) => {
     let roundRequests = 0
     page.on('request', (request) => {
-      if (new URL(request.url()).pathname === `/api/content/round/${roundId}`) roundRequests += 1
+      if (new URL(request.url()).pathname.startsWith('/api/content/round/')) roundRequests += 1
     })
     await page.route('**/api/content/stories', async (route) => {
       const response = await route.fetch()
       const body = await response.json()
-      body.stories[0].permission_status = status
       body.stories.push({
         ...body.stories[0],
         id: secondStoryId,
+        round_id: secondRoundId,
         story_id: secondStoryId,
         headline: 'Another shared round',
       })
@@ -130,7 +143,7 @@ for (const status of ['requested', 'approved'] as const) {
     await expect(first.locator(`#story-details-${storyId}`)).toBeHidden()
     await expect(secondToggle).toHaveAttribute('aria-expanded', 'false')
     await expect(first.getByTestId(`text-story-headline-${storyId}`)).toBeVisible()
-    await expect.poll(() => roundRequests).toBe(2)
+    expect(roundRequests).toBe(0)
 
     await firstToggle.click()
     await expect(first.getByRole('button', { name: 'Collapse story' })).toHaveAttribute('aria-expanded', 'true')
@@ -190,6 +203,7 @@ test('Story and Reflection copy only displayed content and report clipboard fail
   })
   await signIn(page)
   await page.goto('/creator')
+  await page.getByTestId(`button-toggle-story-${storyId}`).click()
   const storyPanel = page.getByTestId(`card-story-candidate-${candidateId}`)
   const reflectionPanel = page.getByTestId(`section-coaching-reflection-${storyId}`)
   await expect(storyPanel).toContainText('Patience at the turn')
@@ -214,6 +228,7 @@ test('Story and Reflection copy only displayed content and report clipboard fail
 
   reflectionFallback = true
   await page.reload()
+  await page.getByTestId(`button-toggle-story-${storyId}`).click()
   await expect(reflectionPanel).toContainText('Fallback reflection script.')
   await page.getByTestId(`button-copy-reflection-${storyId}`).click()
   expect(await page.evaluate(() => (window as typeof window & { __copied: string[] }).__copied)).toEqual([
@@ -234,6 +249,7 @@ test('unavailable or empty content never offers a misleading Copy action', async
   })
   await signIn(page)
   await page.goto('/creator')
+  await page.getByTestId(`button-toggle-story-${storyId}`).click()
   await expect(page.getByTestId(`status-candidates-empty-${storyId}`)).toBeVisible()
   await expect(page.getByTestId(`button-copy-story-${candidateId}`)).toHaveCount(0)
   await expect(page.getByTestId(`button-copy-reflection-${storyId}`)).toHaveCount(0)
@@ -266,19 +282,15 @@ test('approved story downloads independent transparent overlays and the existing
     const response = await route.fetch()
     const body = await response.json()
     body.contract.creatorContentStory.permission.granted_at = '2026-01-03T00:00:00.000Z'
+    body.contract.creatorContentStory.permission.approval_requested_at = '2026-01-02T00:00:00.000Z'
     body.contract.round.player_display_name = 'BirdieDog'
     body.contract.round.played_at = '2042-11-29'
     body.contract.roundBuddyMessages = [{ content: 'An assistant message that must never be exported.' }]
     await route.fulfill({ response, json: body })
   })
-  await page.route('**/api/content/stories', async (route) => {
-    const response = await route.fetch()
-    const body = await response.json()
-    body.stories[0].story_data.round_date = '2042-11-29'
-    await route.fulfill({ response, json: body })
-  })
   await signIn(page)
   await page.goto('/creator')
+  await page.getByTestId(`button-toggle-story-${storyId}`).click()
   await page.getByTestId(`button-download-highlights-${storyId}`).waitFor()
   await expect(page.getByTestId(`card-story-${storyId}`)).toContainText('2042-11-29')
   const scorecardPreview = page.getByTestId(`preview-share-scorecard-${storyId}`)
@@ -353,6 +365,7 @@ test('unapproved and unattributed stories offer no note downloads and do not enc
   })
   await signIn(page)
   await page.goto('/creator')
+  await page.getByTestId(`button-toggle-story-${storyId}`).click()
   await page.getByTestId(`button-download-highlights-${storyId}`).waitFor()
   expect(await page.evaluate(() => (window as typeof window & { __encodes: number }).__encodes)).toBe(0)
   await expect(page.getByTestId(`button-download-highlights-${storyId}`)).toBeDisabled()
@@ -370,6 +383,7 @@ test('player approval gates notes and an oversized transcript reports an individ
   })
   await signIn(page)
   await page.goto('/creator')
+  await page.getByTestId(`button-toggle-story-${storyId}`).click()
   const note = page.getByTestId(`button-download-note-7-${storyId}`)
   await expect(note).toBeDisabled()
   await expect(page.getByTestId(`button-download-note-1-${storyId}`)).toBeDisabled()
@@ -379,10 +393,12 @@ test('player approval gates notes and an oversized transcript reports an individ
     const body = await response.json()
     body.contract.round.player_display_name = 'BirdieDog'
     body.contract.creatorContentStory.permission.granted_at = '2026-01-03T00:00:00.000Z'
+    body.contract.creatorContentStory.permission.approval_requested_at = '2026-01-02T00:00:00.000Z'
     body.contract.scorecard[6].voice_transcript = 'This is much too long to render. '.repeat(500)
     await route.fulfill({ response, json: body })
   })
   await page.reload()
+  await page.getByTestId(`button-toggle-story-${storyId}`).click()
   await expect(note).toBeEnabled()
   await note.click()
   await expect(page.getByTestId(`status-note-7-download-error-${storyId}`)).toContainText('too long to fit legibly')
@@ -393,6 +409,7 @@ test('player approval gates notes and an oversized transcript reports an individ
 test('available content refresh is read-only, in place, guarded, and recoverable', async ({ page }) => {
   await signIn(page)
   await page.goto('/creator')
+  await page.getByTestId(`button-toggle-story-${storyId}`).click()
   const first = page.getByTestId(`card-story-${storyId}`)
   await expect(first).toBeVisible()
   await expect(first.getByTestId(`card-story-candidate-${candidateId}`)).toBeVisible()
@@ -448,48 +465,45 @@ test('available content refresh is read-only, in place, guarded, and recoverable
   expect(contentRequests.every((request) => request.startsWith('GET '))).toBe(true)
 })
 
-test('queue filters update displayed stories without fetching and survive refresh', async ({ page }) => {
+test('optional date filter uses API creation timestamps, defaults all-time and survives refresh', async ({ page }) => {
   let queueRequests = 0
   await page.route('**/api/content/stories', async (route) => {
     queueRequests++
     const response = await route.fetch()
     const body = await response.json()
-    body.stories[0].significance_score = 73
     body.stories[0].created_at = new Date().toISOString()
     body.stories.push({
       ...body.stories[0],
       id: secondStoryId,
       story_id: secondStoryId,
       headline: 'Older significant story',
-      significance_score: 85,
       created_at: new Date(Date.now() - 20 * 86400_000).toISOString(),
     })
     await route.fulfill({ response, json: body })
   })
   await signIn(page)
   await page.goto('/creator')
-  const slider = page.getByRole('slider', { name: /Minimum significance/ })
+  const slider = page.getByRole('slider', { name: /Minimum relevance/ })
   const dates = page.getByRole('combobox', { name: 'Created within' })
-  await expect(slider).toHaveValue('70')
-  await expect(dates).toHaveValue('7')
+  await expect(slider).toBeDisabled()
+  await expect(page.getByRole('checkbox', { name: 'Filter by relevance' })).not.toBeChecked()
+  await expect(dates).toHaveValue('all')
   await expect(page.getByTestId(`card-story-${storyId}`)).toBeVisible()
+  await expect(page.getByTestId(`card-story-${secondStoryId}`)).toBeVisible()
+  await dates.selectOption('7')
   await expect(page.getByTestId(`card-story-${secondStoryId}`)).toHaveCount(0)
-  await slider.fill('80')
-  await expect(page.getByTestId('status-story-queue-filtered-empty')).toBeVisible()
   await expect(page.getByTestId('status-story-queue-empty')).toHaveCount(0)
   await dates.selectOption('30')
   await expect(page.getByTestId(`card-story-${secondStoryId}`)).toBeVisible()
-  await expect(page.getByTestId(`card-story-${storyId}`)).toHaveCount(0)
+  await expect(page.getByTestId(`card-story-${storyId}`)).toBeVisible()
   expect(queueRequests).toBe(1)
   await page.getByTestId('button-refresh-available-content').click()
   await expect(page.getByTestId('button-refresh-available-content')).toBeEnabled()
-  await expect(slider).toHaveValue('80')
+  await expect(slider).toBeDisabled()
   await expect(dates).toHaveValue('30')
   await expect(page.getByTestId(`card-story-${secondStoryId}`)).toBeVisible()
   expect(queueRequests).toBe(2)
   await dates.selectOption('today')
-  await expect(page.getByTestId('status-story-queue-filtered-empty')).toBeVisible()
-  await slider.fill('70')
   await expect(page.getByTestId(`card-story-${storyId}`)).toBeVisible()
   expect(queueRequests).toBe(2)
 })
@@ -507,6 +521,7 @@ test('creator story queue persists candidates, approval, and dismissal state', a
   await page.goto('/creator')
 
   await expect(page.getByTestId(`card-story-${storyId}`)).toBeVisible()
+  await page.getByTestId(`button-toggle-story-${storyId}`).click()
   await page.getByTestId(`card-story-candidate-${candidateId}`).waitFor({ state: 'attached' })
   await expect(page.getByTestId(`card-story-candidate-${candidateId}`)).toBeVisible()
   expect(contentRequests).toContainEqual({ method: 'GET', pathname: '/api/content/stories' })

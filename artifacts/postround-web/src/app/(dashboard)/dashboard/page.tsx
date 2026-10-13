@@ -4,7 +4,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { SignOutButton } from '@/components/auth/SignOutButton'
 import { CalendarDays, TrendingUp, Flag } from 'lucide-react'
 import { CreatorContentTile } from '@/components/dashboard/CreatorContentTile'
-import { fetchCreatorLandingSummary } from '@/lib/creator-stories/client'
+import { creatorReadFailure, fetchCreatorLandingSummary } from '@/lib/creator-stories/client'
 import { getDashboardCreatorProfile } from '@/lib/creator-stories/server-profile'
 import { PortalTransitionReady } from '@/components/portal/PortalTransition'
 
@@ -55,11 +55,12 @@ export default async function DashboardPage({
 
   const creatorProfile = await getDashboardCreatorProfile()
   let creatorSummary = null
+  let creatorSummaryError: string | undefined
   if (creatorProfile) {
     try {
       creatorSummary = await fetchCreatorLandingSummary(supabase)
-    } catch {
-      // The entry point remains available even when either aggregate is unavailable.
+    } catch (error) {
+      creatorSummaryError = creatorReadFailure(error)
     }
   }
 
@@ -137,7 +138,7 @@ export default async function DashboardPage({
         </div>
       </div>
 
-      {creatorProfile && <CreatorContentTile summary={creatorSummary} />}
+      {creatorProfile && <CreatorContentTile summary={creatorSummary} error={creatorSummaryError} sessionId={user.id} />}
 
       {/* Dashboard Grid */}
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">

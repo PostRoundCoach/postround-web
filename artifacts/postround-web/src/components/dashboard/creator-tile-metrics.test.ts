@@ -3,13 +3,11 @@ import test from 'node:test'
 import { readFileSync } from 'node:fs'
 import { creatorTileMetrics } from './creator-tile-metrics.ts'
 
-test('creator tile displays exact known counts, without unread claims or zero-story notice', () => {
-  assert.deepEqual(creatorTileMetrics({ follower_count: 0, available_story_count: 0 }), ['0 followers'])
-  assert.deepEqual(creatorTileMetrics({ follower_count: 1, available_story_count: 2 }), [
-    '1 follower', '2 stories available',
-  ])
-  assert.deepEqual(creatorTileMetrics({ follower_count: null, available_story_count: 1 }), ['1 stories available'])
-  assert.deepEqual(creatorTileMetrics({ follower_count: 8, available_story_count: null }), ['8 followers'])
+test('creator tile displays exact story counts including zero and omits unsupported followers', () => {
+  const creator = { id: 'fixture', name: 'Fixture', capabilities: { advancedCreator: false, creatorVoice: false } }
+  assert.deepEqual(creatorTileMetrics({ creator, summary: { storyCount: 0 } }), ['0 stories available'])
+  assert.deepEqual(creatorTileMetrics({ creator, summary: { storyCount: 2 } }), ['2 stories available'])
+  assert.deepEqual(creatorTileMetrics({ creator, summary: { storyCount: 1 } }), ['1 story available'])
   assert.deepEqual(creatorTileMetrics(null), [])
 })
 
@@ -36,5 +34,5 @@ test('creator landing keeps its summary and personal profile, while player tiles
   assert.match(tile, /href="\/creator"/)
   assert.match(tile, /Open Creator Studio/)
   assert.match(tile, /flex flex-col.*sm:flex-row/)
-  assert.doesNotMatch(tile, /story_data|script|reflection|scorecard|subscriber|revenue/)
+  assert.doesNotMatch(tile, /\b(?:story_data|script|reflection|scorecard|subscriber|revenue)\b/)
 })

@@ -21,7 +21,7 @@ test('ordinary players cannot see or open Creator Studio', async ({ page }) => {
   await signIn(page, 'player@example.test')
 
   await expect(page.getByRole('link', { name: 'Creator Studio' })).toHaveCount(0)
-  await expect(page.getByText('Subscription')).toBeVisible()
+  await expect(page.getByText('Player Profile', { exact: true })).toBeVisible()
   await expect(page.getByText('Recent Rounds')).toBeVisible()
   await openMobileMenu(page)
   await expect(page.getByRole('link', { name: 'Creator Studio' })).toHaveCount(0)

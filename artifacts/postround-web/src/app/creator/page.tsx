@@ -7,7 +7,7 @@ import { fetchOwnedActiveCreatorProfile } from '@/lib/creator-stories/client'
 
 export const metadata: Metadata = {
   title: 'Creator Studio — Post Round',
-  description: 'Review follower-approved golf stories and generate social content.',
+  description: 'Review shared golf stories and their existing creator content.',
   robots: { index: false, follow: false },
 }
 

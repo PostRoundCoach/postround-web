@@ -3,14 +3,14 @@
 import { ArrowLeft } from 'lucide-react'
 import { PortalTransitionLink, PortalTransitionReady } from '@/components/portal/PortalTransition'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import type { CreatorProfile } from '@/lib/creator-stories/contracts'
+import type { StudioCreator } from '@/lib/creator-stories/contracts'
 
 export function CreatorShell({
   children,
   profile,
 }: {
   children: React.ReactNode
-  profile: CreatorProfile | null
+  profile: StudioCreator | null
 }) {
   return (
     <div className="min-h-[100dvh] bg-background text-foreground">
@@ -41,15 +41,14 @@ export function CreatorShell({
           {profile && (
             <div className="flex min-w-0 items-center gap-3" data-testid="profile-creator">
               <span className="hidden max-w-48 truncate text-sm font-medium text-muted-foreground sm:block">
-                {profile.display_name}
+                {profile.name}
               </span>
               <Avatar className="h-9 w-9 border border-border">
                 <AvatarImage
-                  src={profile.avatar_url ?? undefined}
-                  alt={profile.display_name}
+                  alt={profile.name}
                 />
                 <AvatarFallback className="bg-primary/10 font-semibold text-primary">
-                  {profile.display_name.charAt(0).toUpperCase()}
+                  {profile.name.charAt(0).toUpperCase()}
                 </AvatarFallback>
               </Avatar>
             </div>

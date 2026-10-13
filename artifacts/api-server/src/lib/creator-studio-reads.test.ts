@@ -95,7 +95,7 @@ function fixture(options: Options = {}) {
       assert.equal(params.get("order"), "created_at.desc,id.desc");
       assert.equal(params.get("limit"), "100");
       assert.equal(params.get("select"),
-        "id,round_id,story_type,headline,summary,status,created_at,story_permissions!inner(story_id)");
+        "id,round_id,story_type,headline,summary,status,created_at,significance_score,story_permissions!inner(story_id)");
       eligible.sort((a, b) => b.created_at.localeCompare(a.created_at) || b.id.localeCompare(a.id));
       const offset = Number(params.get("offset"));
       return Response.json(eligible.slice(offset, offset + 100).map((row) => ({
@@ -169,9 +169,9 @@ for (const endpoint of endpoints) {
         assert.equal(response.status, 200);
         assert.equal(response.type, "application/json; charset=utf-8");
         const expected = Array.from({ length: size }, (_, index) => {
-          const { id, round_id, story_type, headline, summary, status, created_at } =
+          const { id, round_id, story_type, headline, summary, status, created_at, significance_score } =
             story(size - index - 1, (size - index - 1) % 2 ? "offered" : "shared");
-          return { id, round_id, story_type, headline, summary, status, created_at };
+          return { id, round_id, story_type, headline, summary, status, created_at, significance_score };
         });
         assert.deepEqual(response.json(), endpoint.summary
           ? { ok: true, creator, summary: { storyCount: size } } : { ok: true, creator, stories: expected });
@@ -370,6 +370,19 @@ test("list ordering prioritizes created_at, then id for equal timestamps", async
   const { context } = fixture({ candidates: [older, newer, sameTime] });
   const result = await fetchCreatorStoryQueue(context);
   assert.deepEqual(result.stories.map((row) => row.id), [sameTime.id, newer.id, older.id]);
+});
+
+test("optional relevance scores are projected without private data and absence is not fabricated", async () => {
+  const candidate = story(1);
+  const withoutScore = { ...candidate, significance_score: undefined } as unknown as Candidate;
+  const { context } = fixture({ candidates: [withoutScore] });
+  const result = await fetchCreatorStoryQueue(context);
+  assert.equal("significance_score" in result.stories[0]!, false);
+  assert.equal("story_data" in result.stories[0]!, false);
+  for (const score of [-1, 101, 1.5, null, "78"]) {
+    const invalid = { ...candidate, significance_score: score } as unknown as Candidate;
+    await assert.rejects(fetchCreatorStoryQueue(fixture({ candidates: [invalid] }).context));
+  }
 });
 
 test("authentication verifies the session and connected project before returning identity", async () => {

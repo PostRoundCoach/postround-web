@@ -3,14 +3,23 @@ name: Creator Story consent lifecycle
 description: Canonical meaning of the existing permission fields used by creator Story workflows.
 ---
 
-An active permission row makes a qualified Story available to its matching creator. A dedicated request timestamp records the creator request, player approval remains a separate approval timestamp, and creator dismissal revokes that same creator-scoped row.
+When a player selects “Share with Creator” in the app, the player has approved
+that story for sharing with the creator. An active granted permission is already
+approved even when no approval request exists. Do not require a second approval
+from the creator or player.
 
-**Why:** Live records showed active rows without an approval timestamp, and the user later confirmed creator approval notifications reached the player app through this lifecycle. Treating active sharing as approval would bypass player consent, while changing the source Story would affect the player or other creators.
+**Why:** The user explicitly confirmed this is established product behavior.
 
-**How to apply:** Hydrate pending, requested, and approved from their dedicated permission fields. Make requests idempotent once requested. Gate usable draft or publish mutations on player approval, and persist dismissal only on the matching creator permission row.
+**How to apply:** Recognize approved sharing from the existing authenticated
+permission grant and its timestamp, excluding revoked permissions. Preserve
+the sharing flow, permission relationships and export behavior. Independently
+supported pending/requested workflows still use their existing permission fields.
+Dismiss only the matching creator permission row, not the underlying player Story.
 
 Full first-person player transcripts are more sensitive than the short round context that creators can review while approval is pending. Keep transcript text out of creator responses until the player's approval timestamp exists, even when the creator has an active sharing permission.
 
-**Why:** Active sharing and final approval are different consent steps; exposing a full transcript during the pending step would make a disabled download button ineffective as a privacy boundary.
+**Why:** A pending permission without an approval grant must not expose sensitive
+material merely because its download button is disabled. An approved Share with
+Creator grant already satisfies approval; do not add another consent step.
 
 **How to apply:** When adding new player-authored export content, check the approval timestamp at the server response boundary as well as the client download gate.

@@ -28,11 +28,22 @@ export interface CreatorStoryRecord {
   story_type: string
   headline: string
   summary: string
-  story_data: unknown
   round_id: string
-  status: CreatorStoryStatus
-  significance_score: number
+  status: 'offered' | 'shared'
   created_at: string
+  significance_score?: number
+}
+
+export interface StudioCreator {
+  id: string
+  name: string
+  capabilities: { advancedCreator: boolean; creatorVoice: boolean }
+}
+
+export interface CreatorStoriesResponse {
+  ok: true
+  creator: StudioCreator
+  stories: CreatorStory[]
 }
 
 export interface PermissionedCreatorStoryRecord {
@@ -50,14 +61,9 @@ export interface CreatorStory {
   storyType: string
   headline: string
   summary: string
-  status: CreatorStoryStatus
-  roundDate: string | null
-  course: string | null
-  golferDisplayName: string | null
-  supportingFacts: string[]
-  permissionStatus: StoryPermissionStatus
-  significanceScore: number
+  status: 'offered' | 'shared'
   createdAt: string
+  significanceScore?: number
 }
 
 export interface GenerateStoryCandidatesRequest {
