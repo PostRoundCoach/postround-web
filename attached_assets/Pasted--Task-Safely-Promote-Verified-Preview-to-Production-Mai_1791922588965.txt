@@ -1,0 +1,64 @@
+# Task: Safely Promote Verified Preview to Production Main
+
+## Objective
+
+Inspect the GitHub repository `PostRoundCoach/post-round-web` and determine whether the current `preview-production-test` branch can safely be merged into `main` to promote the verified Preview website fixes to production.
+
+I want to do this now, but production safety takes priority over speed.
+
+## Known context
+
+The Preview environment has been tested and the following fixes are important:
+
+1. Creator Studio now displays the expected stories, generated imagery, coaching reflections, round highlights, scorecards, shareable assets, video overlays, and player notes.
+2. History → Stories now correctly retrieves shared Player Stories without the previous ambiguous Supabase relationship error.
+3. Creator Stories no longer rejects valid API responses because nullable fields such as `roundHighlights.score_to_par` and `scorecard[].voice_transcript` are omitted.
+4. Production Stripe subscription activation has been verified separately. Do not modify Stripe, webhook configuration, Supabase production data, or billing logic as part of this task.
+
+The Preview and production branches are understood to share the intended credentials and environment configuration. Verify the relevant deployment configuration rather than assuming it is identical.
+
+## Phase 1 — Read-only inspection
+
+Do not modify files, commit, merge, push, or deploy anything during this phase.
+
+1. Confirm the repository, current branch, working-tree status, and latest commit on both `preview-production-test` and `main`.
+2. Compare both branches and report:
+   - Commits present in Preview but absent from `main`.
+   - Files changed and a concise summary of each change.
+   - Whether the three verified story fixes above are included in Preview and absent from `main`, already present in `main`, or otherwise different.
+   - Any unrelated, unfinished, risky, or untested changes included in Preview.
+   - Any merge conflicts or evidence that `main` contains production-only fixes that Preview could overwrite or regress.
+3. Inspect the merge base and ancestry. Determine whether a normal merge would preserve both branches' history and changes.
+4. Check the Vercel project configuration and branch-to-environment mapping, to the extent access permits. Confirm which branch deploys to production and which environment variables are configured for production. Do not reveal or print secret values.
+5. Run appropriate read-only checks or existing tests if available. Clearly distinguish tests actually run from prior Preview test results.
+
+## Phase 2 — Safety assessment
+
+Return a concise report with:
+
+- **Recommendation:** Safe to merge, safe only after specified changes, or do not merge.
+- Exact source and target branches.
+- Exact commits that would be introduced.
+- Important files and behavior affected.
+- Test results and any remaining uncertainty.
+- Whether a merge is likely to trigger a Vercel production deployment.
+- Any required manual steps.
+
+Do not claim the merge is safe merely because Preview works or because both branches use the same credentials.
+
+## Phase 3 — Await approval
+
+Stop after presenting the report.
+
+Do not create or merge a pull request, push commits, alter production environment variables, modify Supabase, or trigger a deployment until I explicitly approve the proposed merge.
+
+## Constraints
+
+- Do not reset, rebase, force-push, or overwrite `main`.
+- Do not discard commits or changes from either branch.
+- Do not change credentials or production configuration.
+- Do not make unrelated code changes.
+- Preserve the existing Vercel deployment setup.
+- If repository access or evidence is insufficient, report what is missing rather than guessing.
+
+The desired outcome is a minimal, evidence-backed promotion of the verified Preview website to production, with a clear rollback path if the deployment fails.
