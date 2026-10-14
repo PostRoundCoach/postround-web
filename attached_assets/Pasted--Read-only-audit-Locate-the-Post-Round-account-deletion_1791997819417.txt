@@ -1,0 +1,97 @@
+# Read-only audit: Locate the Post Round account-deletion API handler
+
+I need to determine whether the account-deletion failure on the live Post Round website is caused by a missing or mismatched API route/handler.
+
+**This is an investigation only. Do not modify code, create handlers, change configuration, deploy, call the deletion endpoint, or delete any accounts.**
+
+## Background
+
+- Product: Post Round
+- Production website: `https://www.postroundcoach.com`
+- Production API base: `https://api.postroundcoach.com/api`
+- Intended production Supabase project reference: `kdumquoyqldqphkysmto`
+- Development Supabase project reference: `pcyhnijyfzmgyghrzlyp`
+- A free account created through a creator referral slug page could reach the account-deletion confirmation UI. After confirming deletion, the website displayed: “Your account could not be deleted. Please try again.”
+- A route-level 404 has been mentioned in previous investigation, but it has not been conclusively linked to the original deletion request.
+- The Supabase cleanup function `public.delete_own_account_data(p_user_id uuid)` has already been investigated using production SQL results. Do not repeat that database investigation.
+
+## Investigation tasks
+
+### 1. Find the website's deletion request
+
+In the web project, locate the account-deletion UI and trace the complete request path.
+
+Identify:
+- The page/component containing the delete-account confirmation.
+- The function called when the user confirms deletion.
+- The HTTP method used (`POST`, `DELETE`, etc.).
+- The exact route/path and how the destination URL is constructed.
+- Whether the request uses a relative URL, a configured API base URL, or another destination.
+- How authentication credentials are attached.
+- How HTTP errors and non-JSON responses are handled.
+- Where the generic deletion error message is displayed.
+
+Report file paths and relevant function names, with line references where available.
+
+### 2. Find the API handler
+
+In the API/server project, search for all account-deletion routes and handlers.
+
+Search for references to:
+- `delete_own_account_data`
+- `deleteUser` or equivalent Supabase Auth deletion methods
+- Account deletion, user deletion, profile deletion, or erasure endpoints
+- Router registrations, middleware, and route prefixes
+
+Identify:
+- The exact registered HTTP method and route.
+- The handler function and file path.
+- Any router prefixes that alter the final URL.
+- Authentication and authorization checks.
+- The Supabase cleanup RPC call and subsequent Auth deletion call.
+- The HTTP response codes and error-handling paths.
+
+Do not assume that a handler's existence in source code proves that it exists in the live deployment.
+
+### 3. Compare the two sides
+
+Create a direct comparison showing:
+
+| Item | Website request | API registration |
+|---|---|---|
+| HTTP method | Exact value | Exact value |
+| Route/path | Exact value | Exact value |
+| API hostname/base URL | Configured source | Intended serving deployment |
+| Authentication | How credentials are sent | How credentials are verified |
+| Response handling | Expected response | Actual handler responses |
+
+Determine whether the paths and methods match after accounting for all router prefixes.
+
+### 4. Verify deployment evidence
+
+Using existing deployment metadata, logs, and configuration names (not secret values), determine:
+- Which web deployment serves the production website.
+- Which API deployment serves `api.postroundcoach.com`.
+- Whether the relevant deletion handler is included in the API deployment's source/build.
+- Whether the website is configured to call that API deployment.
+- Whether existing logs correlate the previously reported 404 with the original deletion request.
+
+Do not print secret values, access tokens, cookies, service-role keys, or other credentials.
+
+If live deployment evidence is unavailable, explicitly say so. Do not infer the live route solely from the current repository or from a successful health check.
+
+### 5. Return findings and a minimal fix proposal
+
+Classify each finding as **confirmed**, **probable**, or **unknown**.
+
+Conclude with one of these outcomes:
+1. Handler is missing from the API source.
+2. Handler exists but is not included or registered in the serving deployment.
+3. Website request method/path does not match the API route.
+4. Website calls the wrong API destination.
+5. Handler is reached, and failure occurs later in authentication, database cleanup, or Supabase Auth deletion.
+6. Evidence is insufficient to determine the cause.
+
+If a mismatch is confirmed, propose the smallest appropriate fix and identify the exact file(s) that would need changing. Do not implement it.
+
+**No changes, deployments, deletion attempts, or database operations are authorized by this task.**
