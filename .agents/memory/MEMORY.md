@@ -20,3 +20,4 @@
 - [Signup credential proof](signup-credential-proof.md) — verified email and successful signup responses do not alone prove a reusable password; check same-account credentials.
 - [Deletion diagnostic safety](account-deletion-diagnostic-safety.md) — rejection bodies stay unread; historical diagnostics remain evidence, not a proven authentication cause.
 - [Creator read contract boundary](creator-read-contract-boundary.md) — canonical minimal reads outrank old consumers; offline mocks are not authenticated serving-release proof.
+- [Post-merge database safety](post-merge-database-safety.md) — automatic task reconciliation is not permission to mutate a database; keep schema changes explicitly approved.

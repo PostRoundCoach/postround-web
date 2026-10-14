@@ -1,0 +1,55 @@
+# Task: Diagnose Production Account Deletion Failure — Verify API Deployment and Legacy Replit URL
+
+**Strictly read-only investigation. Do not modify code, configuration, database records, or deployments. Do not retry account deletion.**
+
+## Context
+
+The production account-deletion page still returns the generic failure message after the latest Vercel web deployment.
+
+- Production website: `https://www.postroundcoach.com`
+- Expected production API base URL: `https://api.postroundcoach.com/api`
+- Deletion endpoint: `POST https://api.postroundcoach.com/api/account/delete`
+- Affected test account UUID: `a0c3996b-3379-404c-a3b2-04608730187c`
+- Latest reported failure: October 14, 2026, after the Vercel production republish.
+- The API previously used Replit-hosted URLs, including deployments with `replit.app` in the hostname.
+
+The web project and API are separate deployments. We need to establish which API implementation is actually handling production requests.
+
+## Investigation steps
+
+1. **Identify the live API deployment.**
+   - Determine which Replit deployment or service currently serves `api.postroundcoach.com`.
+   - Record its deployment URL, deployed commit/release, and last successful deployment time.
+   - Verify whether the deployment is the intended production API or an older web/API deployment.
+
+2. **Investigate legacy Replit URLs.**
+   - Search the checked-in source, deployment configuration, environment configuration, and available deployment metadata for old API URLs containing `replit.app` or other legacy Replit hostnames.
+   - Distinguish the old API hostname from `post-round.replit.app`, `postroundcoach.replit.app`, and `postroundcoach-web.replit.app`. Do not assume these hostnames serve the same application.
+   - Determine whether the web client, redirects, server-side code, or production routing could still direct deletion requests to an obsolete API hostname.
+   - Inspect DNS/custom-domain routing and deployment configuration using existing read-only access where available.
+
+3. **Verify the live deletion handler.**
+   - Compare the deployed handler with the checked-in source.
+   - Determine whether the deployed code includes the latest referral-aware account-cleanup implementation.
+   - Confirm whether the live handler verifies bearer tokens and connected-project identity as expected.
+
+4. **Verify the production Supabase target.**
+   - Without exposing credentials, establish which Supabase project the live API uses.
+   - Confirm it matches the intended production project, whose reference is `kdumquoyqldqphkysmto`.
+   - Do not treat the development project `pcyhnijyfzmgyghrzlyp` as production.
+
+5. **Correlate the latest failure.**
+   - Search existing API and deployment logs for the October 14 deletion attempt.
+   - If available, report the request destination, HTTP status, safe diagnostic stage/code, and deployment that handled it.
+   - If logs are insufficient, recommend a safe way to capture diagnostics on a future user-authorized attempt without logging bearer tokens, cookies, keys, or sensitive response bodies.
+
+## Required output
+
+Report:
+- The exact deployment currently serving `api.postroundcoach.com`.
+- Whether any legacy Replit API URL is still in use.
+- Whether the live API runs the expected deletion implementation and targets production Supabase.
+- The evidence for the failure stage, if available.
+- The smallest safe remediation proposal.
+
+**Do not** send deletion requests, delete or create accounts, change connections or environment variables, edit code, run database mutations, deploy, or republish anything. Stop if required production access is unavailable and identify precisely what evidence is missing.
