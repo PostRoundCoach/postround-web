@@ -26,18 +26,22 @@ read is not proof of absence and is retryable without claiming blindly.
 Refresh/revisit reads persisted attribution even after the cookie is cleared.
 All referral status/claim responses are private, uncached responses.
 
-Open Post Round is a user-clicked `golf-coach://` anchor in a separate browsing
-context; no installed-app detection, auto-opening, attribution mutation or
-session transfer occurs. The page remains available if opening fails. Users may
+Open Post Round remains a user-clicked `golf-coach://` anchor in a separate
+browsing context. The Android launch failure is unresolved; no launch-context
+change is substantiated without current-device evidence. No installed-app detection, auto-opening,
+attribution mutation or session transfer occurs. No browser/OS launch success
+is inferred; explanatory download and web-continuation choices are visible before clicking. Users may
 need to sign in in the app with the same account; no native sign-in method is
 promised. Continue on web always goes to `/dashboard`.
 
-Download Post Round is disabled with “Google Play listing coming soon” while
-`ANDROID_STORE_URL` is unset/invalid. A verified HTTPS Play details URL configured
-centrally enables the plain download link without referral evidence. No listing
-is derived from a package ID. `/r` still chooses the Android store *before*
+Download Post Round uses the owner-supplied Google Play internal-testing link
+when `ANDROID_STORE_URL` is unset/invalid. Tester access and the invited Google
+account are required; this is not a public details listing. A verified HTTPS Play
+details URL configured centrally still overrides the confirmation download.
+Neither download receives referral evidence. No listing is derived from a
+package ID. `/r` still chooses a valid details listing *before*
 signup when configured and still adds the same Install Referrer `pr_ref` payload.
-An unset listing falls back to web signup as before.
+An unset or internal-testing listing falls back to web signup as before.
 
 This repository contains the Next.js site, shared API, and Supabase migration files, **not the mobile application**. Expo SDK, React Native version, router, EAS build configuration, Android package name, iOS bundle ID, app scheme, native Install Referrer module, and universal/app link configuration cannot be verified here. No Android or iOS install attribution is live. The current web account creation is Supabase email OTP (`signup/page.tsx`, `verifyOtp`); the login page uses password auth, and the auth callback exchanges PKCE codes. The API owns account deletion; existing subscriptions remain on `profiles` and are not changed by this feature.
 

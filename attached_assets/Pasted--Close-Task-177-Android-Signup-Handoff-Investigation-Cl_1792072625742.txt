@@ -1,0 +1,35 @@
+## Close Task #177 — Android Signup Handoff Investigation
+
+Close Task #177 with an explicit, evidence-based completion summary. Do not make additional code changes, deploy anything, modify production configuration, touch production data, or build a new Android AAB.
+
+### Final status
+
+Mark the task **completed with limitations documented**, provided the task system supports this status. If it does not, use the closest available completed/blocked status and explain the distinction in the task notes.
+
+### Work completed
+- Investigated the creator signup confirmation and Android app handoff.
+- Preserved the existing `golf-coach://` launch URI and original new-tab behavior.
+- Added the Google Play internal-testing opt-in link and tester-access guidance to the signup confirmation fallback.
+- Preserved the existing `ANDROID_STORE_URL` validation rules.
+- Documented the investigation and updated project memory.
+- Restored `SignupConfirmation.tsx` and generated `next-env.d.ts` to their original contents.
+- Made no production deployment or production account/database changes.
+
+### Verification limitations
+- Unit suite: 134/135 passed. The remaining whitespace-migration assertion is an existing failure and was not altered or reopened.
+- Browser suite: earlier run was 11 passed/1 fixture failure. A corrected fixture's focused rerun passed, but the final narrowed implementation has not received a fresh complete browser-suite verification.
+- Real-device Android Chrome testing has not been completed.
+- The root cause of the native app launch behavior remains unconfirmed.
+- Reliable operation of the fallback under actual device conditions remains unverified.
+
+### Follow-up requirement
+Record a separate follow-up task to:
+1. Capture evidence of how the installed Android build handles `golf-coach://`.
+2. Test the production creator signup confirmation in Android Chrome.
+3. Record the exact outcome of tapping **Open Post Round**, including what happens when the app fails to open.
+4. Verify the Google Play internal-testing fallback and tester-access instructions.
+5. Make further code changes only if the evidence identifies a specific defect.
+
+Do not claim that native app launching is fixed or that the final implementation passed the full browser suite.
+
+After updating the task, report its final status and the follow-up task ID. Do not begin the follow-up task.
