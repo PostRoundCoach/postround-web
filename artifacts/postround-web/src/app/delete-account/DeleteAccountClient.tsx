@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -10,6 +10,12 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Loader2, AlertTriangle, CheckCircle2, ShieldAlert } from 'lucide-react'
 import { requestAccountDeletion } from '@/lib/account-deletion/client'
+import {
+  clearDeletedAccountSession,
+  navigateAfterDeletion,
+  SESSION_CLEANUP_WARNING,
+  HOME_NAVIGATION_WARNING,
+} from '@/lib/account-deletion/post-success'
 
 export function DeleteAccountClient() {
   const router = useRouter()
@@ -20,9 +26,12 @@ export function DeleteAccountClient() {
   const [errorMessage, setErrorMessage] = useState('')
   const [confirmationText, setConfirmationText] = useState('')
   const [acknowledged, setAcknowledged] = useState(false)
+  const [cleanupWarning, setCleanupWarning] = useState('')
+  const [navigationWarning, setNavigationWarning] = useState('')
+  const submitted = useRef(false)
 
   const supabase = useMemo(() => createClient(), [])
-  const canDelete = Boolean(session) && acknowledged && confirmationText === 'DELETE' && !isDeleting
+  const canDelete = Boolean(session) && acknowledged && confirmationText === 'DELETE' && !isDeleting && deleteStatus === 'idle'
 
   useEffect(() => {
     async function checkSession() {
@@ -30,9 +39,15 @@ export function DeleteAccountClient() {
         setIsLoadingSession(false)
         return
       }
-      const { data: { session } } = await supabase.auth.getSession()
-      setSession(session)
-      setIsLoadingSession(false)
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession()
+        if (!error && !submitted.current) setSession(session)
+      } catch {
+        // No session means no authorized deletion, not a deletion failure.
+        setSession(null)
+      } finally {
+        setIsLoadingSession(false)
+      }
     }
     checkSession()
   }, [supabase])
@@ -40,6 +55,8 @@ export function DeleteAccountClient() {
   const handleDelete = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!canDelete || !session) return
+    if (submitted.current) return
+    submitted.current = true
 
     setIsDeleting(true)
     setDeleteStatus('idle')
@@ -47,19 +64,30 @@ export function DeleteAccountClient() {
 
     try {
       await requestAccountDeletion(session.access_token)
-
-      // Success - sign out locally
-      if (supabase) {
-        await supabase.auth.signOut()
-      }
-      
-      setDeleteStatus('success')
     } catch (err: unknown) {
       setDeleteStatus('error')
-      setErrorMessage(err instanceof Error ? err.message : 'Your account could not be deleted. Please try again.')
-    } finally {
+      setErrorMessage(err instanceof Error ? err.message : 'We could not confirm the account deletion outcome. Please contact support before making another request.')
       setIsDeleting(false)
+      return
     }
+
+    // Commit confirmed success before best-effort client work. Clear component
+    // identity and confirmation state even if SDK storage/session cleanup fails.
+    setDeleteStatus('success')
+    setSession(null)
+    setConfirmationText('')
+    setAcknowledged(false)
+    setIsDeleting(false)
+    const cleaned = supabase && await clearDeletedAccountSession(
+      () => supabase.auth.signOut({ scope: 'local' }),
+    )
+    if (!cleaned) setCleanupWarning(SESSION_CLEANUP_WARNING)
+  }
+
+  const handleReturnHome = async () => {
+    setNavigationWarning('')
+    const navigated = await navigateAfterDeletion(() => router.push('/'))
+    if (!navigated) setNavigationWarning(HOME_NAVIGATION_WARNING)
   }
 
   if (isLoadingSession) {
@@ -85,6 +113,8 @@ export function DeleteAccountClient() {
           <p className="text-muted-foreground mb-6">
             Your Post Round account and associated data have been permanently removed.
           </p>
+          {cleanupWarning && <p role="status" className="mb-4 text-sm text-muted-foreground">{cleanupWarning}</p>}
+          {navigationWarning && <p role="status" className="mb-4 text-sm text-muted-foreground">{navigationWarning}</p>}
           <div className="bg-muted/50 p-4 rounded-lg text-sm text-left text-muted-foreground mb-6">
             <strong>Note:</strong> This does not automatically cancel any Apple App Store subscriptions. 
             If you have an active subscription, you must cancel it through your Apple ID settings.
@@ -95,7 +125,7 @@ export function DeleteAccountClient() {
                 Manage Apple Subscriptions
               </a>
             </Button>
-            <Button variant="gold" className="w-full" onClick={() => router.push('/')}>
+            <Button variant="gold" className="w-full" onClick={handleReturnHome}>
               Return to Home
             </Button>
           </div>

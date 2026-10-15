@@ -3,3 +3,6 @@
 
 # No need to store the pnpm store twice.
 .local
+artifacts/postround-web/.next-e2e
+artifacts/postround-web/test-results
+artifacts/postround-web/playwright-report

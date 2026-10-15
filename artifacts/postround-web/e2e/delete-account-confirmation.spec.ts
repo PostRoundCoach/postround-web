@@ -2,6 +2,16 @@ import { expect, test, type Page } from '@playwright/test'
 
 test.setTimeout(90_000)
 
+test.beforeEach(async ({ context }) => {
+  await context.route('**/*', async (route) => {
+    const host = new URL(route.request().url()).hostname
+    if (host !== 'localhost' && host !== '127.0.0.1') {
+      throw new Error(`Forbidden non-fixture request to ${host}`)
+    }
+    await route.continue()
+  })
+})
+
 const deleteButton = (page: Page) => page.getByRole('button', { name: 'Permanently Delete Account' })
 
 async function signIn(page: Page) {
@@ -59,6 +69,26 @@ test('confirmation requires the exact visible value and acknowledgment', async (
   // Do not submit: this test must never request account deletion.
 })
 
+test('normal deletion acknowledgment reaches success and user-triggered home navigation', async ({ page }) => {
+  await signIn(page)
+  let deletions = 0
+  await page.route('http://127.0.0.1:54321/api/account/delete', async (route) => {
+    deletions++
+    await route.fulfill({
+      json: { ok: true, deleted: true },
+      headers: { 'access-control-allow-origin': '*' },
+    })
+  })
+  await page.getByRole('checkbox').check()
+  await page.getByLabel('Type DELETE to confirm').fill('DELETE')
+  await deleteButton(page).click()
+  await expect(page.getByRole('heading', { name: 'Account Deleted', exact: true })).toBeVisible()
+  await expect(deleteButton(page)).toHaveCount(0)
+  await page.getByRole('button', { name: 'Return to Home' }).click()
+  await expect(page).toHaveURL('http://localhost:3100/')
+  expect(deletions).toBe(1)
+})
+
 test('signed-out visitors cannot access the confirmation form', async ({ page }) => {
   await page.goto('/delete-account')
   await expect(page.getByRole('heading', { name: 'Sign In Required' })).toBeVisible()
@@ -92,7 +122,34 @@ test('a pending deletion locks both confirmations and prevents a second submissi
   await expect(checkbox).toBeDisabled()
   expect(requests).toBe(1)
   releaseResponse()
-  await expect(page.getByText('Fixture deletion unavailable')).toBeVisible()
-  await expect(deleteButton(page)).toBeEnabled()
+  await expect(page.getByText(/Account deletion did not complete/)).toBeVisible()
+  await expect(deleteButton(page)).toBeDisabled()
   expect(requests).toBe(1)
+})
+
+test('real Supabase client cleanup keeps confirmed success when logout returns an error', async ({ page }) => {
+  await signIn(page)
+  let deletions = 0
+  await page.route('http://127.0.0.1:54321/api/account/delete', async (route) => {
+    deletions++
+    await route.fulfill({
+      json: { ok: true, deleted: true },
+      headers: { 'access-control-allow-origin': '*' },
+    })
+  })
+  await page.route('http://127.0.0.1:54321/auth/v1/logout**', async (route) => {
+    expect(new URL(route.request().url()).searchParams.get('scope')).toBe('local')
+    await route.fulfill({
+      status: 500,
+      json: { message: 'fixture logout failure' },
+      headers: { 'access-control-allow-origin': '*' },
+    })
+  })
+  await page.getByRole('checkbox').check()
+  await page.getByLabel('Type DELETE to confirm').fill('DELETE')
+  await deleteButton(page).click()
+  await expect(page.getByRole('heading', { name: 'Account Deleted', exact: true })).toBeVisible()
+  await expect(page.getByRole('status')).toContainText('Your account is deleted, but')
+  await expect(deleteButton(page)).toHaveCount(0)
+  expect(deletions).toBe(1)
 })

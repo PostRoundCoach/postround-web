@@ -11,13 +11,20 @@ export class AccountDeletionApiError extends Error {
 
   constructor(
     status: number,
-    message = 'Your account could not be deleted. Please try again.',
-    retryable = true,
+    message = 'Account deletion did not complete. Some data may already have been removed. Please contact support before making another request.',
+    retryable = false,
   ) {
     super(message)
     this.name = 'AccountDeletionApiError'
     this.status = status
     this.retryable = retryable
+  }
+}
+
+export class AccountDeletionUnconfirmedError extends AccountDeletionApiError {
+  constructor(status = 0) {
+    super(status, 'We could not confirm the account deletion outcome. Your account may already have been deleted. Please contact support before making another request.', false)
+    this.name = 'AccountDeletionUnconfirmedError'
   }
 }
 
@@ -54,31 +61,48 @@ export async function requestAccountDeletion(
   accessToken: string,
   fetchImpl: typeof fetch = fetch,
 ): Promise<{ ok: true; deleted: true }> {
-  const response = await fetchImpl(`${accountApiBase()}/api/account/delete`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ confirmation: 'DELETE' }),
-  })
+  const url = `${accountApiBase()}/api/account/delete`
+  let response: Response
+  try {
+    response = await fetchImpl(url, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ confirmation: 'DELETE' }),
+    })
+  } catch {
+    // A lost response is not evidence that the server did (or did not) delete.
+    throw new AccountDeletionUnconfirmedError()
+  }
 
-  const payload: unknown = await response.json().catch(() => null)
+  let payload: unknown
+  try {
+    payload = await response.json()
+  } catch {
+    throw new AccountDeletionUnconfirmedError(response.status)
+  }
   const result = typeof payload === 'object' && payload !== null
     ? payload as Record<string, unknown>
     : null
 
   if (!response.ok) {
+    if (result?.ok === true || result?.deleted === true || typeof result?.error !== 'string') {
+      throw new AccountDeletionUnconfirmedError(response.status)
+    }
     throw new AccountDeletionApiError(
       response.status,
-      typeof result?.error === 'string' && result.error.trim()
-        ? result.error
+      result.stage === 'authentication'
+        ? 'Account deletion was not authorized. Please contact support if you need help accessing your account.'
+        : result.stage === 'confirmation'
+        ? 'Account deletion was not submitted: the API rejected the confirmation.'
         : undefined,
-      typeof result?.retryable === 'boolean' ? result.retryable : true,
+      false,
     )
   }
-  if (result?.ok !== true || result.deleted !== true) {
-    throw new AccountDeletionApiError(500)
+  if (result?.ok !== true || result.deleted !== true || 'error' in result) {
+    throw new AccountDeletionUnconfirmedError(response.status)
   }
   return { ok: true, deleted: true }
 }

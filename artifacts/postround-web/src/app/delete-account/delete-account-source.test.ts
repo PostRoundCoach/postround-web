@@ -45,7 +45,7 @@ test('DeleteAccountClient includes required support and privacy links', () => {
 
 test('DeleteAccountClient performs session cleanup on success', () => {
   assert.ok(
-    sourceCode.includes('supabase.auth.signOut()'),
+    sourceCode.includes("supabase.auth.signOut({ scope: 'local' })"),
     'Component must sign the user out locally upon successful deletion'
   )
 })

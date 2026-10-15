@@ -40,3 +40,24 @@ contract before release.
 
 Deleting Post Round data does not cancel an Apple App Store subscription. Users
 must manage that subscription through Apple.
+
+## Web outcome boundary
+
+The browser confirms completion only from a successful HTTP response containing
+both boolean `ok:true` and `deleted:true`, without a contradictory error field.
+It records that success before best-effort local session cleanup. Returned or
+thrown sign-out errors and user-triggered home-navigation errors are reported
+separately; they cannot change confirmed deletion into failure.
+
+Lost transport or malformed, empty, unexpected or contradictory responses leave
+the outcome unconfirmed, even if the server might have finished. Error responses
+from cleanup/Auth stages do not prove that all account data remains. The web page
+does not retry automatically and blocks another submission after an attempt;
+it directs uncertain/incomplete outcomes to support rather than assuming a
+bearer session is still valid. Database idempotence alone does not establish
+that a browser retry is safe or necessary.
+
+These are reviewed source and fixture-tested contracts, not attestation of the
+separate authoritative API's serving release. See
+`docs/web-account-deletion-outcome-report-2026-10-15.md` at the repository root
+for the unresolved production-evidence boundary and test results.

@@ -22,3 +22,20 @@ or connector authority.
 **How to apply:** Tie domain, release, immutable source and connector authority to
 the incident time. Current source/configuration and historical authentication
 failures cannot establish that chain.
+
+Independently verified removal of a production profile and Auth identity is
+account-state evidence, not proof of a successful HTTP acknowledgment or of
+complete application cleanup. An authorized local web correction can proceed
+from a reproducible source defect without resolving the separate incident.
+
+**Why:** A server can finish destructive side effects before response delivery
+or client follow-up fails. Successful fixtures cannot identify the production
+operation responsible for the reported message.
+
+**How to apply:** Keep the locally demonstrated defect separate from production
+root-cause claims. Require the existing sanitized response and release correlation
+before claiming incident proof. If the user explicitly authorizes validating a
+web deletion correction using their independently verified deletion outcome and
+isolated code/test evidence, record the original response as unavailable rather
+than blocking that validation. This does not establish the production cause or
+authorize a deletion retry.
