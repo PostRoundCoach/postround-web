@@ -1,6 +1,11 @@
 #!/bin/sh
 set -eu
 
+# Exercise genuinely absent configuration without inheriting a workspace listing.
+if [ "${E2E_ANDROID_STORE_URL+x}" != "x" ]; then
+  unset ANDROID_STORE_URL
+fi
+
 if [ "${E2E_USE_EXISTING_BUILD:-}" = "1" ]; then
   # Only explicit focused reruns may reuse a completed isolated fixture build.
   test "${NEXT_DIST_DIR:-}" = ".next-e2e"

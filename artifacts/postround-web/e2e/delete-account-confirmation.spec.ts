@@ -122,7 +122,7 @@ test('a pending deletion locks both confirmations and prevents a second submissi
   await expect(checkbox).toBeDisabled()
   expect(requests).toBe(1)
   releaseResponse()
-  await expect(page.getByText(/Account deletion did not complete/)).toBeVisible()
+  await expect(page.getByText(/We could not confirm the account deletion outcome/)).toBeVisible()
   await expect(deleteButton(page)).toBeDisabled()
   expect(requests).toBe(1)
 })

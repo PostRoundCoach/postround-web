@@ -17,7 +17,7 @@ test('only stored attribution confirms success; evidence alone is pending or inv
   assert.equal(isReferralStatus('unavailable'), true)
 })
 
-test('only configured HTTPS Play details URL enables download; only store-first routing adds install evidence', () => {
+test('configured details download remains available alongside the view-owned internal test; only store-first routing adds evidence', () => {
   const old = process.env.ANDROID_STORE_URL
   try {
     for (const value of [

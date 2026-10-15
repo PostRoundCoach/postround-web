@@ -88,18 +88,27 @@ export function SignupConfirmationView({
         </a>
         <p className="text-xs text-muted-foreground">
           If the app does not open, open Post Round from your home screen,
-          use the download link below, or continue on web. Opening it does not sign you in. Sign into the app with your email
+          join the internal test below, or continue on web. Opening it does not sign you in. Sign into the app with your email
           and the password you chose during signup, then follow its normal verification step.
         </p>
-        {storeUrl === ANDROID_INTERNAL_TEST_URL && (
-          <p className="text-xs text-muted-foreground">
-            Post Round is available through Google Play internal testing.
-            You need access to the test and the Google account invited to it.
-            If Google Play says you do not have access, continue on web.
-          </p>
-        )}
+        <a
+          href={ANDROID_INTERNAL_TEST_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={`${linkButton} border border-input bg-background hover:bg-accent hover:text-accent-foreground`}
+          data-testid="link-internal-test"
+          aria-describedby="internal-test-help"
+        >
+          Join Google Play internal test
+        </a>
+        <p id="internal-test-help" className="text-xs text-muted-foreground">
+          Post Round is available through Google Play internal testing.
+          Join the internal test using an eligible or invited Google account,
+          then install Post Round before opening it.
+          If Google Play says you do not have access, continue on web using the link below.
+        </p>
 
-        {storeUrl ? (
+        {storeUrl && storeUrl !== ANDROID_INTERNAL_TEST_URL && (
           <a
             href={storeUrl}
             target="_blank"
@@ -109,22 +118,6 @@ export function SignupConfirmationView({
           >
             Download Post Round
           </a>
-        ) : (
-          <>
-            <Button
-              type="button"
-              variant="outline"
-              size="lg"
-              className="w-full"
-              disabled
-              data-testid="button-download-app-disabled"
-            >
-              Download Post Round
-            </Button>
-            <p className="text-xs text-muted-foreground text-center">
-              Google Play listing coming soon.
-            </p>
-          </>
         )}
 
         <Link

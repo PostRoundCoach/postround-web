@@ -4,13 +4,13 @@ description: User-verified native navigation and deliberate limits of the creato
 ---
 
 Historical manual verification covered exactly `golf-coach://`; the user now
-reports that the confirmation-page launch fails on the current Android build/browser.
-Do not treat the historical check as proof of current handler behavior. The user
+reports that Open Post Round launches an installed app, but without the app it
+opens a stalled scheme tab. Do not treat browser fixtures as device proof. The user
 separately reports working creator signup, attribution, and manual same-account
 native login; do not repeat these via production account mutations.
 
-**Why:** The latest user report separates failed browser launch from successful
-manual native login. Source declarations and browser fixtures cannot establish
+**Why:** The latest user report separates installed-app launch from the known
+absent-app stalled tab. Source declarations and browser fixtures cannot establish
 what a distributed installed build actually handles.
 
 **How to apply:** Keep app opening independent of referral attribution and web

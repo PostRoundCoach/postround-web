@@ -5,25 +5,42 @@ export class AccountDeletionConfigurationError extends Error {
   }
 }
 
+export const UNCONFIRMED_MESSAGE = 'We could not confirm the account deletion outcome. Some data may already have been removed. Please contact support before making another request.'
+
+export type DeletionEvidence = {
+  requestedAtUtc: string
+  method: 'POST'
+  path: '/api/account/delete'
+  destination: string
+  status: number
+  release?: string
+  envelope: 'unreadable' | 'object' | 'array' | 'null' | 'string' | 'number' | 'boolean'
+  fields?: Partial<Record<'ok' | 'deleted' | 'error', string>>
+  classification: 'unconfirmed' | 'confirmed' | 'authentication_rejected' | 'confirmation_rejected'
+}
+
 export class AccountDeletionApiError extends Error {
   readonly status: number
   readonly retryable: boolean
+  readonly evidence?: DeletionEvidence
 
   constructor(
     status: number,
-    message = 'Account deletion did not complete. Some data may already have been removed. Please contact support before making another request.',
+    message = UNCONFIRMED_MESSAGE,
     retryable = false,
+    evidence?: DeletionEvidence,
   ) {
     super(message)
     this.name = 'AccountDeletionApiError'
     this.status = status
     this.retryable = retryable
+    this.evidence = evidence
   }
 }
 
 export class AccountDeletionUnconfirmedError extends AccountDeletionApiError {
-  constructor(status = 0) {
-    super(status, 'We could not confirm the account deletion outcome. Your account may already have been deleted. Please contact support before making another request.', false)
+  constructor(status = 0, evidence?: DeletionEvidence) {
+    super(status, UNCONFIRMED_MESSAGE, false, evidence)
     this.name = 'AccountDeletionUnconfirmedError'
   }
 }
@@ -62,6 +79,15 @@ export async function requestAccountDeletion(
   fetchImpl: typeof fetch = fetch,
 ): Promise<{ ok: true; deleted: true }> {
   const url = `${accountApiBase()}/api/account/delete`
+  const evidence: DeletionEvidence = {
+    requestedAtUtc: new Date().toISOString(),
+    method: 'POST',
+    path: '/api/account/delete',
+    destination: new URL(url).origin,
+    status: 0,
+    envelope: 'unreadable',
+    classification: 'unconfirmed',
+  }
   let response: Response
   try {
     response = await fetchImpl(url, {
@@ -69,40 +95,63 @@ export async function requestAccountDeletion(
       headers: {
         Authorization: `Bearer ${accessToken}`,
         'Content-Type': 'application/json',
+        Accept: 'application/json',
       },
+      credentials: 'omit',
+      redirect: 'error',
       body: JSON.stringify({ confirmation: 'DELETE' }),
     })
   } catch {
     // A lost response is not evidence that the server did (or did not) delete.
-    throw new AccountDeletionUnconfirmedError()
+    throw new AccountDeletionUnconfirmedError(0, evidence)
   }
 
+  evidence.status = response.status
+  const release = response.headers.get('X-API-Release')
+  // Only the documented release formats; never retain arbitrary header text.
+  if (release === 'unbuilt' || (release && /^sha256:[a-f0-9]{64}$/.test(release))) {
+    evidence.release = release
+  }
   let payload: unknown
   try {
+    if (response.headers.get('content-type')?.split(';')[0].trim().toLowerCase() !== 'application/json') {
+      throw new Error('Unexpected response type')
+    }
     payload = await response.json()
   } catch {
-    throw new AccountDeletionUnconfirmedError(response.status)
+    throw new AccountDeletionUnconfirmedError(response.status, evidence)
   }
-  const result = typeof payload === 'object' && payload !== null
+  evidence.envelope = payload === null ? 'null' : Array.isArray(payload) ? 'array' : typeof payload as DeletionEvidence['envelope']
+  const result = typeof payload === 'object' && payload !== null && !Array.isArray(payload)
     ? payload as Record<string, unknown>
     : null
-
-  if (!response.ok) {
-    if (result?.ok === true || result?.deleted === true || typeof result?.error !== 'string') {
-      throw new AccountDeletionUnconfirmedError(response.status)
+  if (result) {
+    evidence.fields = {}
+    for (const key of ['ok', 'deleted', 'error'] as const) {
+      if (Object.hasOwn(result, key)) {
+        evidence.fields[key] = result[key] === null ? 'null' : Array.isArray(result[key]) ? 'array' : typeof result[key]
+      }
     }
-    throw new AccountDeletionApiError(
-      response.status,
-      result.stage === 'authentication'
-        ? 'Account deletion was not authorized. Please contact support if you need help accessing your account.'
-        : result.stage === 'confirmation'
-        ? 'Account deletion was not submitted: the API rejected the confirmation.'
-        : undefined,
-      false,
-    )
   }
-  if (result?.ok !== true || result.deleted !== true || 'error' in result) {
-    throw new AccountDeletionUnconfirmedError(response.status)
+  if (response.status === 200 && result?.ok === true && result.deleted === true && !('error' in result)) {
+    return { ok: true, deleted: true }
   }
-  return { ok: true, deleted: true }
+  // Current rejection envelopes contain only error. Extra fields cannot establish
+  // provenance or override contradictory flags. Internal stage/retry fields are
+  // not a public outcome contract.
+  if (result && Object.keys(result).length === 1 && typeof result.error === 'string') {
+    const authRejected = response.status === 401 && [
+      'Authentication required', 'Invalid or expired session', 'Could not verify session',
+    ].includes(result.error)
+    const confirmationRejected = response.status === 400 && result.error === 'Confirmation must be "DELETE"'
+    if (authRejected || confirmationRejected) {
+      evidence.classification = authRejected ? 'authentication_rejected' : 'confirmation_rejected'
+      throw new AccountDeletionApiError(response.status,
+        authRejected
+          ? 'This deletion request was rejected because the API could not authorize the session. This does not establish the outcome of any earlier request. Contact support for help.'
+          : 'This deletion request was rejected because the API did not accept the confirmation. This does not establish the outcome of any earlier request. Contact support for help.',
+        false, evidence)
+    }
+  }
+  throw new AccountDeletionUnconfirmedError(response.status, evidence)
 }

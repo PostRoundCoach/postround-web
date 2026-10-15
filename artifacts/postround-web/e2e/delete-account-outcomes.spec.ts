@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test'
 
 const endpoint = 'http://127.0.0.1:54321/api/account/delete'
 const unconfirmed = /We could not confirm the account deletion outcome/
-const incomplete = /Account deletion did not complete/
+const rejected = /This deletion request was rejected/
 
 type Fixture = {
   cleanup?: 'normal' | 'returned' | 'thrown' | 'pending'
@@ -41,6 +41,9 @@ for (const cleanup of ['normal', 'returned', 'thrown', 'pending'] as const) {
     await page.route(endpoint, async (route) => {
       requests++
       expect(route.request().headers().authorization).toBe('Bearer isolated-fixture-token')
+      expect(route.request().headers().accept).toBe('application/json')
+      expect(route.request().headers()['content-type']).toBe('application/json')
+      expect(route.request().method()).toBe('POST')
       expect(route.request().postDataJSON()).toEqual({ confirmation: 'DELETE' })
       await route.fulfill({
         json: { ok: true, deleted: true },
@@ -96,9 +99,22 @@ for (const navigation of ['thrown', 'rejected', 'normal'] as const) {
 }
 
 const failureCases = [
-  { name: 'application cleanup failure', status: 503, body: '{"error":"fixture","stage":"application_cleanup"}', message: incomplete },
-  { name: 'Auth removal failure', status: 500, body: '{"error":"fixture","stage":"auth_identity"}', message: incomplete },
-  { name: 'authentication failure', status: 401, body: '{"error":"fixture","stage":"authentication"}', message: /Account deletion was not authorized/ },
+  { name: 'cleanup acknowledgment unconfirmed', status: 500, body: JSON.stringify({ error: 'Could not delete account. Please try again.' }), message: unconfirmed },
+  { name: 'Auth acknowledgment unconfirmed', status: 500, body: JSON.stringify({ error: 'Account deletion could not be completed. Please contact support.' }), message: unconfirmed },
+  { name: 'generic 500', status: 500, body: '{"error":"Internal server error"}', message: unconfirmed },
+  ...['Authentication required', 'Invalid or expired session', 'Could not verify session'].map(error => ({
+    name: error, status: 401, body: JSON.stringify({ error }), message: rejected,
+  })),
+  { name: 'confirmation rejection', status: 400, body: JSON.stringify({ error: 'Confirmation must be "DELETE"' }), message: rejected },
+  { name: 'unknown authentication body', status: 401, body: '{"error":"private raw detail","stage":"authentication"}', message: unconfirmed },
+  { name: 'unknown confirmation body', status: 400, body: '{"error":"private raw detail"}', message: unconfirmed },
+  { name: 'mismatched authentication body', status: 400, body: '{"error":"Authentication required"}', message: unconfirmed },
+  { name: 'mismatched confirmation body', status: 401, body: JSON.stringify({ error: 'Confirmation must be "DELETE"' }), message: unconfirmed },
+  ...[404, 502].map(status => ({ name: `HTML ${status}`, status, body: '<html>private raw detail</html>', message: unconfirmed })),
+  ...['[]', 'null', '"private raw detail"', 'true', '1', '{}', '{"ok":"true","deleted":true}', '{"ok":true,"deleted":"true"}', '{"ok":true,"deleted":false}'].map(body => ({
+    name: `invalid envelope ${body}`, status: 200, body, message: unconfirmed,
+  })),
+  ...[201, 202, 206].map(status => ({ name: `positive ${status}`, status, body: '{"ok":true,"deleted":true}', message: unconfirmed })),
   { name: 'malformed JSON', status: 200, body: 'not json', message: unconfirmed },
   { name: 'empty JSON', status: 200, body: '', message: unconfirmed },
   { name: 'missing deleted acknowledgment', status: 200, body: '{"ok":true}', message: unconfirmed },
@@ -106,6 +122,9 @@ const failureCases = [
   { name: 'non-success status with success flags', status: 500, body: '{"ok":true,"deleted":true}', message: unconfirmed },
   { name: 'no-content response', status: 204, body: '', message: unconfirmed },
   { name: 'interrupted transport', status: 0, body: '', message: unconfirmed },
+  { name: 'aborted transport', status: -1, body: '', message: unconfirmed },
+  { name: 'timeout transport', status: -2, body: '', message: unconfirmed },
+  { name: 'interrupted JSON', status: 200, body: '{"ok":true,', message: unconfirmed },
 ]
 
 for (const fixture of failureCases) {
@@ -114,8 +133,8 @@ for (const fixture of failureCases) {
     let requests = 0
     await page.route(endpoint, async (route) => {
       requests++
-      if (fixture.status === 0) {
-        await route.abort('connectionreset')
+      if (fixture.status <= 0) {
+        await route.abort(fixture.status === -1 ? 'aborted' : fixture.status === -2 ? 'timedout' : 'connectionreset')
       } else {
         await route.fulfill({
           status: fixture.status, body: fixture.body,
@@ -125,12 +144,23 @@ for (const fixture of failureCases) {
     })
     await page.getByRole('button', { name: 'Permanently Delete Account' }).click()
     await expect(page.getByText(fixture.message)).toBeVisible()
+    await expect(page.getByRole('alert')).toContainText(fixture.message === rejected ? 'Request rejected' : 'Deletion outcome unconfirmed')
+    await expect(page.getByRole('alert')).not.toContainText(/try again|did not complete|confirmed partial|private raw detail/i)
+    if (fixture.message === unconfirmed) {
+      await expect(page.getByRole('alert')).toContainText('Some data may already have been removed')
+      await expect(page.getByRole('alert')).toContainText('contact support before making another request')
+    }
     await expect(page.getByRole('heading', { name: 'Account Deleted', exact: true })).toHaveCount(0)
     await expect(page.getByRole('button', { name: 'Permanently Delete Account' })).toBeDisabled()
     // Even a direct repeated form event cannot bypass the synchronous latch.
     await page.locator('form').evaluate((form) => {
       form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))
     })
+    await page.getByLabel('Type DELETE to confirm').fill('DELETE ')
+    await page.getByLabel('Type DELETE to confirm').fill('DELETE')
+    await page.getByRole('checkbox').uncheck()
+    await page.getByRole('checkbox').check()
+    await expect(page.getByRole('button', { name: 'Permanently Delete Account' })).toBeDisabled()
     expect(await page.evaluate(() => window.deletionFixture.cleanupCalls)).toBe(0)
     expect(requests).toBe(1)
   })

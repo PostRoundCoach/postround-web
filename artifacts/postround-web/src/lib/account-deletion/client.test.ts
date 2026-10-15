@@ -1,155 +1,139 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
-  AccountDeletionApiError,
-  AccountDeletionConfigurationError,
-  AccountDeletionUnconfirmedError,
-  requestAccountDeletion,
+  AccountDeletionApiError, AccountDeletionConfigurationError,
+  AccountDeletionUnconfirmedError, requestAccountDeletion,
 } from './client.ts'
 
-test('deletion targets the configured authoritative API origin with the bearer identity', async () => {
-  const originalApiBase = process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL
-  process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL = 'https://api.postround.test/'
-  let request: { url: string; init?: RequestInit } | undefined
-  try {
-    const result = await requestAccountDeletion(
-      'session-token',
-      (async (url, init) => {
-        request = { url: String(url), init }
-        return Response.json({ ok: true, deleted: true })
-      }) as typeof fetch,
-    )
-    assert.deepEqual(result, { ok: true, deleted: true })
-    assert.equal(request?.url, 'https://api.postround.test/api/account/delete')
-    assert.equal(request?.init?.method, 'POST')
-    assert.equal(
-      new Headers(request?.init?.headers).get('authorization'),
-      'Bearer session-token',
-    )
-    assert.deepEqual(JSON.parse(String(request?.init?.body)), {
-      confirmation: 'DELETE',
+process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL = 'https://api.postround.test'
+
+test('exact request uses configured origin, bearer, JSON headers and no identity selectors/cookies/redirects', async () => {
+  let calls = 0
+  assert.deepEqual(await requestAccountDeletion('fixture-token', (async (url, init) => {
+    calls++
+    assert.equal(url, 'https://api.postround.test/api/account/delete')
+    assert.equal(init?.method, 'POST')
+    assert.deepEqual(Object.fromEntries(new Headers(init?.headers)), {
+      authorization: 'Bearer fixture-token', 'content-type': 'application/json', accept: 'application/json',
     })
-  } finally {
-    if (originalApiBase === undefined) delete process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL
-    else process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL = originalApiBase
-  }
+    assert.equal(init?.body, '{"confirmation":"DELETE"}')
+    assert.equal(init?.credentials, 'omit')
+    assert.equal(init?.redirect, 'error')
+    return Response.json({ ok: true, deleted: true })
+  }) as typeof fetch), { ok: true, deleted: true })
+  assert.equal(calls, 1)
 })
 
-test('deletion fails visibly instead of falling back to the Next.js site', async () => {
-  const originalApiBase = process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL
-  delete process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL
+test('invalid or missing origin never falls back or sends a request', async () => {
+  const original = process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL
   try {
-    await assert.rejects(
-      () => requestAccountDeletion('session-token'),
-      AccountDeletionConfigurationError,
-    )
-  } finally {
-    if (originalApiBase !== undefined) {
-      process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL = originalApiBase
-    }
-  }
-})
-
-test('deletion preserves safe API errors and never treats malformed success as complete', async () => {
-  const originalApiBase = process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL
-  process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL = 'https://api.postround.test'
-  try {
-    await assert.rejects(
-      () => requestAccountDeletion(
-        'session-token',
-        (async () => Response.json({
-          error: 'Account deletion could not be completed. No success was recorded.',
-          retryable: true,
-        }, { status: 500 })) as typeof fetch,
-      ),
-      (error: unknown) => error instanceof AccountDeletionApiError
-        && error.status === 500
-        && !error.retryable
-        && error.message.includes('Some data may already have been removed'),
-    )
-    await assert.rejects(
-      () => requestAccountDeletion(
-        'session-token',
-        (async () => Response.json({ ok: true })) as typeof fetch,
-      ),
-      AccountDeletionApiError,
-    )
-  } finally {
-    if (originalApiBase === undefined) delete process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL
-    else process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL = originalApiBase
-  }
-})
-
-test('unexpected, contradictory, empty, malformed and interrupted responses never confirm deletion or retry', async () => {
-  const originalApiBase = process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL
-  process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL = 'https://api.postround.test'
-  const fixtures = [
-    () => new Response(null, { status: 204 }),
-    () => new Response('not json'),
-    () => Response.json(null),
-    () => Response.json([]),
-    () => Response.json({}),
-    () => Response.json({ ok: true }),
-    () => Response.json({ deleted: true }),
-    () => Response.json({ ok: 'true', deleted: true }),
-    () => Response.json({ ok: true, deleted: false }),
-    () => Response.json({ ok: true, deleted: true, error: 'contradiction' }),
-    () => Response.json({ ok: true, deleted: true }, { status: 500 }),
-    () => Response.json({}, { status: 502 }),
-    () => new Response(new ReadableStream({
-      start(controller) {
-        controller.enqueue(new TextEncoder().encode('{"ok":true,'))
-        controller.error(new Error('fixture stream interrupted'))
-      },
-    })),
-    () => { throw new TypeError('fixture network failure') },
-  ]
-  try {
-    for (const fixture of fixtures) {
-      let calls = 0
-      await assert.rejects(() => requestAccountDeletion('fixture-token', (async () => {
-        calls++
-        return fixture()
-      }) as typeof fetch), (error: unknown) => {
-        assert.ok(error instanceof AccountDeletionUnconfirmedError)
-        assert.equal(error.retryable, false)
-        assert.match(error.message, /may already have been deleted/)
-        return true
-      })
-      assert.equal(calls, 1)
+    for (const origin of ['', 'http://other.test', 'https://user:password@example.test', 'https://example.test/api', 'https://example.test?q=1', 'https://example.test/#hash', 'not a URL']) {
+      process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL = origin
+      await assert.rejects(() => requestAccountDeletion('fixture', (async () => {
+        assert.fail('must not fetch')
+      }) as typeof fetch), AccountDeletionConfigurationError)
     }
   } finally {
-    if (originalApiBase === undefined) delete process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL
-    else process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL = originalApiBase
+    process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL = original
   }
 })
 
-test('failed API stages never confirm success or echo untrusted public error text', async () => {
-  const originalApiBase = process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL
-  process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL = 'https://api.postround.test'
-  try {
-    for (const [stage, status] of [
-      ['authentication', 401], ['confirmation', 400],
-      ['application_cleanup', 503], ['auth_identity', 500], ['unknown', 500],
-    ] as const) {
-      let calls = 0
-      await assert.rejects(() => requestAccountDeletion('fixture-token', (async () => {
-        calls++
-        return Response.json({ error: 'untrusted fixture detail', stage, retryable: true }, { status })
-      }) as typeof fetch), (error: unknown) => {
-        assert.ok(error instanceof AccountDeletionApiError)
-        assert.equal(error.status, status)
-        assert.equal(error.retryable, false)
-        assert.ok(!error.message.includes('untrusted'))
-        if (stage === 'auth_identity' || stage === 'application_cleanup') {
-          assert.match(error.message, /Some data may already have been removed/)
-        }
-        return true
-      })
-      assert.equal(calls, 1)
-    }
-  } finally {
-    if (originalApiBase === undefined) delete process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL
-    else process.env.NEXT_PUBLIC_POSTROUND_API_BASE_URL = originalApiBase
+const rejections = [
+  [401, 'Authentication required'],
+  [401, 'Invalid or expired session'],
+  [401, 'Could not verify session'],
+  [400, 'Confirmation must be "DELETE"'],
+] as const
+
+for (const [status, error] of rejections) {
+  test(`exact rejection ${status}/${error} describes only this request`, async () => {
+    await assert.rejects(() => requestAccountDeletion('fixture', (async () =>
+      Response.json({ error }, { status })) as typeof fetch), (err: unknown) => {
+      assert.ok(err instanceof AccountDeletionApiError)
+      assert.ok(!(err instanceof AccountDeletionUnconfirmedError))
+      assert.equal(err.retryable, false)
+      assert.match(err.message, /This deletion request was rejected/)
+      assert.match(err.message, /does not establish the outcome of any earlier request/)
+      assert.equal(err.evidence?.status, status)
+      assert.match(err.evidence?.classification ?? '', /_rejected$/)
+      return true
+    })
+  })
+}
+
+const ambiguous: Array<[string, () => Response]> = [
+  ['cleanup 500', () => Response.json({ error: 'Could not delete account. Please try again.' }, { status: 500 })],
+  ['Auth 500', () => Response.json({ error: 'Account deletion could not be completed. Please contact support.' }, { status: 500 })],
+  ['generic 500', () => Response.json({ error: 'Internal server error' }, { status: 500 })],
+  ...[400, 401, 403, 404, 502, 503].map((status): [string, () => Response] =>
+    [`unknown ${status}`, () => Response.json({ error: 'private raw detail try again' }, { status })]),
+  ...rejections.map(([status, error]): [string, () => Response] =>
+    [`mismatched ${error}`, () => Response.json({ error }, { status: status === 401 ? 400 : 401 })]),
+  ['invented stage', () => Response.json({ error: 'fixture', stage: 'authentication', retryable: true }, { status: 401 })],
+  ['extra fields cannot establish rejection', () => Response.json({ error: 'Authentication required', ok: false }, { status: 401 })],
+  ...[201, 202, 206, 400, 401, 500].map((status): [string, () => Response] =>
+    [`positive flags ${status}`, () => Response.json({ ok: true, deleted: true }, { status })]),
+  ...[null, [], 'private raw detail', 1, true, {}, { ok: true }, { deleted: true },
+    { ok: 'true', deleted: true }, { ok: true, deleted: 'true' }, { ok: 1, deleted: true },
+    { ok: true, deleted: false }, { ok: false, deleted: true },
+    { ok: true, deleted: true, error: 'contradiction' }, { ok: true, deleted: true, error: null },
+  ].map((body): [string, () => Response] => [`envelope ${JSON.stringify(body)}`, () => Response.json(body)]),
+  ['204', () => new Response(null, { status: 204 })],
+  ['malformed', () => new Response('{"ok":', { headers: { 'content-type': 'application/json' } })],
+  ['empty', () => new Response('', { headers: { 'content-type': 'application/json' } })],
+  ['non JSON positive body', () => new Response('{"ok":true,"deleted":true}')],
+  ...[404, 502].map((status): [string, () => Response] =>
+    [`HTML ${status}`, () => new Response('<html>private raw detail</html>', { status })]),
+  ['interrupted JSON', () => new Response(new ReadableStream({
+    start(controller) { controller.error(new Error('private raw stream detail')) },
+  }), { headers: { 'content-type': 'application/json' } })],
+  ['network', () => { throw new TypeError('private raw network detail') }],
+  ['abort', () => { throw new DOMException('private raw abort detail', 'AbortError') }],
+  ['timeout', () => { throw new DOMException('private raw timeout detail', 'TimeoutError') }],
+]
+
+for (const [name, fixture] of ambiguous) {
+  test(`${name} is unconfirmed, never retryable and never raw/partial/failure`, async () => {
+    let calls = 0
+    await assert.rejects(() => requestAccountDeletion('fixture-secret', (async () => {
+      calls++
+      return fixture()
+    }) as typeof fetch), (err: unknown) => {
+      assert.ok(err instanceof AccountDeletionUnconfirmedError)
+      assert.equal(err.retryable, false)
+      assert.match(err.message, /Some data may already have been removed/)
+      assert.match(err.message, /contact support before making another request/)
+      assert.doesNotMatch(err.message, /try again|did not complete|partial|private raw/i)
+      assert.equal(err.evidence?.classification, 'unconfirmed')
+      assert.doesNotMatch(JSON.stringify(err.evidence), /fixture-secret|private raw|try again/)
+      return true
+    })
+    assert.equal(calls, 1)
+  })
+}
+
+test('support evidence is bounded and allowlisted; missing release never invalidates success', async () => {
+  for (const release of ['unbuilt', `sha256:${'a'.repeat(64)}`, 'private arbitrary identity', 'x'.repeat(500)]) {
+    const before = Date.now()
+    await assert.rejects(() => requestAccountDeletion('secret', (async () => Response.json({
+      error: 'private text', ok: null, deleted: [], identity: 'private identity',
+      stage: 'auth_deletion', partialCompletion: true,
+    }, { status: 500, headers: { 'X-API-Release': release, 'X-Request-ID': 'private identity' } })) as typeof fetch),
+    (err: unknown) => {
+      assert.ok(err instanceof AccountDeletionApiError)
+      const evidence = err.evidence!
+      assert.ok(Date.parse(evidence.requestedAtUtc) >= before)
+      assert.ok(evidence.requestedAtUtc.endsWith('Z'))
+      assert.deepEqual(evidence.fields, { ok: 'null', deleted: 'array', error: 'string' })
+      assert.equal(evidence.destination, 'https://api.postround.test')
+      assert.equal(evidence.method, 'POST')
+      assert.equal(evidence.path, '/api/account/delete')
+      assert.equal(evidence.release, release.startsWith('sha256:') || release === 'unbuilt' ? release : undefined)
+      assert.doesNotMatch(JSON.stringify(evidence), /private|identity|stage|partialCompletion|secret/)
+      return true
+    })
   }
+  await requestAccountDeletion('fixture', (async () => Response.json({
+    ok: true, deleted: true, stage: 'ignored', retryable: true,
+  })) as typeof fetch)
 })

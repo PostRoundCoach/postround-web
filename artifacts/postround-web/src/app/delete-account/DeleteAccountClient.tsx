@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Loader2, AlertTriangle, CheckCircle2, ShieldAlert } from 'lucide-react'
-import { requestAccountDeletion } from '@/lib/account-deletion/client'
+import { AccountDeletionApiError, AccountDeletionUnconfirmedError, requestAccountDeletion, UNCONFIRMED_MESSAGE, type DeletionEvidence } from '@/lib/account-deletion/client'
 import {
   clearDeletedAccountSession,
   navigateAfterDeletion,
@@ -22,7 +22,8 @@ export function DeleteAccountClient() {
   const [session, setSession] = useState<Session | null>(null)
   const [isLoadingSession, setIsLoadingSession] = useState(true)
   const [isDeleting, setIsDeleting] = useState(false)
-  const [deleteStatus, setDeleteStatus] = useState<'idle' | 'success' | 'error'>('idle')
+  const [deleteStatus, setDeleteStatus] = useState<'idle' | 'success' | 'rejected' | 'unconfirmed'>('idle')
+  const [supportEvidence, setSupportEvidence] = useState<DeletionEvidence>()
   const [errorMessage, setErrorMessage] = useState('')
   const [confirmationText, setConfirmationText] = useState('')
   const [acknowledged, setAcknowledged] = useState(false)
@@ -65,8 +66,9 @@ export function DeleteAccountClient() {
     try {
       await requestAccountDeletion(session.access_token)
     } catch (err: unknown) {
-      setDeleteStatus('error')
-      setErrorMessage(err instanceof Error ? err.message : 'We could not confirm the account deletion outcome. Please contact support before making another request.')
+      setDeleteStatus(err instanceof AccountDeletionApiError && !(err instanceof AccountDeletionUnconfirmedError) && err.evidence?.classification.endsWith('_rejected') ? 'rejected' : 'unconfirmed')
+      setErrorMessage(err instanceof AccountDeletionApiError ? err.message : UNCONFIRMED_MESSAGE)
+      if (err instanceof AccountDeletionApiError) setSupportEvidence(err.evidence)
       setIsDeleting(false)
       return
     }
@@ -111,7 +113,7 @@ export function DeleteAccountClient() {
             Account Deleted
           </h2>
           <p className="text-muted-foreground mb-6">
-            Your Post Round account and associated data have been permanently removed.
+            The API confirmed deletion of your Post Round account through its application-data cleanup and account identity removal process. This does not confirm erasure from every store; the retention limits below still apply.
           </p>
           {cleanupWarning && <p role="status" className="mb-4 text-sm text-muted-foreground">{cleanupWarning}</p>}
           {navigationWarning && <p role="status" className="mb-4 text-sm text-muted-foreground">{navigationWarning}</p>}
@@ -119,6 +121,9 @@ export function DeleteAccountClient() {
             <strong>Note:</strong> This does not automatically cancel any Apple App Store subscriptions. 
             If you have an active subscription, you must cancel it through your Apple ID settings.
           </div>
+          <p className="text-sm text-muted-foreground mb-6">
+            Security/audit history, waitlist marketing records, and detached creator referral records may remain. External provider records, uploaded media, logs, backups, and published copies are not confirmed erased by this process. Deletion does not cancel billing; manage any subscription with its provider.
+          </p>
           <div className="space-y-3">
             <Button variant="outline" className="w-full" asChild>
               <a href="https://support.apple.com/en-us/HT202039" target="_blank" rel="noopener noreferrer">
@@ -174,7 +179,8 @@ export function DeleteAccountClient() {
           <ul className="list-disc pl-5 space-y-1">
             <li>Your profile, rounds, scorecards, and insights will be permanently deleted.</li>
             <li>You will immediately lose access to all coaching features.</li>
-            <li>Basic security and audit records may be retained for compliance.</li>
+            <li>Security and audit records may be retained, along with separate waitlist marketing records and detached creator referral records.</li>
+            <li>This process does not confirm removal of external provider records, uploaded media, logs, backups, or published copies. Deletion does not cancel billing; manage subscriptions with their provider.</li>
             <li><strong>This action cannot be undone.</strong></li>
           </ul>
         </div>
@@ -184,9 +190,16 @@ export function DeleteAccountClient() {
           Deleting your account <strong>does not</strong> cancel your Apple App Store subscription. You must <a href="https://support.apple.com/en-us/HT202039" target="_blank" rel="noopener noreferrer" className="underline hover:text-destructive/80 font-medium">cancel your subscription through Apple</a> to stop future charges.
         </div>
 
-        {deleteStatus === 'error' && (
-          <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4">
+        {(deleteStatus === 'rejected' || deleteStatus === 'unconfirmed') && (
+          <div role="alert" className="bg-destructive/10 border border-destructive/20 rounded-lg p-4">
+            <h3 className="font-semibold">{deleteStatus === 'rejected' ? 'Request rejected' : 'Deletion outcome unconfirmed'}</h3>
             <p className="text-destructive font-medium">{errorMessage}</p>
+            {supportEvidence && (
+              <details className="mt-3 text-xs">
+                <summary>Safe details for support</summary>
+                <pre className="whitespace-pre-wrap break-all">{JSON.stringify(supportEvidence, null, 2)}</pre>
+              </details>
+            )}
           </div>
         )}
 
