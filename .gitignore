@@ -31,6 +31,7 @@ node_modules
 /.sass-cache
 /connect.lock
 /coverage
+/generated-artifacts/
 artifacts/postround-web/.next-e2e/
 artifacts/postround-web/test-results/
 artifacts/postround-web/playwright-report/
