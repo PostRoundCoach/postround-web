@@ -1,0 +1,41 @@
+## Investigate and Fix Missing Creator Signup Fallback in Production
+
+Investigate the production creator signup confirmation flow at `www.postroundcoach.com/r/prcoachtest`.
+
+### Verified production behavior
+- With Post Round installed, tapping **Open Post Round** launches the app.
+- Without Post Round installed, tapping the same button opens a tab displaying `golf-coach://` and stalls.
+- The confirmation page does not visibly present the Google Play internal-testing link or tester-access instructions.
+- No useful error message or alternative action appears when the handoff fails.
+
+### Objective
+Identify why the intended fallback from the previous Android signup handoff task is absent from the actual production confirmation page, then make the smallest safe correction in the web project.
+
+### Investigation
+1. Inspect the current production web code on `main`, especially:
+   - `src/app/(auth)/signup/complete/page.tsx`
+   - `src/components/auth/SignupConfirmationView.tsx`
+   - Related signup confirmation tests and documentation.
+2. Determine which component and code path actually render the confirmation page reached after creator referral signup.
+3. Verify whether the Google Play internal-testing URL and tester instructions are included in the production-rendered page. Identify whether the issue is a missing conditional, an unused component, a stale deployment, or another specific cause.
+4. Do not assume the previous implementation is present or working merely because its task notes say it was added.
+
+### Required behavior
+- Preserve the existing creator attribution confirmation.
+- Preserve **Open Post Round** and the existing `golf-coach://` launch behavior.
+- Display a clearly visible, separate fallback action for users who cannot open the app.
+- Use the supplied internal-testing opt-in URL:
+  `https://play.google.com/apps/internaltest/4701664780036715121`
+- Include concise tester-access guidance so users understand that they may need to join the internal test and install the app before opening it.
+- Keep **Continue on web**, if already supported.
+- Do not imply that tapping a custom URI will reliably detect whether the app is installed. Do not depend on the custom URI tab producing an error.
+- Do not change referral attribution logic, authentication, production database state, native Android code, or AAB configuration.
+
+### Verification
+- Add or update tests to verify the fallback is visibly rendered on the actual signup confirmation path.
+- Run the focused tests and report their results, including any pre-existing failures.
+- Confirm which production route and component the fix affects.
+- Do not publish or deploy to production without explicit approval.
+
+### Completion report
+Report the identified root cause, files changed, test results, and the exact manual production test needed next. Do not claim the fallback is verified on a real device until it has been tested there.

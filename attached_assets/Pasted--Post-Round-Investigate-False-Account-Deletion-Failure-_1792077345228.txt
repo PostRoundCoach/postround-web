@@ -1,0 +1,100 @@
+# Post Round — Investigate False Account-Deletion Failure on Production Main
+
+## Confirmed production evidence
+
+I tested the latest web deployment on the Vercel `main` branch.
+
+The web interface displayed:
+
+"Account deletion did not complete. Some data may have already been removed. Please contact support before making another request."
+
+**I then checked Supabase and independently verified that the user's profile and Supabase Auth identity had both been deleted.**
+
+This is not merely a hypothetical partial-deletion scenario. The account was deleted, but the deployed web flow reported that deletion did not complete.
+
+Do not disregard or downgrade this verified account-state evidence. At the same time, do not assume it establishes the original HTTP response, the serving API release, or the exact operation that triggered the message.
+
+## Objective
+
+Identify why the deployed web account-deletion flow reports failure after the user's profile and Auth identity have been deleted.
+
+Determine whether the failure message originates from:
+- An API error returned after deletion side effects have occurred.
+- An API response-contract mismatch.
+- A logging, response-emission or other post-deletion exception.
+- A transport or response-parsing failure.
+- A stale or unexpected Vercel/API deployment.
+- Another identifiable client or server defect.
+
+These are hypotheses to investigate, not conclusions to assume.
+
+## Required investigation
+
+### 1. Trace the exact message
+
+Locate the code path that displays the exact message above.
+
+Identify the precise conditions, API fields, HTTP statuses or exceptions that cause the web client to enter that branch.
+
+### 2. Verify the deployed web version
+
+Establish which commit/build is currently deployed to Vercel `main` and whether it contains the tested account-deletion correction.
+
+Confirm the API destination configured for that deployed web build. Do not expose credentials.
+
+### 3. Trace the API deletion sequence
+
+Using existing source code, tests and available logs, determine the order of:
+- Application-data cleanup.
+- Profile deletion.
+- Supabase Auth identity removal.
+- Completion logging.
+- HTTP response generation and delivery.
+
+Identify any path that can produce an error response after the account has already been removed.
+
+Pay particular attention to exceptions after irreversible deletion side effects have completed.
+
+### 4. Establish what the existing evidence supports
+
+The profile and Auth identity are confirmed deleted. The original HTTP status, response body and authoritative serving API release have not yet been established.
+
+Inspect available existing logs and deployment metadata for the relevant attempt. Use only sanitized public response fields and safe diagnostic information.
+
+Do not substitute offline fixture results for production evidence. If the original response cannot be recovered, state that limitation clearly.
+
+### 5. Evaluate the safest correction
+
+Determine whether the correct fix belongs in the web client, the authoritative API, or both.
+
+Do not simply make the frontend display success for every error. A genuine partial deletion or failed required cleanup must not be silently reported as fully successful.
+
+Any proposed fix must distinguish:
+- Confirmed complete deletion.
+- Confirmed incomplete deletion.
+- An ambiguous outcome where the server or client cannot establish completion.
+
+Recommend the smallest change supported by the evidence.
+
+## Strict safety constraints
+
+- Do not submit another production account-deletion request.
+- Do not create, delete or modify production accounts or records.
+- Do not run destructive SQL, cleanup RPCs or migrations.
+- Do not deploy or publish changes.
+- Do not rebuild the Android app.
+- Do not weaken authentication, exact `DELETE` confirmation, authorization or cleanup requirements.
+- Do not expose access tokens, cookies, service-role keys, API secrets, raw HAR files or upstream authentication rejection bodies.
+
+## Required final report
+
+Provide:
+1. The exact code path responsible for the displayed message.
+2. The verified Vercel main commit/build and configured API destination.
+3. Any recovered sanitized HTTP status and public response fields.
+4. The API operation sequence and whether an error can be emitted after deletion side effects.
+5. The confirmed root cause, if supported by direct evidence.
+6. Otherwise, the precise remaining uncertainty and smallest safe next diagnostic step.
+7. The proposed minimal correction and relevant test coverage.
+
+**Important:** The account's profile and Auth identity have already been verified as deleted. Do not ask me to repeat that deletion or use another destructive production test to establish it again.
