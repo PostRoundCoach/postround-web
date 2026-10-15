@@ -1,5 +1,27 @@
 import { expect, test, type Page } from '@playwright/test'
-import { ANDROID_INTERNAL_TEST_URL } from '../src/lib/referrals/config'
+import { androidStoreUrl, ANDROID_INTERNAL_TEST_URL } from '../src/lib/referrals/config'
+
+// Match the runtime fixture's validation, including deliberately invalid configuration.
+const configuredStore = (() => {
+  const old = process.env.ANDROID_STORE_URL
+  process.env.ANDROID_STORE_URL = process.env.E2E_ANDROID_STORE_URL ?? ''
+  try { return androidStoreUrl() } finally {
+    if (old === undefined) delete process.env.ANDROID_STORE_URL
+    else process.env.ANDROID_STORE_URL = old
+  }
+})()
+
+async function expectInternalTest(page: Page) {
+  const fallback = page.getByRole('link', { name: 'Join Google Play internal test', exact: true })
+  await expect(fallback).toBeVisible()
+  await expect(fallback).toHaveAttribute('href', ANDROID_INTERNAL_TEST_URL)
+  await expect(fallback).toHaveAttribute('target', '_blank')
+  await expect(page.getByText(/Join the internal test using an eligible or invited Google account/)).toBeVisible()
+  await expect(page.getByText(/then install Post Round before opening it/)).toBeVisible()
+  await expect(page.getByText(/If Google Play says you do not have access, continue on web/)).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Continue on web' })).toHaveAttribute('href', '/dashboard')
+  return fallback
+}
 
 const fixture = 'http://127.0.0.1:54321'
 async function configure(page: Page, data: Record<string, unknown>) {
@@ -44,14 +66,16 @@ test('creator password signup confirms durable attribution; CTAs do not claim or
   const open = page.getByRole('link', { name: 'Open Post Round', exact: true })
   await expect(open).toHaveAttribute('href', 'golf-coach://')
   await expect(open).toHaveAttribute('target', '_blank')
-  if (process.env.E2E_ANDROID_STORE_URL) {
+  const fallback = await expectInternalTest(page)
+  await fallback.evaluate((element) => element.addEventListener('click', (event) => event.preventDefault()))
+  await fallback.click()
+  if (configuredStore) {
     const download = page.getByRole('link', { name: 'Download Post Round' })
-    await expect(download).toHaveAttribute('href', process.env.E2E_ANDROID_STORE_URL)
+    await expect(download).toHaveAttribute('href', configuredStore)
     await download.evaluate((element) => element.addEventListener('click', (event) => event.preventDefault()))
     await download.click()
   } else {
-    await expect(page.getByRole('link', { name: 'Download Post Round' })).toHaveAttribute('href', ANDROID_INTERNAL_TEST_URL)
-    await expect(page.getByText(/Google Play internal testing/)).toBeVisible()
+    await expect(page.getByRole('link', { name: 'Download Post Round' })).toHaveCount(0)
   }
   // Prevent the OS scheme handler in this web-only fixture, recording the exact user-clicked href.
   await open.evaluate((element) => element.addEventListener('click', (event) => {
@@ -65,6 +89,7 @@ test('creator password signup confirms durable attribution; CTAs do not claim or
   expect(ctaReferralRequests).toEqual([])
   await page.screenshot({ path: testInfo.outputPath('signup-confirmation.jpg'), fullPage: true })
   await page.setViewportSize({ width: 402, height: 874 })
+  await expectInternalTest(page)
   await page.screenshot({ path: testInfo.outputPath('signup-confirmation-mobile.jpg'), fullPage: true })
   await page.reload()
   await expect(page.getByText(/Your creator referral has been applied/)).toBeVisible()
@@ -80,18 +105,23 @@ test('creator password signup confirms durable attribution; CTAs do not claim or
   await expect(page).toHaveURL(/\/dashboard$/)
 })
 
-test('Android confirmation exposes the internal-testing fallback without CTA mutations', async ({ browser }, testInfo) => {
+test('mobile referral signup exposes the internal-testing fallback without CTA mutations', async ({ browser }, testInfo) => {
   // Android UA is presentation evidence only, not Android OS or installed-app proof.
   const context = await browser.newContext({
     userAgent: 'Mozilla/5.0 (Linux; Android 14) Chrome/130 Mobile Safari/537.36',
     viewport: { width: 402, height: 874 },
   })
   const page = await context.newPage()
-  await page.goto('/signup')
+  // Model following a web referral then continuing signup on mobile. Override
+  // only this entry request: Android store-first routing is tested separately.
+  await page.route('**/r/creator-fixture', (route) => route.continue({
+    headers: { ...route.request().headers(), 'user-agent': 'Desktop referral fixture' },
+  }), { times: 1 })
+  await page.goto('/r/creator-fixture')
   await signup(page)
-  // Wait for ordinary signup's existing redirect before navigating to confirmation.
-  await expect(page).toHaveURL(/\/dashboard$/)
-  await page.goto('/signup/complete')
+  await expect(page).toHaveURL(/\/signup\/complete$/)
+  await expect(page.getByText(/Your creator referral has been applied/)).toBeVisible()
+  const download = await expectInternalTest(page)
   const before = await metrics(page)
   const open = page.getByRole('link', { name: 'Open Post Round', exact: true })
   await expect(open).toHaveAttribute('href', 'golf-coach://')
@@ -101,8 +131,7 @@ test('Android confirmation exposes the internal-testing fallback without CTA mut
   await open.click()
   await expect(page).toHaveURL(/\/signup\/complete$/)
   await expect(page.getByText(/If the app does not open/)).toBeVisible()
-  const download = page.getByRole('link', { name: 'Download Post Round' })
-  await expect(download).toHaveAttribute('href', process.env.E2E_ANDROID_STORE_URL ?? ANDROID_INTERNAL_TEST_URL)
+  await expectInternalTest(page)
   await download.evaluate((element) => element.addEventListener('click', (event) => event.preventDefault()))
   await download.click()
   expect(await metrics(page)).toEqual(before)
@@ -257,7 +286,7 @@ test('Android routing preserves install-before-signup and opaque Install Referre
   })
   expect(response.status()).toBe(302)
   const target = new URL(response.headers().location)
-  if (process.env.E2E_ANDROID_STORE_URL) {
+  if (configuredStore) {
     expect(target.origin).toBe('https://play.google.com')
     const evidence = new URLSearchParams(target.searchParams.get('referrer')!).get('pr_ref')
     expect(evidence).toMatch(/^[0-9a-f-]{36}$/)

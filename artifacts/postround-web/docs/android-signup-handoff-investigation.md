@@ -1,3 +1,178 @@
+# Production fallback restoration — 2026-10-15
+
+This section supersedes the earlier fallback implementation and test status below.
+It records a web-only investigation/correction, not distributed-build or device proof.
+
+## Evidence and confidence
+
+- **Owner device observations (provided, not repeated here):** Open Post Round
+  launches an installed app; without it, Android Chrome opens a stalled
+  `golf-coach://` tab. The observed confirmation lacked the internal-test
+  alternative/instructions.
+- **Non-mutating serving-release inspection:** `GET /signup` on
+  `https://www.postroundcoach.com` returned 200, `Server: Vercel`, matched
+  `/signup`, and a signup script URL with
+  `dpl=dpl_DUt1Am7ZMMKazjuRK8sERZy6B2QH`.
+  The authenticated Vercel read
+  `GET /v13/deployments/www.postroundcoach.com` identified that same READY
+  production deployment, canonical aliases including `www.postroundcoach.com`,
+  repository `PostRoundCoach/postround-web`, branch `main`, and commit
+  `9305b12877a9d43ce1e3ede5e567a33376430e3a`.
+  Replit's deployment lookup separately identified
+  `https://postroundcoach-web.replit.app`; that is not proof about the canonical
+  Vercel site's content.
+- **Serving-source comparison:** read-only GitHub contents requests at the
+  Vercel-reported commit and current remote `main` returned identical blob IDs
+  for referral entry, signup, complete page, confirmation client/view, and
+  referral config. The deployed-commit view already contains the internal-test
+  conditional; the page already calls `androidConfirmationStoreUrl()`.
+  This rules out “the earlier fallback code was never deployed” for the release
+  identified during this inspection. It does not prove a particular user's
+  browser received that release at the earlier observation time.
+- **Guarded production HTML:** signed-out `GET /signup/complete` resolved to
+  `/login` (200 after redirect), without confirmation text. No authorized
+  confirmed-player browser session was used, and no production environment
+  values were read. Thus signed-in rendered props and effective runtime
+  `ANDROID_STORE_URL` validity remain unverified.
+- **Confirmed source defect, conditional production cause:** a valid configured
+  Play details URL takes precedence in `androidConfirmationStoreUrl()`. The
+  old view then hides the internal-test guidance because it requires exact
+  equality with the fallback constant, and its sole download points to the
+  configured listing. That deterministically explains both missing items
+  *if* the serving runtime has valid listing configuration. The code defect
+  is confirmed in serving-commit source; runtime configuration as the cause
+  of the owner's particular observation is not claimed proven. Remaining
+  evidence: an authorized existing confirmed-player session's rendered
+  confirmation (hrefs/instructions only, no tokens), plus owner confirmation
+  of the effective deployment's store-config validity without exposing values.
+
+No live `/r/prcoachtest` request was made: that GET invokes
+`issue_creator_referral` and would create install/referral evidence. No signup,
+claim, deletion, attribution, account, database, environment, DNS, or release
+mutation was performed. Only offline fixtures submit signup and claims.
+
+## Actual route and smallest correction
+
+Source trace (same relevant files on remote main and serving commit):
+`/r/prcoachtest` → `src/app/r/[slug]/route.ts` issues opaque evidence and
+sets the pending cookie → configured platform destination (web fallback
+`/signup`; Android can intentionally go to a configured Play listing first).
+Web password signup → signup email OTP confirmation → same-account password
+check → referred `finishVerified` pushes `/signup/complete`.
+That route is guarded by confirmed-user `getUser()` before constructing
+`SignupCompletePage` → `SignupConfirmation` → `SignupConfirmationView`.
+The page reads authoritative referral status; the existing client claim
+lifecycle is unchanged. There is no alternate unused confirmation component.
+The referral handler and signup transition were traced in source, not exercised
+against production.
+
+Only the view's handoff UI changes: always render a separate **Join Google Play
+internal test** action to exactly
+`https://play.google.com/apps/internaltest/4701664780036715121`,
+with eligible/invited Google-account, join-before-install, install-before-open,
+and no-access web guidance. A distinct valid configured details download
+remains available; omit a duplicate download when it equals the internal-test
+link. Availability requires neither scheme success nor install detection.
+Creator attribution messages, `golf-coach://`, `_blank`, safe external-link
+attributes and `/dashboard` continuation are preserved. Config helper, referral
+routing, auth, API, native code, and SQL are not changed.
+
+Changed files:
+- `src/components/auth/SignupConfirmationView.tsx`
+- `src/lib/referrals/confirmation.test.ts` (clarify preserved configured behavior)
+- `e2e/signup-confirmation.spec.ts` (real fixture referral→signup→confirmation,
+  desktop/mobile visible fallback and exact links, guidance, CTA no-mutation checks)
+- `e2e/start-app.sh` (unset absent fixture store config rather than inheriting it)
+- `PRODUCTION_ENV_CHECKLIST.md`
+- `docs/android-signup-handoff-investigation.md`
+- `.agents/memory/creator-signup-handoff.md` (correct latest user-reported behavior)
+
+## Verification and release handoff
+
+Final verification results (repository-root commands):
+
+1. Before edits, and again after edits:
+   `pnpm --filter @workspace/postround-web exec node --experimental-strip-types --test src/lib/referrals/confirmation.test.ts src/lib/referrals/referrals.test.ts`
+   → **6 passed, 1 failed**, identically before/after. All **4 confirmation
+   unit tests passed**; **2/3 related referral tests passed**. Pre-existing
+   failure: `favorite amendment is function-only and guards both web success
+   paths`, `referrals.test.ts:15`, expects
+   `CREATE OR REPLACE FUNCTION public.claim_creator_referral`, but its input
+   migration `supabase/migrations/202610070001_web_referral_favorite.sql`
+   contains only two spaces. No migration or unrelated assertion was edited.
+2. Fresh isolated production build and complete confirmation suite:
+   `PLAYWRIGHT_CHROMIUM_PATH=/repl/tools/bin/chromium pnpm exec sh artifacts/postround-web/e2e/run-tests.sh signup-confirmation.spec.ts`
+   → build completed; **11 passed, 1 failed** on the first run. The first
+   desktop test timed out waiting for the Create account button's click
+   actionability (before confirmation), not on a fallback assertion. No
+   product/auth workaround, forced click, timeout relaxation, or retry setting
+   was added. This browser timeout is observed, not asserted to be a proven
+   pre-existing product defect.
+3. Complete suite rerun on that same freshly completed isolated build, with
+   actual absent store configuration (the fixture startup explicitly unsets
+   it), no application-source changes:
+   ```sh
+   export PLAYWRIGHT_CHROMIUM_PATH=/repl/tools/bin/chromium
+   export E2E_USE_EXISTING_BUILD=1
+   unset E2E_ANDROID_STORE_URL
+   pnpm exec sh artifacts/postround-web/e2e/run-tests.sh signup-confirmation.spec.ts
+   ```
+   → **12 passed**, 36.2 seconds.
+4. Invalid and valid configuration journey/routing matrix on the same isolated
+   build, keeping the preceding exports:
+   ```sh
+   E2E_ANDROID_STORE_URL='invalid' pnpm exec sh artifacts/postround-web/e2e/run-tests.sh signup-confirmation.spec.ts --grep 'creator password signup|mobile referral signup|Android routing'
+   E2E_ANDROID_STORE_URL='https://play.google.com/store/apps/details?id=test.fixture' pnpm exec sh artifacts/postround-web/e2e/run-tests.sh signup-confirmation.spec.ts --grep 'creator password signup|mobile referral signup|Android routing'
+   ```
+   → **3 passed** (13.2 seconds) invalid; **3 passed** (11.9 seconds) valid.
+   Both desktop and Android-presentation referral signup journeys assert the
+   exact always-visible internal-test action/instructions. Configured download
+   retention and unchanged store-first opaque evidence routing are checked.
+   Metrics equality around canceled CTA clicks verifies no added claim,
+   attribution, profile write or evidence issuance.
+5. `pnpm --filter @workspace/postround-web typecheck` → **passed** (exit 0).
+   `git diff --check` → **passed**. No full unrelated web unit suite was run;
+   the historical results below are not current-run results.
+
+The existing runner restored tracked Next-generated TypeScript configuration;
+the test build used `.next-e2e`, not the managed preview build. Generated
+screenshots/traces remain in ignored `test-results`. The final valid-config
+mobile screenshot was visually inspected and shows both the internal-test
+action/guidance and configured download, with Continue on web below. The
+absent-config mobile screenshot was also inspected. The managed web workflow
+was restarted once after edits, reached ready and served `/` and `/login` with
+200; the signed-out `/signup/complete` preview correctly redirected to login.
+
+Fixtures prove web
+wiring only: scheme and external-store clicks are canceled before navigation,
+not evidence of native launch, installation, Play access, or scheme failure.
+Mobile coverage enters the web referral branch using a desktop-UA entry
+request and then continues with Android UA/viewport; the separate unchanged
+Android store-first test verifies its configured redirect/evidence contract.
+
+**Deployment status: not deployed or promoted by this task.** This task branch
+must first be merged and any production release separately explicitly approved;
+an automatic task completion/merge is not approval to release.
+
+**Exact post-approval manual Android Chrome test:** using an owner-authorized
+account/journey (any new account creation or signup submission needs separate
+approval), start at `https://www.postroundcoach.com/r/prcoachtest`, follow the
+canonical web referral signup/email-confirmation journey to `/signup/complete`,
+and verify the creator attribution copy plus the exact internal-test action
+and join/eligible-account/install guidance are visible *before* tapping Open
+Post Round, including when a valid details listing is configured. With the
+current distributed app installed, confirm the unchanged `golf-coach://`
+new-tab action launches it. Without the app, the known stalled scheme tab may
+remain: return to the original confirmation and verify the exact internal-test
+action and Continue on web remain usable. Follow the test link with an eligible
+or invited Google account, confirm joining/installing is understandable and
+works, and confirm lack of eligibility clearly directs to `/dashboard` via
+Continue on web. Record browser/build versions and result separately from
+fixtures. No real-device or authenticated production confirmation verification
+has been performed here.
+
+---
+
 # Android signup handoff: evidence and release boundary
 
 **Task status: blocked, not complete.** The confirmation-only download fallback
