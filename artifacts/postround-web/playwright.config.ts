@@ -33,6 +33,12 @@ export default defineConfig({
   ],
   webServer: [
     {
+      command: 'node e2e/deletion-ui/serve.mjs',
+      cwd: __dirname,
+      port: 3101,
+      reuseExistingServer: false,
+    },
+    {
       command: 'node e2e/fake-supabase.mjs',
       cwd: __dirname,
       port: 54321,

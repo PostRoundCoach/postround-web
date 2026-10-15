@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
-import { POST_ROUND_APP_URL } from '@/lib/referrals/config'
+import { ANDROID_INTERNAL_TEST_URL, POST_ROUND_APP_URL } from '@/lib/referrals/config'
 
 export type SignupConfirmationStatus =
   | 'applied'
@@ -87,10 +87,17 @@ export function SignupConfirmationView({
           Open Post Round
         </a>
         <p className="text-xs text-muted-foreground">
-          The app may not open on this device. This page stays available either
-          way. Opening it does not sign you in. Sign into the app with your email
+          If the app does not open, open Post Round from your home screen,
+          use the download link below, or continue on web. Opening it does not sign you in. Sign into the app with your email
           and the password you chose during signup, then follow its normal verification step.
         </p>
+        {storeUrl === ANDROID_INTERNAL_TEST_URL && (
+          <p className="text-xs text-muted-foreground">
+            Post Round is available through Google Play internal testing.
+            You need access to the test and the Google account invited to it.
+            If Google Play says you do not have access, continue on web.
+          </p>
+        )}
 
         {storeUrl ? (
           <a

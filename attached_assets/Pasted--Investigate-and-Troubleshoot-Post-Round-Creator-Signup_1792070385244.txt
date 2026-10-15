@@ -1,0 +1,173 @@
+# Investigate and Troubleshoot Post Round Creator Signup → Android App Handoff
+
+## Objective
+
+Investigate and resolve the Android app-launch handoff from the Post Round creator signup confirmation page.
+
+**Project scope: Post Round web project only.**
+
+Production creator signup and attribution have now been tested successfully. A production test account was created through a creator referral link, its favourite creator attribution was verified directly in the production database, and the user can successfully open the installed Android app and log in with that account.
+
+However, when the user taps **Open Post Round** on the web signup confirmation page, the browser navigates to a bare `golf-coach://` URI and the expected app handoff does not complete correctly.
+
+We need to establish exactly why this happens and fix the web launch mechanism without disturbing the working production signup, attribution, or authentication flows.
+
+## Non-negotiable constraints
+
+1. **Do not modify the production database or run SQL migrations.**
+2. **Do not modify the Android app project or introduce Android native-code changes as an initial troubleshooting step.**
+3. Do not trigger or request a new Android AAB build.
+4. Do not delete, recreate, or modify the existing production test account.
+5. Do not change creator attribution, referral claiming, signup, authentication, subscription, credit, or account-deletion logic.
+6. Do not change production environment variables, Supabase configuration, API configuration, DNS, Cloudflare, or deployment settings without identifying a specific, evidence-backed need and reporting it first.
+7. Do not introduce a new deep-link architecture before inspecting the existing implementation.
+8. Preserve existing working desktop and mobile web behavior.
+9. Do not claim that the issue is fixed unless the relevant behavior has been tested and the results documented.
+10. Do not expose authentication tokens, session cookies, secrets, or personal information in diagnostic logs.
+
+## Phase 1 — Trace the existing implementation
+
+Inspect the web project and identify the complete path from creator signup confirmation to Android app launch.
+
+Locate:
+
+- The creator referral signup route and signup confirmation/success page.
+- The **Open Post Round** button and its click handler.
+- Any helper functions responsible for app launching or deep-link construction.
+- The configured custom URI scheme and any associated environment variables.
+- Any references to `golf-coach://`, `golf-coach:///`, `intent://`, Android package IDs, Play Store URLs, or app-link domains.
+- Any existing Android intent fallback, browser fallback, visibility-change handler, timeout, or app-installed detection logic.
+- Any routing or URL-normalization code that might strip the intended path or parameters.
+- Existing tests covering creator signup confirmation or app launch.
+
+The known application identifiers are:
+
+- Product name: Post Round
+- Custom URI scheme: `golf-coach://`
+- Android package: `com.postroundcoach.app`
+- Website: `https://postroundcoach.com`
+- Canonical web domain: `https://www.postroundcoach.com`
+- Production API: `https://api.postroundcoach.com/api`
+
+Treat these as reference values to verify against the actual code and configuration, not as permission to change them.
+
+Trace the exact URL produced when the button is clicked, including the original intended destination and any parameters. Identify whether the button generates a bare scheme URI intentionally or accidentally.
+
+**Report the actual files, functions, URL values, and control flow involved. Do not stop at identifying a likely cause.**
+
+## Phase 2 — Determine the failure mechanism
+
+Investigate these possibilities individually and distinguish verified findings from hypotheses:
+
+1. The click handler constructs `golf-coach://` without a valid path or destination.
+2. The browser blocks, ignores, or handles the custom scheme differently depending on browser and Android version.
+3. The implementation attempts to launch the app through an invalid or incomplete Android intent URI.
+4. The intended destination is lost during routing, URL encoding, or redirect handling.
+5. The web page assumes that a custom scheme alone guarantees app launch.
+6. The launch attempt fails silently because there is no valid fallback or failure handling.
+7. The implementation expects an existing app session to be transferred from the browser when no such mechanism exists.
+8. The launch succeeds but does not navigate to the intended in-app screen.
+
+Determine which failure is actually supported by the evidence.
+
+Keep these behaviors separate in the investigation:
+
+- **App launch:** Does tapping the button open the installed app?
+- **Destination routing:** Does the app open the intended screen or destination?
+- **Authentication:** Does the user remain authenticated, or need to log in?
+- **Session handoff:** Is any authenticated web session explicitly and securely transferred to the app?
+
+Do not assume that success in one category proves success in the others.
+
+## Phase 3 — Evaluate the safest web-only fix
+
+After documenting the root cause, propose the smallest appropriate change.
+
+Evaluate the following options against the existing architecture:
+
+### Option A: Correct the existing custom-scheme launch
+
+If the application already supports the intended deep-link destination, correct the URL construction and button handler. Preserve the established scheme and routing conventions wherever possible.
+
+### Option B: Android intent URI with fallback
+
+If justified by the current implementation, evaluate an Android-compatible intent URI that targets the verified package and includes an appropriate HTTPS fallback.
+
+Do not invent a deep-link path or assume that the app supports a particular route. Verify the actual registered handlers and supported destinations first.
+
+### Option C: Verified HTTPS Android App Links
+
+Evaluate HTTPS App Links only if the existing app configuration and domain setup support them or if the investigation demonstrates why this is the appropriate longer-term fix.
+
+Before recommending this option, identify the exact prerequisites, including Android intent filters and domain verification through `assetlinks.json`. These may require a future Android release or domain configuration change, so do not silently introduce them into this web-only task.
+
+### Fallback behavior
+
+The user must not be left on a blank page or a bare custom-scheme URI if the launch attempt fails.
+
+Where appropriate, provide a reliable fallback to the correct Google Play listing or an explanatory web page. Verify the real Play Store URL from the project's existing configuration before using it.
+
+Do not promise automatic authentication or session transfer unless an existing, verified, secure implementation supports it.
+
+## Phase 4 — Implement only an evidence-backed fix
+
+If the root cause is confirmed and the fix can be made safely within the web project:
+
+- Make the smallest targeted change.
+- Limit modifications to the creator signup confirmation page, launch helper, and directly related tests.
+- Preserve the existing referral attribution and signup flow.
+- Preserve the current production account and its data.
+- Do not add unnecessary dependencies.
+- Do not introduce arbitrary delays as a substitute for understanding browser behavior.
+- Do not log sensitive URL parameters, tokens, cookies, or authentication data.
+- Ensure the button has appropriate behavior when the app is not installed or the launch attempt is blocked.
+
+If the correct fix requires changes to the Android app, production domain configuration, or another external system, stop before making those changes. Document the evidence, the exact prerequisite, and the smallest follow-up task instead.
+
+## Phase 5 — Verification and regression tests
+
+Run the relevant existing tests and add targeted tests for the launch behavior.
+
+At minimum, verify:
+
+1. The button constructs the intended, valid destination URL.
+2. No code path unintentionally navigates to a bare `golf-coach://` URI.
+3. The correct Android package and any fallback URL are used where applicable.
+4. Referral attribution and signup confirmation behavior remain unchanged.
+5. The app-not-installed or blocked-launch fallback behaves appropriately.
+6. URL construction handles any required encoding correctly.
+7. No credentials, tokens, or session secrets are placed into URLs or logs.
+8. Existing type checks, lint checks, and relevant automated tests pass.
+
+If browser automation or an Android device is available, test the real click path on Android Chrome with the app installed. Also test the fallback path when the app cannot be launched.
+
+Clearly distinguish automated unit-test results from real-device verification. Do not claim that a unit test proves the Android app launches successfully.
+
+Do not use the production test account for destructive testing.
+
+## Phase 6 — Production and preview boundaries
+
+Identify which deployment or environment the current web project is targeting before testing.
+
+Use preview/staging for implementation verification wherever possible, ensuring it uses the intended production-compatible configuration without modifying production data.
+
+Do not publish to production automatically. Report the proposed deployment target and wait for approval if a production deployment is required.
+
+Do not change environment configuration simply to make a test pass.
+
+## Required final report
+
+Return a concise, evidence-based report containing:
+
+1. **Root cause:** What was wrong, with the exact code location and observed URL.
+2. **Evidence:** What was inspected and what was actually reproduced.
+3. **Changes made:** Exact files changed and a summary of each change.
+4. **Tests:** Commands executed and pass/fail results.
+5. **Real-device status:** Whether Android Chrome launch behavior was tested on a device, or remains unverified.
+6. **Authentication and routing:** What is known about app launch, destination routing, login persistence, and session transfer.
+7. **Deployment status:** Whether the change is local, in preview, or deployed to production.
+8. **Remaining requirements:** Any Android, DNS, domain-verification, or other work that cannot be completed within the web project.
+
+**Success criterion:** We can explain why the current button produces a bare `golf-coach://` URI, implement the smallest safe correction supported by the evidence, and establish exactly what remains to be tested before relying on the production creator signup handoff.
+
+Do not expand this task into unrelated refactoring or account-deletion work.

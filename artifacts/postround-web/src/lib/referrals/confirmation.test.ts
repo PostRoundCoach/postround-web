@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { readFileSync } from 'node:fs'
-import { androidStoreUrl, POST_ROUND_APP_URL, referralDestination } from './config.ts'
+import { androidConfirmationStoreUrl, ANDROID_INTERNAL_TEST_URL, androidStoreUrl, POST_ROUND_APP_URL, referralDestination } from './config.ts'
 import { isReferralStatus, referralState } from './state.ts'
 
 test('only stored attribution confirms success; evidence alone is pending or invalid', () => {
@@ -31,15 +31,37 @@ test('only configured HTTPS Play details URL enables download; only store-first 
     ]) {
       process.env.ANDROID_STORE_URL = value
       assert.equal(androidStoreUrl(), null)
+      assert.equal(androidConfirmationStoreUrl(), ANDROID_INTERNAL_TEST_URL)
       assert.equal(referralDestination('android', 'event'), '/signup')
     }
     const valid = 'https://play.google.com/store/apps/details?id=test.fixture'
     process.env.ANDROID_STORE_URL = `${valid}&referrer=old-evidence`
     assert.equal(androidStoreUrl(), valid)
+    assert.equal(androidConfirmationStoreUrl(), valid)
     const install = new URL(referralDestination('android', 'opaque-event'))
     assert.equal(install.searchParams.get('id'), 'test.fixture')
     assert.equal(new URLSearchParams(install.searchParams.get('referrer')!).get('pr_ref'), 'opaque-event')
     assert.equal(POST_ROUND_APP_URL, 'golf-coach://')
+  } finally {
+    if (old === undefined) delete process.env.ANDROID_STORE_URL
+    else process.env.ANDROID_STORE_URL = old
+  }
+})
+
+test('owner-supplied internal test fallback is confirmation-only and never receives install evidence', () => {
+  const old = process.env.ANDROID_STORE_URL
+  try {
+    for (const value of [undefined, ANDROID_INTERNAL_TEST_URL,
+      'https://play.google.com/apps/internaltest/unverified',
+      `${ANDROID_INTERNAL_TEST_URL}?referrer=untrusted#fragment`]) {
+      if (value === undefined) delete process.env.ANDROID_STORE_URL
+      else process.env.ANDROID_STORE_URL = value
+      assert.equal(androidConfirmationStoreUrl(), ANDROID_INTERNAL_TEST_URL)
+      assert.equal(androidStoreUrl(), null)
+      assert.equal(referralDestination('android', 'opaque-evidence'), '/signup')
+      assert.equal(new URL(androidConfirmationStoreUrl()).search, '')
+      assert.equal(new URL(androidConfirmationStoreUrl()).hash, '')
+    }
   } finally {
     if (old === undefined) delete process.env.ANDROID_STORE_URL
     else process.env.ANDROID_STORE_URL = old
@@ -52,6 +74,9 @@ test('confirmation guards before constructing content and app CTAs contain no se
   assert.ok(page.indexOf("redirect('/login')") < page.indexOf('return <SignupConfirmation'))
   const view = read('../../components/auth/SignupConfirmationView.tsx')
   assert.match(view, /href=\{POST_ROUND_APP_URL\}/)
+  assert.match(view, /href=\{POST_ROUND_APP_URL\}\s+target="_blank"/)
+  assert.match(view, /continue on web/)
+  assert.match(page, /androidConfirmationStoreUrl\(\)/)
   assert.doesNotMatch(view, /fetch\(|useEffect|access_token|refresh_token|location\.|intent:|referrals\/claim/)
   const client = read('../../components/auth/SignupConfirmation.tsx')
   assert.match(client, /MAX_RETRIES = 3/)

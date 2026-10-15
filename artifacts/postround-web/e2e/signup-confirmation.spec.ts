@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
+import { ANDROID_INTERNAL_TEST_URL } from '../src/lib/referrals/config'
 
 const fixture = 'http://127.0.0.1:54321'
 async function configure(page: Page, data: Record<string, unknown>) {
@@ -49,8 +50,8 @@ test('creator password signup confirms durable attribution; CTAs do not claim or
     await download.evaluate((element) => element.addEventListener('click', (event) => event.preventDefault()))
     await download.click()
   } else {
-    await expect(page.getByRole('button', { name: 'Download Post Round' })).toBeDisabled()
-    await expect(page.getByText('Google Play listing coming soon.')).toBeVisible()
+    await expect(page.getByRole('link', { name: 'Download Post Round' })).toHaveAttribute('href', ANDROID_INTERNAL_TEST_URL)
+    await expect(page.getByText(/Google Play internal testing/)).toBeVisible()
   }
   // Prevent the OS scheme handler in this web-only fixture, recording the exact user-clicked href.
   await open.evaluate((element) => element.addEventListener('click', (event) => {
@@ -77,6 +78,48 @@ test('creator password signup confirms durable attribution; CTAs do not claim or
   expect((await metrics(page)).profileWrites).toBe(1)
   await page.getByRole('link', { name: 'Continue on web' }).click()
   await expect(page).toHaveURL(/\/dashboard$/)
+})
+
+test('Android confirmation exposes the internal-testing fallback without CTA mutations', async ({ browser }, testInfo) => {
+  // Android UA is presentation evidence only, not Android OS or installed-app proof.
+  const context = await browser.newContext({
+    userAgent: 'Mozilla/5.0 (Linux; Android 14) Chrome/130 Mobile Safari/537.36',
+    viewport: { width: 402, height: 874 },
+  })
+  const page = await context.newPage()
+  await page.goto('/signup')
+  await signup(page)
+  // Wait for ordinary signup's existing redirect before navigating to confirmation.
+  await expect(page).toHaveURL(/\/dashboard$/)
+  await page.goto('/signup/complete')
+  const before = await metrics(page)
+  const open = page.getByRole('link', { name: 'Open Post Round', exact: true })
+  await expect(open).toHaveAttribute('href', 'golf-coach://')
+  await expect(open).toHaveAttribute('target', '_blank')
+  // Canceled click proves only web wiring, never OS launch/failure or fallback survival.
+  await open.evaluate((element) => element.addEventListener('click', (event) => event.preventDefault()))
+  await open.click()
+  await expect(page).toHaveURL(/\/signup\/complete$/)
+  await expect(page.getByText(/If the app does not open/)).toBeVisible()
+  const download = page.getByRole('link', { name: 'Download Post Round' })
+  await expect(download).toHaveAttribute('href', process.env.E2E_ANDROID_STORE_URL ?? ANDROID_INTERNAL_TEST_URL)
+  await download.evaluate((element) => element.addEventListener('click', (event) => event.preventDefault()))
+  await download.click()
+  expect(await metrics(page)).toEqual(before)
+  await page.screenshot({ path: testInfo.outputPath('android-confirmation-fallback.jpg'), fullPage: true })
+  // Other mobile launch behavior remains the existing separate browsing context.
+  const iosContext = await browser.newContext({ userAgent: 'Mozilla/5.0 (iPhone) Safari/604.1' })
+  await iosContext.addCookies(await context.cookies())
+  const iosPage = await iosContext.newPage()
+  await iosPage.goto('/signup/complete')
+  const iosOpen = iosPage.getByRole('link', { name: 'Open Post Round', exact: true })
+  await expect(iosOpen).toHaveAttribute('href', 'golf-coach://')
+  await expect(iosOpen).toHaveAttribute('target', '_blank')
+  await iosContext.close()
+  await page.getByRole('link', { name: 'Continue on web' }).click()
+  await expect(page).toHaveURL(/\/dashboard$/)
+  expect(await metrics(page)).toEqual(before)
+  await context.close()
 })
 
 test('transient claim retains cookie, bounds explicit retries, and can recover on revisit', async ({ page }) => {

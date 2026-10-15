@@ -1,0 +1,44 @@
+Investigate and fix the false failure message in the Post Round web account-deletion flow.
+
+## Verified production evidence
+
+The web account-deletion function is executing, and I have independently verified in the production database that both the user's profile and Supabase Authentication account have been deleted. Despite this, the web interface displays:
+
+"Account deletion could not be completed. Please contact support."
+
+The user deletion itself therefore appears to succeed. Investigate why the web flow reports failure after the account has already been removed.
+
+## Requirements
+
+1. Trace the complete web account-deletion sequence, including the frontend handler, API request, HTTP status, response parsing, error handling, session cleanup, and post-deletion navigation.
+2. Identify the exact operation that triggers the error message. Determine whether it occurs before deletion, during deletion, or after successful deletion.
+3. Inspect the API's actual success and error response contracts. Do not assume a successful database deletion guarantees that the API returned HTTP 200.
+4. Distinguish a genuine deletion failure from a post-deletion session, cleanup, response-parsing, or navigation failure.
+5. Correct the underlying cause so the user receives an accurate outcome. When deletion is confirmed successful, do not display a deletion-failure message merely because a subsequent client-side operation fails.
+6. Preserve security and deletion guarantees. Do not report success if deletion has not actually succeeded or cannot be reliably established.
+7. Do not weaken authentication, bypass deletion checks, modify production data manually, or introduce a blind retry that could obscure the original failure.
+8. Add or update automated tests covering:
+   - Successful deletion with a normal API response.
+   - Successful deletion followed by a client-side session or navigation error.
+   - Genuine API deletion failure.
+   - Unexpected or malformed API responses.
+   - Correct final user messaging for each outcome.
+
+## Scope and deployment constraints
+
+- Keep changes narrowly focused on the web account-deletion flow and its directly related API contract, if needed.
+- Do not modify creator attribution, referral logic, unrelated migrations, subscription billing, or other features.
+- Do not run destructive production tests or delete additional production accounts.
+- Do not deploy to production or publish a new Android build without explicit approval.
+
+## Required final report
+
+Provide:
+1. The confirmed root cause, with file names and relevant code paths.
+2. The observed API status and response that explain the discrepancy.
+3. The exact code changes made.
+4. Automated test results, including failures and any checks that could not run.
+5. Whether the fix requires a web deployment, an API deployment, or both.
+6. Confirmation that no production deployment or destructive production test was performed.
+
+Do not claim the issue is fixed until the relevant tests pass.

@@ -16,7 +16,7 @@
 - [Supabase ledger verification](supabase-ledger-verification.md) — the data connector proves public schema behavior but cannot read the private migration ledger.
 - [Player entitlement display provenance](player-entitlement-display-provenance.md) — a checked-in mobile contract is not proof of deployed offers; prefer unavailable to invented balances or prices.
 - [Next page visibility guards](next-page-visibility-guards.md) — layout redirects can still serialize child content; guard hidden pages before constructing their JSX.
-- [Creator signup app handoff](creator-signup-handoff.md) — user verified `golf-coach://` navigation only; app launch, native sign-in, and attribution remain separate.
+- [Creator signup app handoff](creator-signup-handoff.md) — historical scheme proof is not current launch proof; internal-test fallback stays separate from referral routing.
 - [Signup credential proof](signup-credential-proof.md) — verified email and successful signup responses do not alone prove a reusable password; check same-account credentials.
 - [Deletion diagnostic safety](account-deletion-diagnostic-safety.md) — rejection bodies stay unread; historical diagnostics remain evidence, not a proven authentication cause.
 - [Creator read contract boundary](creator-read-contract-boundary.md) — canonical minimal reads outrank old consumers; offline mocks are not authenticated serving-release proof.

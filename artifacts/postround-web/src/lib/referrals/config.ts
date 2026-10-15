@@ -1,7 +1,15 @@
 export type ReferralPlatform = 'web' | 'android' | 'ios'
 
-/** Navigation only: the installed Android APK has been manually verified with this scheme. */
+/** Navigation only. Historical manual verification does not prove the current installed build. */
 export const POST_ROUND_APP_URL = 'golf-coach://'
+
+/** Distribution owner supplied this internal-testing fallback; access requires tester eligibility. */
+export const ANDROID_INTERNAL_TEST_URL = 'https://play.google.com/apps/internaltest/4701664780036715121'
+
+/** Confirmation only: internal testing is not a Play Install Referrer details listing. */
+export function androidConfirmationStoreUrl(): string {
+  return androidStoreUrl() ?? ANDROID_INTERNAL_TEST_URL
+}
 
 export function androidStoreUrl(): string | null {
   const url = storeUrl(process.env.ANDROID_STORE_URL, 'play.google.com')
