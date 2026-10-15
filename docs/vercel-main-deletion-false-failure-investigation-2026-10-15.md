@@ -1,5 +1,16 @@
 # Vercel main deletion false-failure investigation — 2026-10-15
 
+> Historical investigation, not current runtime guidance. The later supplied
+> October 15 authoritative contract and incident-evidence documents supersede
+> earlier assumptions: profile/Auth absence is a user-reported observation, not
+> independent verification here; candidate cleanup-confirmed/unexpected-Auth
+> diagnostics neither prove Auth failure nor uniquely identify the original
+> attempt. Current wire error bodies contain only `error`, not public stage or
+> retry fields. See `web-account-deletion-outcome-report-2026-10-15.md` and
+> `../artifacts/postround-web/docs/account-deletion-contract.md` for the current
+> conservative decision table and verification. Do not use this historical
+> report to justify safe retries or universal-erasure claims.
+
 ## Scope and evidence rules
 
 **The user's production profile and Supabase Auth identity are confirmed deleted.**
