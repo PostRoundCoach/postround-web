@@ -4,7 +4,7 @@ import { LegalPageShell } from '@/components/LegalPageShell'
 
 export const metadata: Metadata = {
   title: 'Terms of Service | Post Round',
-  description: 'Review the terms that apply when you access or use Post Round.',
+  description: 'Review the terms for Post Round, developed and operated by PR Coaching Software.',
 }
 
 export default function TermsPage() {
@@ -14,7 +14,8 @@ export default function TermsPage() {
       title="Terms of Service"
       description="These terms govern your access to and use of the Post Round app, website, and related services."
     >
-      <p className="legal-updated">Last Updated: September 19, 2026</p>
+      <p className="legal-updated">Last Updated: October 29, 2026</p>
+      <p>Post Round is developed and operated by PR Coaching Software. In these terms, “we”, “us”, and “our” refer to PR Coaching Software, the operator of the Post Round app, website, and related services.</p>
 
       <section><h2>1. Acceptance of these terms</h2><p>By accessing or using Post Round, you agree to these Terms of Service and our <Link href="/privacy">Privacy Policy</Link>. If you do not agree, do not use the service.</p></section>
       <section><h2>2. Accounts</h2><p>You must provide accurate information, keep your sign-in credentials secure, and promptly notify us of suspected unauthorized use. You are responsible for activity under your account. Do not share passwords or access tokens with us or with other users.</p></section>
@@ -29,7 +30,7 @@ export default function TermsPage() {
       <section><h2>11. Disclaimers</h2><p>To the fullest extent permitted by law, Post Round is provided “as is” and “as available.” We do not guarantee uninterrupted operation, error-free output, specific golf results, permanent availability of content, or that AI-generated insights will be accurate. Nothing in these terms excludes rights or warranties that cannot legally be excluded.</p></section>
       <section><h2>12. Limitation of liability</h2><p>To the fullest extent permitted by law, Post Round will not be liable for indirect, incidental, special, consequential, exemplary, or punitive damages, or for loss of data, profits, goodwill, or opportunities arising from use of the service. These limits do not apply where liability cannot legally be limited.</p></section>
       <section><h2>13. Suspension and termination</h2><p>You may stop using the service at any time. We may restrict or terminate access when reasonably necessary to protect users or the service, address violations, comply with law, or discontinue a feature. Provisions that by their nature should survive termination will remain in effect.</p></section>
-      <section><h2>14. Account deletion</h2><p>You can request deletion at the <Link href="/delete-account">Delete Account page</Link>. Deletion is permanent and removes access to associated rounds, scorecards, insights, Stories, and other account data covered by the process. Limited records may be retained where reasonably necessary for legal, security, fraud-prevention, or audit purposes. Delete or export anything you want to keep before confirming.</p></section>
+      <section><h2>14. Account deletion</h2><p>You can request deletion at the <Link href="/delete-account">Delete Account page</Link> after signing in, acknowledging permanent deletion, and typing the exact word DELETE. Deletion is permanent and removes access to account data covered by the process. Save anything you want to keep before confirming.</p><p>The process is intended to remove your account identity and the profile, round, scorecard, and related coaching data covered by application cleanup, not to certify erasure from every store. Security/audit history, separate waitlist marketing records, and detached creator referral records may remain. Removal of external provider records, uploaded media, logs, backups, and published copies is not confirmed by this process. If the outcome is unconfirmed, contact support before another request because some data may already have been removed. Deletion does not cancel billing; manage subscriptions separately with their provider.</p></section>
       <section><h2>15. Changes to these terms</h2><p>We may update these terms as Post Round changes. The revised terms will be posted with a new Last Updated date. Continued use after updated terms take effect means you accept them where permitted by law.</p></section>
       <section><h2>16. Contact</h2><p>Questions about these terms can be sent to <a href="mailto:support@postroundcoach.com">support@postroundcoach.com</a> or through our <Link href="/support">Support page</Link>.</p></section>
     </LegalPageShell>

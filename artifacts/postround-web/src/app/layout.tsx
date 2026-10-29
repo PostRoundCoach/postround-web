@@ -27,10 +27,10 @@ function siteUrl(): URL {
 export const metadata: Metadata = {
   metadataBase: siteUrl(),
   title: 'Post Round — Play. Learn. Share.',
-  description: 'Post Round captures your golf round while you play, helps you understand it afterward, and turns the moments that mattered into stories worth sharing.',
+  description: 'Post Round captures your golf round while you play, helps you understand it afterward, and turns the moments that mattered into stories worth sharing. Developed and operated by PR Coaching Software.',
   openGraph: {
     title: 'Post Round — Play. Learn. Share.',
-    description: 'Your game. Your story. Your people. Play your round, learn from it, and share what mattered.',
+    description: 'Your game. Your story. Your people. Play your round, learn from it, and share what mattered. Post Round is developed and operated by PR Coaching Software.',
     type: 'website',
   },
 }

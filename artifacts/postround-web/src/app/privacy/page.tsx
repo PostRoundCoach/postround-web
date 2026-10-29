@@ -4,7 +4,7 @@ import { LegalPageShell } from '@/components/LegalPageShell'
 
 export const metadata: Metadata = {
   title: 'Privacy Policy | Post Round',
-  description: 'Learn how Post Round collects, uses, shares, and protects information when you use the app and website.',
+  description: 'Learn how PR Coaching Software, the operator of Post Round, handles information when you use the app and website.',
 }
 
 export default function PrivacyPage() {
@@ -14,7 +14,8 @@ export default function PrivacyPage() {
       title="Privacy Policy"
       description="This policy explains what information Post Round handles, why we use it, and the choices available to you."
     >
-      <p className="legal-updated">Last Updated: September 19, 2026</p>
+      <p className="legal-updated">Last Updated: October 29, 2026</p>
+      <p>Post Round is developed and operated by PR Coaching Software. In this policy, “we”, “us”, and “our” refer to PR Coaching Software, and “Post Round” refers to the app, website, and related services.</p>
 
       <section>
         <h2>1. Information you provide</h2>
@@ -68,7 +69,9 @@ export default function PrivacyPage() {
 
       <section>
         <h2>11. Your choices and account deletion</h2>
-        <p>You can choose what round context to provide and whether to use optional voice or creator-sharing features. You may request permanent account deletion through our <Link href="/delete-account">Delete Account page</Link>. Deletion removes the account data covered by that process, subject to limited information we may retain where reasonably necessary for security, legal, fraud-prevention, or audit purposes. Deleting your Post Round account does not cancel an Apple App Store subscription.</p>
+        <p>You can choose what round context to provide and whether to use optional voice or creator-sharing features. To request withdrawal of consent for optional processing or creator sharing, or to ask about information already shared, contact <a href="mailto:support@postroundcoach.com">support@postroundcoach.com</a>. Content a creator has already used or published may remain outside Post Round’s control.</p>
+        <p>You may request permanent account deletion through our <Link href="/delete-account">Delete Account page</Link>. Sign in, review the warnings, acknowledge that deletion is permanent, and type the exact word DELETE before submitting. The process is intended to remove your account identity and the profile, round, scorecard, and related coaching data covered by application cleanup; it does not confirm erasure from every store.</p>
+        <p>Security/audit history, separate waitlist marketing records, and detached creator referral records may remain. Removal of external provider records, uploaded media, logs, backups, and published copies is not confirmed by this process. Contact us with questions about retained information or a deletion outcome. If the outcome is unconfirmed, some data may already have been removed; contact support before another request. Deletion does not cancel billing. Manage subscriptions separately with their provider, including Apple ID settings for Apple App Store subscriptions.</p>
       </section>
 
       <section>

@@ -1,0 +1,16 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "Lpjeoa4bc2GmHcgQ-fSWt"
+uri = "file://generated-artifacts/business-operator/390-home-footer.png"
+type = "image"
+title = "Mobile business attribution"
+description = "Locally verified 390px homepage footer with PR Coaching Software attribution and canonical policy/support links."
+logical_id = "579409c0-a29c-4027-9161-6d240d2ea373"
+content_hash = "sha256:2106fa34e582cb0e7242f275018fc0d71a499705941a453d82ee335d03def9cc"
+size = 43962
+mtime_ms = 1793274854120
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:6cb3df46-6b5a-4154-90db-16d92048a426/579409c0-a29c-4027-9161-6d240d2ea373/78022b7b-500c-41f8-94e5-5d97ec39ba2b"
+storage_version_token = "1793274886900437"
+content_type = "image/png"

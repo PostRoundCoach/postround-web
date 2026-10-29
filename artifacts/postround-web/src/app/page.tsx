@@ -84,7 +84,7 @@ export default function Home() {
         )}
       </nav>
 
-      <main>
+      <main className="overflow-x-clip">
         <section className="relative flex min-h-[100dvh] items-end overflow-hidden">
           <Image src="/golf-course-aerial.jpg" alt="A golf course at sunrise" fill priority sizes="100vw" className="object-cover" />
           <div className="absolute inset-0 bg-gradient-to-b from-[#0D1B12]/30 via-[#0D1B12]/45 to-[#0D1B12]" />

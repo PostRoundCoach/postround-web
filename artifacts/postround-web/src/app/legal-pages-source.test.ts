@@ -26,7 +26,7 @@ test('all four App Store-facing routes define unique metadata', () => {
 test('privacy and terms use a fixed date and clickable support contact', () => {
   for (const file of ['privacy/page.tsx', 'terms/page.tsx']) {
     const source = read(file)
-    assert.ok(source.includes('Last Updated: September 19, 2026'))
+    assert.ok(source.includes('Last Updated: October 29, 2026'))
     assert.ok(source.includes('mailto:support@postroundcoach.com'))
     assert.ok(source.includes('href="/delete-account"'))
   }
@@ -45,7 +45,7 @@ test('marketing navigation and footer expose required destinations once', () => 
   const home = read('page.tsx')
   const footer = fs.readFileSync(path.join(appDir, '../components/Footer.tsx'), 'utf8')
   assert.ok(home.includes("['Support', '/support']"))
-  for (const href of ['/privacy', '/terms', '/delete-account']) {
+  for (const href of ['/privacy', '/terms', '/delete-account', '/support']) {
     assert.equal((footer.match(new RegExp(`href="${href}"`, 'g')) ?? []).length, 1)
   }
 })
@@ -57,5 +57,34 @@ test('account deletion entry points and confirmation flow remain present', () =>
   assert.ok(client.includes('href="/login?next=/delete-account"'))
   assert.ok(client.includes("confirmationText === 'DELETE'"))
   assert.ok(client.includes('requestAccountDeletion(session.access_token)'))
-  assert.ok(client.includes('supabase.auth.signOut()'))
+  assert.ok(client.includes("supabase.auth.signOut({ scope: 'local' })"))
+})
+
+test('operator identity is visible on public pages without rebranding the product', () => {
+  const attribution = 'Post Round is developed and operated by PR Coaching Software.'
+  const footer = fs.readFileSync(path.join(appDir, '../components/Footer.tsx'), 'utf8')
+  assert.ok(footer.includes(attribution))
+  for (const file of ['privacy/page.tsx', 'terms/page.tsx', 'support/page.tsx', 'delete-account/page.tsx']) {
+    assert.ok(read(file).includes(attribution), file)
+    assert.match(read(file), /description: '[^']*PR Coaching Software/)
+  }
+  assert.ok(read('layout.tsx').includes("title: 'Post Round — Play. Learn. Share.'"))
+  assert.ok(read('layout.tsx').includes('Developed and operated by PR Coaching Software.'))
+  assert.ok(read('page.tsx').includes('Play. Learn. Share.'))
+})
+
+test('deletion steps and limits are in server-rendered public content', () => {
+  const page = read('delete-account/page.tsx')
+  for (const copy of ['Before you delete your account', 'sign in', 'acknowledgment',
+    'DELETE', 'once and wait', 'do not retry', 'does not cancel billing',
+    'waitlist marketing records', 'detached creator referral records',
+    'external provider records, uploaded media, logs, backups, and published copies']) {
+    assert.ok(page.includes(copy), copy)
+  }
+  assert.ok(page.indexOf('Before you delete your account') < page.indexOf('<DeleteAccountClient />'))
+  for (const file of ['privacy/page.tsx', 'terms/page.tsx', 'support/page.tsx']) {
+    assert.ok(read(file).includes('before another request'), file)
+    assert.ok(read(file).includes('does not cancel billing'), file)
+    assert.ok(read(file).includes('every store'), file)
+  }
 })

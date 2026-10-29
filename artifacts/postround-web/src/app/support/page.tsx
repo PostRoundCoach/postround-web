@@ -5,7 +5,7 @@ import { LegalPageShell } from '@/components/LegalPageShell'
 
 export const metadata: Metadata = {
   title: 'Support | Post Round',
-  description: 'Get help with your Post Round account, rounds, purchases, app issues, and account deletion.',
+  description: 'Contact PR Coaching Software for help with Post Round accounts, rounds, purchases, app issues, and deletion.',
 }
 
 const topics = [
@@ -22,6 +22,7 @@ export default function SupportPage() {
       title="Post Round Support"
       description="Need help with your account, a round, or an app feature? We’ll help you get back to your game."
     >
+      <p>Post Round is developed and operated by PR Coaching Software. Use the contact below for product support, privacy questions, or help with account deletion.</p>
       <section className="support-callout">
         <Mail className="h-6 w-6 text-[#D4AF37]" aria-hidden="true" />
         <div>
@@ -42,7 +43,8 @@ export default function SupportPage() {
 
       <section>
         <h2>Account deletion</h2>
-        <p>You can permanently delete your account through the <Link href="/delete-account">Delete Account page</Link>. This removes the account data covered by the deletion process and cannot be undone. Account deletion does not cancel an Apple App Store subscription; subscriptions must be managed separately through your Apple ID settings.</p>
+        <p>Start at the public <Link href="/delete-account">Delete Account page</Link> to review the steps and coverage limits before signing in. The action requires sign-in, acknowledgment of permanent deletion, and the exact word DELETE. Deletion cannot be undone and does not confirm erasure from every store; the page explains records that may remain. If the outcome is unconfirmed, some data may already have been removed. Contact us before another request.</p>
+        <p>Account deletion does not cancel billing. Manage subscriptions separately with their provider. An Apple App Store subscription must be managed through your Apple ID settings.</p>
       </section>
 
       <section>

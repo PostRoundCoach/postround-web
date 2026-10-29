@@ -36,6 +36,7 @@ export function Footer() {
         </div>
         
         <div className="mt-12 pt-8 border-t border-border/30 text-center text-sm text-muted-foreground">
+          <p className="mx-auto mb-3 max-w-xl">Post Round is developed and operated by PR Coaching Software.</p>
           <p>&copy; {new Date().getFullYear()} Post Round. All rights reserved.</p>
         </div>
       </div>
