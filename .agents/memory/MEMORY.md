@@ -21,3 +21,4 @@
 - [Deletion diagnostic safety](account-deletion-diagnostic-safety.md) — rejection bodies stay unread; historical diagnostics remain evidence, not a proven authentication cause.
 - [Creator read contract boundary](creator-read-contract-boundary.md) — canonical minimal reads outrank old consumers; offline mocks are not authenticated serving-release proof.
 - [Post-merge database safety](post-merge-database-safety.md) — automatic task reconciliation is not permission to mutate a database; keep schema changes explicitly approved.
+- [Web signup name scope](web-signup-name-scope.md) — the owner’s app-created example is not evidence of a web name bug; focus on creator-referred web mapping.

@@ -6,6 +6,8 @@ Post Round Coach.
 Creator referral schema, handoff, security and deployment details: [creator-referrals.md](creator-referrals.md).
 Web referral null-only favorite amendment and staging/release gates:
 [web-referral-favorite.md](web-referral-favorite.md).
+Web signup display-name mapping evidence, function-only correction and approval
+status: [signup-display-name-investigation.md](signup-display-name-investigation.md).
 
 ## Authoritative records
 
